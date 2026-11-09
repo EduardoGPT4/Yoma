@@ -239,6 +239,7 @@ class AnimeController extends ChangeNotifier {
       final detail = AnimeDetail.fromJson(data);
       details[slug] = detail;
       await store.putCache('detail:$slug', data);
+      if (refresh) changed();
       return detail;
     } catch (e) {
       if (cached != null) {
@@ -410,6 +411,15 @@ class AnimeController extends ChangeNotifier {
       if (d.slug == episode.slug &&
           d.number == episode.number &&
           d.language == language) {
+        return d;
+      }
+    }
+    return null;
+  }
+
+  AnimeDownload? readyDownload(AnimeEpisode episode) {
+    for (final d in downloads) {
+      if (d.slug == episode.slug && d.number == episode.number && d.ready) {
         return d;
       }
     }

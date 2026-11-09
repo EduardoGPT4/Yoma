@@ -233,7 +233,7 @@ class _StorageScreenState extends State<StorageScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text('Biblioteca: ${sizeLabel(libraryBytes)}'),
-                  Text('Imágenes temporales: ${sizeLabel(_cache)}'),
+                  Text('Páginas vistas guardadas: ${sizeLabel(_cache)}'),
                   Text('Miniaturas: ${sizeLabel(_thumbnails)}'),
                   if (_free != null)
                     Text('Espacio libre: ${sizeLabel(_free!)}'),

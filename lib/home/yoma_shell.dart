@@ -17,6 +17,8 @@ class YomaShell extends StatefulWidget {
 class _YomaShellState extends State<YomaShell> {
   final _manga = GlobalKey<NavigatorState>();
   final _anime = GlobalKey<NativeAnimeScreenState>();
+  final _mangaPages = _PageDepthObserver();
+  final _animePages = _PageDepthObserver();
   int _section = 0;
   bool _mangaVisited = false, _animeVisited = false;
 
@@ -36,6 +38,15 @@ class _YomaShellState extends State<YomaShell> {
   }
 
   @override
+  void dispose() {
+    _mangaPages.dispose();
+    _animePages.dispose();
+    super.dispose();
+  }
+
+  /// Manga sigue montado al cambiar de sección; TickerMode avisa al lector
+  /// para que suelte volumen, orientación y modo de pantalla.
+  @override
   Widget build(BuildContext context) => PopScope(
     canPop: _section == 0,
     onPopInvokedWithResult: (didPop, _) {
@@ -47,16 +58,20 @@ class _YomaShellState extends State<YomaShell> {
         children: [
           _Selector(onSelect: _select),
           if (_mangaVisited)
-            Navigator(
-              key: _manga,
-              onGenerateRoute: (_) =>
-                  MaterialPageRoute<void>(builder: (_) => const MainShell()),
+            TickerMode(
+              enabled: _section == 1,
+              child: Navigator(
+                key: _manga,
+                observers: [_mangaPages],
+                onGenerateRoute: _mainShellRoute,
+              ),
             )
           else
             const SizedBox.shrink(),
           if (_animeVisited)
             NativeAnimeScreen(
               key: _anime,
+              navigatorObservers: [_animePages],
               controller: widget.animeController,
               active: _section == 2,
               home: () => _select(0),
@@ -67,33 +82,88 @@ class _YomaShellState extends State<YomaShell> {
       ),
       bottomNavigationBar: _section == 0
           ? null
-          : SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: () => _select(0),
-                      icon: const Icon(Icons.space_dashboard_outlined),
-                      label: const Text('Yoma'),
-                    ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: () => _select(_section == 1 ? 2 : 1),
-                      icon: Icon(
-                        _section == 1
-                            ? Icons.play_circle_outline
-                            : Icons.menu_book_outlined,
-                      ),
-                      label: Text(_section == 1 ? 'Ir a Anime' : 'Ir a Manga'),
-                    ),
-                  ],
-                ),
-              ),
+          : ValueListenableBuilder<int>(
+              valueListenable: _section == 1
+                  ? _mangaPages.pages
+                  : _animePages.pages,
+              builder: (context, pages, bar) =>
+                  pages > 1 ? const SizedBox.shrink() : bar!,
+              child: _sectionBar(),
             ),
     ),
   );
+
+  /// Solo en la pantalla principal de cada sección: no tapa lector ni video.
+  Widget _sectionBar() => SafeArea(
+    top: false,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          TextButton.icon(
+            onPressed: () => _select(0),
+            icon: const Icon(Icons.space_dashboard_outlined),
+            label: const Text('Yoma'),
+          ),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: () => _select(_section == 1 ? 2 : 1),
+            icon: Icon(
+              _section == 1
+                  ? Icons.play_circle_outline
+                  : Icons.menu_book_outlined,
+            ),
+            label: Text(_section == 1 ? 'Ir a Anime' : 'Ir a Manga'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Route<void> _mainShellRoute(RouteSettings settings) =>
+    MaterialPageRoute<void>(builder: (_) => const MainShell());
+
+/// Cuenta las páginas abiertas en el Navigator interno de una sección.
+class _PageDepthObserver extends NavigatorObserver {
+  final pages = ValueNotifier<int>(0);
+  int _count = 0;
+  bool _disposed = false;
+
+  void _change(Route<dynamic> route, int delta) {
+    if (route is! PageRoute) return;
+    _count += delta;
+    // La ruta inicial se anuncia durante build; se publica tras el cuadro.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed) pages.value = _count;
+    });
+  }
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _change(route, 1);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _change(route, -1);
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    _change(route, -1);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (oldRoute != null) _change(oldRoute, -1);
+    if (newRoute != null) _change(newRoute, 1);
+  }
+
+  void dispose() {
+    _disposed = true;
+    pages.dispose();
+  }
 }
 
 class _Selector extends StatelessWidget {

@@ -117,8 +117,42 @@ void main() {
     client.onUpdate = () async {
       throw const MalFailure('Conflict', 409);
     };
+    await mal.flush();
+    final row = (await db.readRecords('anime_mal_pending')).single;
+    expect(row['conflict'], 'Conflict');
+    expect(row['episodes'], 3);
+  });
+  test('a conflict is set aside and does not block other anime', () async {
+    await mal.link('zzz', entry);
+    await mal.queueWatched('zzz', 3);
+    client.onUpdate = () async {
+      if (client.writes == 1) throw const MalFailure('Conflict', 409);
+    };
+    await mal.flush();
+    final rows = await db.readRecords('anime_mal_pending');
+    expect(rows.map((row) => row['id']), ['test']);
+    expect(client.writes, 2);
+  });
+  test('a resolved conflict is sent again at once', () async {
+    client.onUpdate = () async {
+      throw const MalFailure('Conflict', 409);
+    };
+    await mal.flush();
+    await mal.flush();
+    expect(client.writes, 1);
+    client.onUpdate = null;
+    client.remoteEpisodes = 2;
+    await mal.resolve('test', keepRemote: false);
+    expect(client.writes, 2);
+    expect(await db.readRecords('anime_mal_pending'), isEmpty);
+  });
+  test('network errors still stop the queue for a later retry', () async {
+    client.onUpdate = () async {
+      throw const MalFailure('Sin conexión');
+    };
     await expectLater(mal.flush(), throwsA(isA<MalFailure>()));
-    expect(await db.readRecords('anime_mal_pending'), hasLength(1));
+    final row = (await db.readRecords('anime_mal_pending')).single;
+    expect(row['conflict'], isNull);
   });
   test('concurrent synchronization shares one request', () async {
     final gate = Completer<void>();

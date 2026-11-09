@@ -203,7 +203,9 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
               ListTile(
                 title: Text('${row['title']}'),
                 subtitle: Text(
-                  'Pendiente: ${row['episodes']} episodios locales',
+                  row['conflict'] == null
+                      ? 'Pendiente: ${row['episodes']} episodios locales'
+                      : 'Conflicto: ${row['conflict']}',
                 ),
                 trailing: TextButton(
                   onPressed: () async {

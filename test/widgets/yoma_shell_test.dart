@@ -82,9 +82,10 @@ void main() {
                     as RenderRepaintBoundary)
                 .toImage();
         final png = await image.toByteData(format: ui.ImageByteFormat.png);
-        await Directory('docs/yoma').create(recursive: true);
+        // La captura es un resultado de la prueba, no un archivo del repo.
+        await Directory('build/test_screenshots').create(recursive: true);
         await File(
-          'docs/yoma/selector.png',
+          'build/test_screenshots/selector.png',
         ).writeAsBytes(png!.buffer.asUint8List());
         image.dispose();
       });
@@ -93,6 +94,14 @@ void main() {
       expect(find.text('Explorar'), findsOneWidget);
       await tester.tap(find.text('Explorar'));
       await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextButton, 'Ir a Manga'), findsOneWidget);
+      await tester.tap(find.byTooltip('MyAnimeList de Anime'));
+      await tester.pumpAndSettle();
+      // Dentro de una ruta interna la barra de secciones no tapa el contenido.
+      expect(find.widgetWithText(TextButton, 'Ir a Manga'), findsNothing);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextButton, 'Ir a Manga'), findsOneWidget);
       await tester.tap(find.widgetWithText(TextButton, 'Yoma'));
       await tester.pumpAndSettle();
       expect(find.text('Manga'), findsOneWidget);

@@ -211,4 +211,30 @@ void main() {
       }
     },
   );
+  test('catalog cache keeps the 40 most recent searches only', () async {
+    await store.putCache('detail:test', {'anime': {}});
+    for (var i = 0; i < 45; i++) {
+      await store.putCache('catalog:$i', {'items': []});
+    }
+    final rows = await db.readRecords('anime_cache');
+    final catalogs = rows.where((r) => '${r['id']}'.startsWith('catalog:'));
+    expect(catalogs, hasLength(40));
+    expect(await store.cache('detail:test'), isNotNull);
+  });
+  test('a ready download in another language is found for offline', () {
+    final app = AnimeController(source: TestAnimeSource(), store: store);
+    addTearDown(app.dispose);
+    app.downloads = [
+      AnimeDownload({
+        'key': 'k',
+        'slug': 'test',
+        'number': '1',
+        'state': 'done',
+        'file': '/x/test-1-lat.mp4',
+        'language': 'LAT',
+      }),
+    ];
+    expect(app.downloaded(episode, 'SUB'), isNull);
+    expect(app.readyDownload(episode)?.language, 'LAT');
+  });
 }

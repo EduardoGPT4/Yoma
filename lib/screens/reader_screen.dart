@@ -96,6 +96,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   late OnlineMangaDetail _readingDetail;
   bool _loadingMoreChapters = false;
   bool _disposing = false;
+  bool _visible = true;
   List<Chapter> get _chapters => _readingDetail.chapters;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -217,7 +218,7 @@ class _ReaderScreenState extends State<ReaderScreen>
       _queue = Provider.of<DownloadQueueProvider?>(context, listen: false);
       _queue?.setReaderActive(true);
       _readerHeartbeat = Timer.periodic(const Duration(seconds: 12), (_) {
-        if (mounted) {
+        if (mounted && _visible) {
           _queue?.setReaderActive(
             WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
           );
@@ -259,12 +260,69 @@ class _ReaderScreenState extends State<ReaderScreen>
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // YomaShell mantiene Manga montado mientras se usa Anime.
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible == _visible) return;
+    _visible = visible;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _visible != visible) return;
+      if (visible) {
+        _resumeVisibleReader();
+      } else {
+        _pauseHiddenReader();
+      }
+    });
+  }
+
+  /// Un lector oculto no debe conservar volumen, orientación ni pantalla.
+  void _pauseHiddenReader() {
+    _volumeButtonService.stopListening();
+    _pagePrefetcher.stop();
+    _queue?.setReaderActive(false);
+    _saveProgress();
+    unawaited(SystemChrome.setPreferredOrientations([]));
+    unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
+  }
+
+  void _resumeVisibleReader() {
+    unawaited(
+      SystemChrome.setEnabledSystemUIMode(
+        SystemUiMode.manual,
+        overlays: [SystemUiOverlay.bottom],
+      ),
+    );
+    _applyOrientation();
+    _syncVolumeListener();
+    _queue?.setReaderActive(
+      WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
+    );
+    _precacheVisiblePages();
+  }
+
+  void _applyOrientation() {
+    final settings = _settings;
+    if (settings == null) return;
+    unawaited(
+      SystemChrome.setPreferredOrientations(switch (settings.orientation) {
+        'portrait' => [DeviceOrientation.portraitUp],
+        'landscape' => [
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ],
+        _ => [],
+      }),
+    );
+  }
+
   void _syncVolumeListener() {
     final settings = context.read<ReaderSettingsProvider>();
-    if (settings.volumeNavigation) {
+    if (settings.volumeNavigation && _visible) {
       unawaited(
         _volumeButtonService.startListening((isNextPage) {
-          if (!mounted) {
+          if (!mounted || !_visible) {
             return;
           }
           _goToRelativePage(isNextPage ? 1 : -1);
@@ -443,16 +501,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         if (mounted) _precacheVisiblePages();
       });
     }
-    unawaited(
-      SystemChrome.setPreferredOrientations(switch (_settings!.orientation) {
-        'portrait' => [DeviceOrientation.portraitUp],
-        'landscape' => [
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ],
-        _ => [],
-      }),
-    );
+    if (_visible) _applyOrientation();
     _syncVolumeListener();
     if (next != _modeKey) {
       _modeKey = next;
@@ -500,7 +549,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         state == AppLifecycleState.inactive) {
       _saveProgress();
       unawaited(context.read<LibraryProvider>().flushStats());
-    } else if (state == AppLifecycleState.resumed) {
+    } else if (state == AppLifecycleState.resumed && _visible) {
       _precacheVisiblePages();
     }
   }
@@ -1706,7 +1755,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   void _precacheVisiblePages() {
-    if (!mounted || _loadingChapter || _pages.isEmpty) return;
+    if (!mounted || !_visible || _loadingChapter || _pages.isEmpty) return;
     final chapter = _currentChapter?.path;
     final sourceId =
         OnlineCatalogService.sourceIdForRef(

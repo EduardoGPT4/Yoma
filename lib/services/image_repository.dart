@@ -46,11 +46,64 @@ class ImageRepository {
   }
 
   Future<Directory> _directory() async {
-    final directory = cacheDirectory ??= Directory(
-      p.join((await getTemporaryDirectory()).path, 'yomashi_images'),
-    );
-    await directory.create(recursive: true);
-    return directory;
+    final custom = cacheDirectory;
+    if (custom != null) {
+      await custom.create(recursive: true);
+      return custom;
+    }
+    return _persistentDirectory ??= _openPersistentDirectory();
+  }
+
+  Future<Directory>? _persistentDirectory;
+
+  /// Las páginas vistas se guardan fuera de la caché temporal, que Android
+  /// puede vaciar. La caché antigua se migra una vez sin descargar de nuevo.
+  Future<Directory> _openPersistentDirectory() async {
+    try {
+      final support = await getApplicationSupportDirectory();
+      final directory = Directory(
+        p.join(support.path, 'Yoma', 'YomaShi', 'PaginasVistas'),
+      );
+      await directory.create(recursive: true);
+      try {
+        final temporary = await getTemporaryDirectory();
+        final legacy = Directory(p.join(temporary.path, 'yomashi_images'));
+        await migrateLegacyDirectory(legacy, directory);
+      } catch (error) {
+        stderr.writeln('Páginas vistas: migración pendiente: $error');
+      }
+      cacheDirectory ??= directory;
+      return directory;
+    } catch (_) {
+      _persistentDirectory = null;
+      rethrow;
+    }
+  }
+
+  /// Mueve las páginas válidas de [legacy] a [target] sin sobrescribir las ya
+  /// guardadas y después elimina [legacy], que solo era caché temporal.
+  static Future<int> migrateLegacyDirectory(
+    Directory legacy,
+    Directory target,
+  ) async {
+    if (!await legacy.exists()) return 0;
+    await target.create(recursive: true);
+    var moved = 0;
+    final entries = await legacy.list(followLinks: false).toList();
+    for (final entry in entries) {
+      if (entry is! File || p.extension(entry.path) != '.image') continue;
+      final destination = File(p.join(target.path, p.basename(entry.path)));
+      if (await destination.exists() || !await valid(entry)) continue;
+      try {
+        await entry.rename(destination.path);
+      } on FileSystemException {
+        await entry.copy(destination.path);
+        await entry.delete();
+      }
+      moved++;
+    }
+    await legacy.delete(recursive: true);
+    return moved;
   }
 
   Future<File> resolve(

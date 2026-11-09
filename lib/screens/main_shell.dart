@@ -22,6 +22,17 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Atrás vuelve primero a Inicio y después al selector de Yoma.
+    return PopScope(
+      canPop: _index == YomashiNavIndex.home,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(() => _index = YomashiNavIndex.home);
+      },
+      child: _scaffold(context),
+    );
+  }
+
+  Widget _scaffold(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _index,

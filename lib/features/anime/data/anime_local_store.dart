@@ -12,11 +12,16 @@ class AnimeLocalStore {
     return value is Map ? Map<String, dynamic>.from(value) : null;
   }
 
-  Future<void> putCache(String key, Map<String, dynamic> data) => _put(
-    'anime_cache',
-    key,
-    {'savedAt': DateTime.now().millisecondsSinceEpoch, 'data': data},
-  );
+  Future<void> putCache(String key, Map<String, dynamic> data) async {
+    await _put('anime_cache', key, {
+      'savedAt': DateTime.now().millisecondsSinceEpoch,
+      'data': data,
+    });
+    // Cada búsqueda distinta guarda una página; se conservan las recientes.
+    if (key.startsWith('catalog:')) {
+      await (await database()).pruneRecords('anime_cache', 'catalog:', 40);
+    }
+  }
   Future<void> _put(String ns, String key, Map<String, dynamic> value) async =>
       (await database()).putRecord(ns, key, value);
   Future<List<Map<String, dynamic>>> library() async =>

@@ -6,6 +6,8 @@ if (!defined('SEASON_BOOTSTRAPPED')) { http_response_code(404); exit(); }
 require_once __DIR__.'/yoma-anime-mal.php';
 const YS_ORIGIN = 'https://hk-br035.gt.tc/seasonav1/';
 const YS_STATUSES = ['reading','completed','on_hold','dropped','plan_to_read'];
+// Sliding device session: renewed at most once a day while the app keeps using it.
+const YS_SESSION_TTL = 90*86400;
 function ys_schema(PDO $db): void {
   $db->exec('CREATE TABLE IF NOT EXISTS sa1_yomashi_devices (id VARCHAR(64) PRIMARY KEY, token_hash VARCHAR(64) NOT NULL UNIQUE, tokens TEXT NULL, mal_user_id BIGINT NULL, mal_name VARCHAR(60) NULL, expires_at BIGINT NOT NULL, created_at BIGINT NOT NULL)');
 }
@@ -66,7 +68,7 @@ function ys_complete(PDO $db,array $query): array {
   $profile=ys_profile(mal_http('profile',[],$tokens['access_token']));
   $tokens['profile']=$profile;$tokens['profile_next_refresh']=time()+86400;
   $cipher=ys_crypt(json_encode($tokens,JSON_THROW_ON_ERROR),$flow['device']);
-  $changed=sql($db,'UPDATE sa1_yomashi_devices SET tokens=?,mal_user_id=?,mal_name=?,expires_at=? WHERE id=? AND tokens IS NULL AND expires_at>?',[$cipher,$profile['id'],$profile['name'],time()+90*86400,$flow['device'],time()])->rowCount();
+  $changed=sql($db,'UPDATE sa1_yomashi_devices SET tokens=?,mal_user_id=?,mal_name=?,expires_at=? WHERE id=? AND tokens IS NULL AND expires_at>?',[$cipher,$profile['id'],$profile['name'],time()+YS_SESSION_TTL,$flow['device'],time()])->rowCount();
   if($changed!==1) throw new WebError('La conexión caducó. Vuelve a iniciarla en YomaShi.',410);
   return $profile;
 }
@@ -163,6 +165,7 @@ function ys_dispatch(PDO $db,array $input,string $bearer): array {
   try {
     $row=sql($db,'SELECT * FROM sa1_yomashi_devices WHERE token_hash=? AND expires_at>?'.($db->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'?' FOR UPDATE':''),[hash('sha256',$bearer),time()])->fetch();
     if(!$row) throw new WebError('La conexión caducó. Vuelve a conectar MyAnimeList.',401);
+    if($row['tokens']!==null && (int)$row['expires_at']<time()+YS_SESSION_TTL-86400) sql($db,'UPDATE sa1_yomashi_devices SET expires_at=? WHERE id=?',[time()+YS_SESSION_TTL,$row['id']]);
     if($action==='disconnect') { sql($db,'DELETE FROM sa1_yomashi_devices WHERE id=?',[$row['id']]);$db->commit();return ['connected'=>false]; }
     if($action==='status') { $result=ys_status($db,$row,$refreshed);$db->commit();return $result; }
     if($row['tokens']===null) throw new WebError('Termina la autorización en el navegador.',409);

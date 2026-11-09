@@ -145,6 +145,15 @@ class TestMangaBridge(unittest.TestCase):
         Fixture.profile_status=401;self.age_profile_cache(device)
         self.assertEqual(self.request(payload={'action':'status'},token=token)[0],401)
         self.assertEqual(self.request(payload={'action':'status'},token=token)[0],401)
+    def test_active_device_session_slides_its_expiry(self):
+        pair=self.connect_fixture();token=pair['device_token'];device=pair['device_id']
+        conn=sqlite3.connect(self.folder/'fixture.sqlite')
+        conn.execute('UPDATE sa1_yomashi_devices SET expires_at=? WHERE id=?',(int(time.time())+3600,device));conn.commit()
+        self.profile_status(token)
+        renewed=conn.execute('SELECT expires_at FROM sa1_yomashi_devices WHERE id=?',(device,)).fetchone()[0]
+        self.assertGreater(renewed,int(time.time())+89*86400)
+        conn.execute('UPDATE sa1_yomashi_devices SET expires_at=? WHERE id=?',(int(time.time())-1,device));conn.commit();conn.close()
+        self.assertEqual(self.request(payload={'action':'status'},token=token)[0],401) # An expired session is never revived.
     def test_avatar_account_mismatch_revokes_device_before_future_writes(self):
         pair=self.connect_fixture();token=pair['device_token'];device=pair['device_id']
         Fixture.profile={'id':8,'name':'OtherOwner','picture':'https://cdn.myanimelist.net/images/userimages/8.jpg'}

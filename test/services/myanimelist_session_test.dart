@@ -254,4 +254,10 @@ void main() {
       expect(sessionEvents, 1);
     },
   );
+  test('forgetLocally clears only the local credential', () async {
+    await client.forgetLocally();
+    expect(credentials.value, isNull);
+    expect(sessionEvents, 1);
+    expect(incoming.isCompleted, isFalse);
+  });
 }

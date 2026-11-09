@@ -14,11 +14,13 @@ class NativeAnimeScreen extends StatefulWidget {
   final bool active;
   final VoidCallback home;
   final AnimeController? controller;
+  final List<NavigatorObserver> navigatorObservers;
   const NativeAnimeScreen({
     super.key,
     required this.active,
     required this.home,
     this.controller,
+    this.navigatorObservers = const [],
   });
   @override
   State<NativeAnimeScreen> createState() => NativeAnimeScreenState();
@@ -111,6 +113,7 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen> {
     ),
     child: Navigator(
       key: _navigator,
+      observers: widget.navigatorObservers,
       onGenerateRoute: (_) => MaterialPageRoute<void>(
         builder: (_) => _AnimeMain(
           app: app,

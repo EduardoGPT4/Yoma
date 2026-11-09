@@ -1,8 +1,13 @@
 """Exercise the real bridge over HTTP with isolated SQLite and fake identities."""
 from pathlib import Path
-import json, os, socket, subprocess, tempfile, time, urllib.request, urllib.error
+import json, os, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.error
 ROOT=Path(__file__).resolve().parents[2]
-PHP=Path(os.environ['USERPROFILE'])/'.config/herd-lite/bin/php.exe'
+def _php():
+    # YOMA_PHP > PHP de Herd en Windows > php del PATH (CI y Linux).
+    if os.environ.get('YOMA_PHP'):return os.environ['YOMA_PHP']
+    herd=Path(os.environ.get('USERPROFILE','~')).expanduser()/'.config/herd-lite/bin/php.exe'
+    return str(herd) if herd.is_file() else (shutil.which('php') or 'php')
+PHP=_php()
 bootstrap=r'''<?php
 session_start();
 class WebError extends RuntimeException { public function __construct($m,public int $status=422){parent::__construct($m);} }

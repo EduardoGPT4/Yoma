@@ -222,7 +222,13 @@ class _MyAnimeListScreenState extends State<MyAnimeListScreen>
     );
     if (confirm == true) {
       await _run(() async {
-        await service.client.disconnect();
+        try {
+          await service.client.disconnect();
+        } on MalFailure catch (failure) {
+          // Sin respuesta del servidor (estado 0) se permite olvidar aquí.
+          if (failure.status != 0 || !await _confirmForget()) rethrow;
+          await service.client.forgetLocally();
+        }
         generation++;
         if (mounted) {
           setState(() {
@@ -233,6 +239,31 @@ class _MyAnimeListScreenState extends State<MyAnimeListScreen>
         }
       });
     }
+  }
+
+  Future<bool> _confirmForget() async {
+    if (!mounted) return false;
+    final forget = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Sin conexión con el servidor'),
+        content: const Text(
+          'No se pudo revocar la conexión. ¿Quieres olvidar la cuenta solo en '
+          'este dispositivo? La sesión del servidor caducará si no se usa.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Olvidar aquí'),
+          ),
+        ],
+      ),
+    );
+    return forget == true;
   }
 
   @override

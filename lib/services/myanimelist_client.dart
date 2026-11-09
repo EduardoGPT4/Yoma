@@ -385,6 +385,19 @@ class MyAnimeListClient {
     }
   }
 
+  /// Olvida la credencial solo en este dispositivo, para cuando el servidor no
+  /// responde. La sesión remota caduca sola si no se vuelve a usar.
+  Future<void> forgetLocally() async {
+    final auth = await credentials.load();
+    if (auth == null) return;
+    if (await credentials.replaceIfToken(
+      auth['device_token'] as String?,
+      null,
+    )) {
+      sessionChanges.value++;
+    }
+  }
+
   Future<List<MalManga>> search(String query) async {
     final id = parseId(query);
     if (id != null) return [await detail(id)];

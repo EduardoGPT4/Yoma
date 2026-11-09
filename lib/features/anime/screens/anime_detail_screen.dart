@@ -27,14 +27,25 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
   bool _reverse = false, _unwatched = false;
   String _language = 'SUB';
   final Set<int> _selected = {};
+  AnimeDetail? _shown;
   @override
   void initState() {
     super.initState();
     _language = '${widget.controller.settings['language'] ?? 'SUB'}';
+    widget.controller.addListener(_refreshed);
+  }
+
+  /// La ficha guardada se muestra al instante y se sustituye al actualizarse.
+  void _refreshed() {
+    final latest = widget.controller.details[widget.slug];
+    if (latest == null || identical(latest, _shown)) return;
+    _shown = latest;
+    setState(() => _detail = Future.value(latest));
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_refreshed);
     _search.dispose();
     super.dispose();
   }

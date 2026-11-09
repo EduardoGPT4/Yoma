@@ -178,14 +178,31 @@ class AnimeMalClient {
       if (keepRemote) {
         await store.deleteRecord('anime_mal_pending', key);
       } else {
-        await store.putRecord('anime_mal_pending', key, {
-          ...current,
-          'expected_episodes': count,
-        });
+        final next = {...current, 'expected_episodes': count};
+        next.remove('conflict');
+        next.remove('retryAt');
+        await store.putRecord('anime_mal_pending', key, next);
       }
     });
     if (!keepRemote) await flush();
   }
+
+  /// Aparta un pendiente en conflicto; se reintenta más tarde o al resolverlo.
+  Future<void> _defer(String key, Map<String, dynamic> row, String why) async {
+    final store = await database();
+    await store.transaction(() async {
+      final current = animeMap(await store.getRecord('anime_mal_pending', key));
+      if (current['version'] != row['version']) return;
+      final retryAt = DateTime.now().add(conflictRetry);
+      await store.putRecord('anime_mal_pending', key, {
+        ...current,
+        'conflict': why,
+        'retryAt': retryAt.millisecondsSinceEpoch,
+      });
+    });
+  }
+
+  static const conflictRetry = Duration(minutes: 15);
 
   Future<void> flush() {
     final pending = _sync;
@@ -201,20 +218,29 @@ class AnimeMalClient {
     if (!await available()) return;
     final store = await database();
     final pending = await store.readRecords('anime_mal_pending');
+    final now = DateTime.now().millisecondsSinceEpoch;
     for (final row in pending) {
       final auth = await client.credentials.load();
       final owner = animeInt(animeMap(auth?['profile'])['id']);
       if (auth?['connected'] != true) return;
       if (row['owner'] != owner) continue;
+      if (animeInt(row['retryAt']) > now) continue;
       final key = '${row['id']}';
       final link = animeMap(await store.getRecord('anime_mal_links', key));
       if (link['version'] != row['version'] || link['owner'] != owner) continue;
-      await client.request({
-        'action': 'anime_update',
-        'id': row['malId'],
-        'episodes_watched': row['episodes'],
-        'expected_episodes': row['expected_episodes'],
-      }, expectedOwner: owner);
+      try {
+        await client.request({
+          'action': 'anime_update',
+          'id': row['malId'],
+          'episodes_watched': row['episodes'],
+          'expected_episodes': row['expected_episodes'],
+        }, expectedOwner: owner);
+      } on MalFailure catch (error) {
+        // Un conflicto de un anime no bloquea la sincronización de los demás.
+        if (error.status != 409 && error.status != 422) rethrow;
+        await _defer(key, row, error.message);
+        continue;
+      }
       if ((await client.credentials.load())?['device_token'] !=
           auth?['device_token']) {
         return;

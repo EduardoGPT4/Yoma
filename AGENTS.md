@@ -142,9 +142,9 @@ Completa las tareas solicitadas de principio a fin. Prioriza trabajar y entregar
 
 \- No hay restricciones técnicas adicionales, pero conserva la compatibilidad, los datos del usuario, las credenciales y el sistema de firma y publicación existentes.
 
-## Entrega de APK en GitHub
+## GitHub
 
-- Publica siempre cada APK final que entregues al usuario en las Releases de https://github.com/EduardoGPT4/YomaShi.
-- Entrega el enlace de descarga de GitHub, además de cualquier archivo local. No guardes APK en el historial de Git.
-- Usa el APK personal firmado con el certificado existente y verifica versión, firma y pruebas antes de publicarlo. Una firma nueva de un runner de CI no permite actualizar la instalación personal.
-- Usa `tools/publish_apk.py` con el APK, sus notas y el commit de código que se compiló. El publicador conserva las credenciales en memoria y verifica tamaño y SHA-256 antes de publicar la Release.
+- El código de Yoma vive en https://github.com/EduardoGPT4/Yoma.
+- No subas código ni publiques APK en GitHub sin autorización expresa del usuario en la conversación actual.
+- Si el usuario autoriza publicar un APK, usa el APK personal firmado con el certificado existente y verifica versión, firma y pruebas antes de publicarlo. Una firma nueva de un runner de CI no permite actualizar la instalación personal.
+- Para publicar un APK usa `tools/publish_apk.py` con el APK, sus notas y el commit de código que se compiló. No guardes APK en el historial de Git.

@@ -118,12 +118,29 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
       _selected = matching.first;
       await _playServer(_selected!, generation: generation);
     } catch (e) {
+      if (await _playAnyDownload(generation)) return;
       if (generation == _generation && mounted) {
         setState(() {
           _loading = false;
           _error = e.toString();
         });
       }
+    }
+  }
+
+  /// Sin red, reproduce una descarga lista del episodio aunque sea de otro
+  /// idioma; es mejor que no poder verlo.
+  Future<bool> _playAnyDownload(int generation) async {
+    final local = app.readyDownload(_episode);
+    if (local == null || generation != _generation || !mounted) return false;
+    try {
+      await _initialize(
+        VideoPlayerController.file(File(local.file)),
+        generation,
+      );
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 

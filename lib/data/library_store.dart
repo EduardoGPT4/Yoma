@@ -279,6 +279,16 @@ class LibraryStore {
         'DELETE FROM app_records WHERE namespace=? AND record_key=?',
         [namespace, key],
       );
+  /// Conserva solo los [keep] registros más recientes (`savedAt`) del espacio
+  /// [namespace] cuyo id empieza por [prefix].
+  Future<void> pruneRecords(String namespace, String prefix, int keep) =>
+      _db.customStatement(
+        'DELETE FROM app_records WHERE namespace=? AND record_key LIKE ? '
+        'AND record_key NOT IN (SELECT record_key FROM app_records '
+        'WHERE namespace=? AND record_key LIKE ? '
+        "ORDER BY json_extract(payload, '\$.savedAt') DESC LIMIT ?)",
+        [namespace, '$prefix%', namespace, '$prefix%', keep],
+      );
   Future<List<Map<String, dynamic>>> readRecords(String namespace) async {
     final rows = await _db
         .customSelect(
