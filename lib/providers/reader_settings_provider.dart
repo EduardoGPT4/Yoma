@@ -97,7 +97,17 @@ class ReaderSettingsProvider extends ChangeNotifier {
     _mangaKey = null;
     if (_global != null) _apply(_global!);
     _global = null;
-    notifyListeners();
+    // El lector lo llama desde dispose, con el árbol de widgets bloqueado.
+    await Future<void>.microtask(() {});
+    if (!_disposed) notifyListeners();
+  }
+
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   Future<void> _save(Future<void> Function() global) async {
