@@ -55,7 +55,8 @@ jobs:
           mkdir -p firma/sin-firma && mv out/* firma/sin-firma/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add firma/sin-firma
+          git add -f firma/sin-firma
+          git ls-files firma/sin-firma | grep -q "app-arm64-v8a-release.apk$"
           git commit -q -m "Temporal: APK sin firma personal"
           git push origin HEAD:apk-firma
       - if: steps.etapa.outputs.publicar == 'true'
