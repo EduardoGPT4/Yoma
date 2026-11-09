@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../design/yoma_components.dart';
+import '../../../design/yoma_tokens.dart';
 import '../models/anime_models.dart';
 import 'anime_cover.dart';
 
@@ -6,14 +8,36 @@ Widget animeArtwork(String url, {BoxFit fit = BoxFit.cover, int width = 360}) =>
     Image(
       image: ResizeImage(AnimeCover(url), width: width),
       fit: fit,
-      errorBuilder: (_, _, _) => const ColoredBox(
-        color: Color(0xFF262231),
-        child: Center(
-          child: Icon(Icons.movie_outlined, color: Colors.white38, size: 36),
-        ),
-      ),
+      // Mientras carga se reserva el espacio con la superficie de Yoma.
+      frameBuilder: (_, child, frame, sync) => sync || frame != null
+          ? child
+          : const ColoredBox(color: YomaColors.surfaceHigh),
+      errorBuilder: (_, _, _) =>
+          const YomaImageFallback(icon: Icons.movie_outlined, iconSize: 36),
       gaplessPlayback: true,
     );
+
+/// Degradado de los banners: deja ver la ilustración arriba y funde con el
+/// fondo de Yoma abajo para que el texto sea legible.
+class AnimeBackdropGradient extends StatelessWidget {
+  const AnimeBackdropGradient({super.key});
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        stops: const [0, .45, 1],
+        colors: [
+          YomaColors.scrim.withAlpha(66),
+          YomaColors.background.withAlpha(120),
+          Theme.of(context).scaffoldBackgroundColor,
+        ],
+      ),
+    ),
+  );
+}
 
 class AnimeCard extends StatelessWidget {
   final AnimeTitle anime;
@@ -28,117 +52,98 @@ class AnimeCard extends StatelessWidget {
     this.progress,
   });
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: anime.title,
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(18),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  animeArtwork(anime.cover),
-                  Positioned(
-                    left: 8,
-                    top: 8,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: .7),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
-                        ),
-                        child: Text(
-                          anime.category.isEmpty ? 'Anime' : anime.category,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (favorite)
-                    const Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Icon(Icons.star_rounded, color: Color(0xFFFFCB77)),
-                    ),
-                  if (progress != null)
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      button: true,
+      label: anime.title,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: YomaRadii.mdAll,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: YomaRadii.mdAll,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    animeArtwork(anime.cover),
                     Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: LinearProgressIndicator(
-                        value: progress!.clamp(0, 1),
-                        backgroundColor: Colors.black54,
-                        color: const Color(0xFFFF6A55),
+                      left: YomaSpacing.sm,
+                      top: YomaSpacing.sm,
+                      right: favorite ? 36 : YomaSpacing.sm,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: YomaCoverTag(
+                          label: anime.category.isEmpty
+                              ? 'Anime'
+                              : anime.category,
+                        ),
                       ),
                     ),
-                ],
+                    if (favorite)
+                      const Positioned(
+                        right: YomaSpacing.sm,
+                        top: YomaSpacing.sm,
+                        child: Icon(
+                          Icons.star_rounded,
+                          color: YomaColors.rating,
+                          semanticLabel: 'Favorito',
+                        ),
+                      ),
+                    if (progress != null)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: YomaProgressBar(
+                          value: progress,
+                          overImage: true,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            anime.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          if (anime.year.isNotEmpty || anime.episodes > 0)
+            const SizedBox(height: YomaSpacing.sm),
             Text(
-              [
-                if (anime.year.isNotEmpty) anime.year,
-                if (anime.episodes > 0) '${anime.episodes} episodios',
-              ].join(' · '),
-              maxLines: 1,
+              anime.title,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: const Color(0xFFBAB3C6)),
+              style: theme.textTheme.titleSmall,
             ),
-        ],
+            if (anime.year.isNotEmpty || anime.episodes > 0)
+              Text(
+                [
+                  if (anime.year.isNotEmpty) anime.year,
+                  if (anime.episodes > 0) '${anime.episodes} episodios',
+                ].join(' · '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
+/// Mensaje de YomaTV con el estado compartido de Yoma.
 class AnimeMessage extends StatelessWidget {
   final String text;
   final String? action;
   final VoidCallback? onAction;
   const AnimeMessage(this.text, {super.key, this.action, this.onAction});
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(20),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(
-          Icons.movie_filter_outlined,
-          size: 40,
-          color: Color(0xFFB8ADC8),
-        ),
-        const SizedBox(height: 12),
-        Text(text, textAlign: TextAlign.center),
-        if (action != null) ...[
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onAction, child: Text(action!)),
-        ],
-      ],
-    ),
+  Widget build(BuildContext context) => YomaStateMessage(
+    icon: Icons.movie_filter_outlined,
+    message: text,
+    actionLabel: action,
+    onAction: onAction,
+    framed: false,
   );
 }
 

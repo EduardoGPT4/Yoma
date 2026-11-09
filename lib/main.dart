@@ -20,6 +20,7 @@ import 'services/rotating_backup_service.dart';
 import 'services/diagnostics.dart';
 import 'services/myanimelist_service.dart';
 import 'home/yoma_shell.dart';
+import 'design/yoma_tokens.dart';
 import 'services/download_notification_service.dart';
 import 'services/background_downloads.dart';
 import 'models/ui_density.dart';
@@ -233,7 +234,7 @@ class _AppBackdrop extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF111111), Color(0xFF090909)],
+            colors: [YomaColors.surfaceLow, YomaColors.background],
           ),
         ),
       ),

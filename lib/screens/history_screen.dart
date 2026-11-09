@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design/yoma_tokens.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/library_provider.dart';
@@ -122,7 +123,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ),
                         ),
                         leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(YomaRadii.sm),
                           child: SizedBox(
                             width: 48,
                             height: 64,

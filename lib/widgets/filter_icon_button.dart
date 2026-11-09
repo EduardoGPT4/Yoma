@@ -17,7 +17,16 @@ class FilterIconButton extends StatelessWidget {
     return Stack(
       clipBehavior: Clip.none,
       children: [
+        // Tonal de verdad: superficie secundaria, acento solo si hay filtros.
         FilledButton.tonalIcon(
+          style: FilledButton.styleFrom(
+            backgroundColor: active
+                ? theme.colorScheme.primaryContainer
+                : theme.colorScheme.secondaryContainer,
+            foregroundColor: active
+                ? theme.colorScheme.onPrimaryContainer
+                : theme.colorScheme.onSecondaryContainer,
+          ),
           onPressed: onPressed,
           icon: const Icon(Icons.tune_rounded),
           label: Text(active ? 'Filtros activos' : 'Filtros'),

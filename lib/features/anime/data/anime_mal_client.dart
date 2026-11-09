@@ -14,6 +14,14 @@ class MalAnimeEntry {
       title = '${v['title']}',
       picture = '${v['picture'] ?? ''}',
       status = '${v['status'] ?? 'plan_to_watch'}';
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'picture': picture,
+    'status': status,
+    'episodes_watched': watched,
+    'num_episodes': total,
+  };
 }
 
 /// Negotiates a new documented backend extension. A missing extension is explicit,
@@ -67,6 +75,23 @@ class AnimeMalClient {
       'id': id,
     }, expectedOwner: owner);
     return MalAnimeEntry.fromJson(animeMap(result['anime']));
+  }
+
+  /// Id de la cuenta MAL conectada, o 0 si no hay sesión.
+  Future<int> owner() async {
+    final auth = await client.credentials.load();
+    if (auth?['connected'] != true) return 0;
+    return animeInt(animeMap(auth?['profile'])['id']);
+  }
+
+  /// Vinculación guardada de un anime de YomaTV para la cuenta actual.
+  Future<Map<String, dynamic>?> linkOf(String slug) async {
+    final current = await owner();
+    if (current <= 0) return null;
+    final link = animeMap(
+      await (await database()).getRecord('anime_mal_links', slug),
+    );
+    return link['owner'] == current ? link : null;
   }
 
   Future<void> link(String slug, MalAnimeEntry value) async {

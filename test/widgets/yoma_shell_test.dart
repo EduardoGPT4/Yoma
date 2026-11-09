@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yomashi/data/app_database.dart';
 import 'package:yomashi/data/library_store.dart';
 import 'package:yomashi/features/anime/data/anime_controller.dart';
+import 'package:yomashi/features/anime/screens/anime_mal_screen.dart';
 import '../unit/native_anime_test.dart' show TestAnimeSource;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -20,6 +21,9 @@ void main() {
     'selector shows both experiences and keeps anime mounted on return',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
+      // Barra de gestos de Android: las rutas internas deben respetarla.
+      tester.view.padding = const FakeViewPadding(bottom: 48);
+      addTearDown(tester.view.resetPadding);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -99,6 +103,13 @@ void main() {
       await tester.pumpAndSettle();
       // Dentro de una ruta interna la barra de secciones no tapa el contenido.
       expect(find.widgetWithText(TextButton, 'Ir a Manga'), findsNothing);
+      expect(
+        MediaQuery.paddingOf(
+          tester.element(find.byType(AnimeMalScreen)),
+        ).bottom,
+        48,
+        reason: 'Sin barra de secciones, la ruta conserva el área segura.',
+      );
       await tester.pageBack();
       await tester.pumpAndSettle();
       expect(find.widgetWithText(TextButton, 'Ir a Manga'), findsOneWidget);

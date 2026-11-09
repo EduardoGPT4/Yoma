@@ -1,4 +1,5 @@
 import 'package:path/path.dart' as p;
+import '../design/yoma_tokens.dart';
 import '../providers/categories_provider.dart';
 import '../providers/reader_settings_provider.dart';
 import '../providers/source_provider.dart';
@@ -389,14 +390,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _pickThemeAccent() async {
     final accent = context.read<ThemeAccentProvider>();
-    const accents = <Color>[
-      Color(0xFF7C3AED),
-      Color(0xFF2563EB),
-      Color(0xFF059669),
-      Color(0xFFDC2626),
-      Color(0xFFEA580C),
-      Color(0xFFDB2777),
+    // El coral de Yoma sustituye al rojo saturado; el resto se conserva.
+    const accents = <(Color, String)>[
+      (ThemeAccentProvider.defaultAccent, 'Coral Yoma'),
+      (Color(0xFF7C3AED), 'Violeta'),
+      (Color(0xFF2563EB), 'Azul'),
+      (Color(0xFF059669), 'Esmeralda'),
+      (Color(0xFFEA580C), 'Naranja'),
+      (Color(0xFFDB2777), 'Rosa'),
     ];
+    final current = accent.primary.toARGB32();
     final selected = await showDialog<Color>(
       context: context,
       builder: (context) {
@@ -407,15 +410,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
             runSpacing: 12,
             children: accents
                 .map(
-                  (color) => GestureDetector(
-                    onTap: () => Navigator.of(context).pop(color),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white24),
+                  (entry) => Semantics(
+                    button: true,
+                    selected: entry.$1.toARGB32() == current,
+                    label: entry.$2,
+                    child: Tooltip(
+                      message: entry.$2,
+                      child: InkResponse(
+                        onTap: () => Navigator.of(context).pop(entry.$1),
+                        radius: 26,
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: entry.$1,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: entry.$1.toARGB32() == current
+                                  ? Theme.of(context).colorScheme.onSurface
+                                  : Theme.of(context).colorScheme.outline,
+                              width: entry.$1.toARGB32() == current ? 3 : 1,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -425,7 +442,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           actions: [
             TextButton(
               onPressed: () =>
-                  Navigator.of(context).pop(const Color(0xFF7C3AED)),
+                  Navigator.of(context).pop(ThemeAccentProvider.defaultAccent),
               child: const Text('Restablecer'),
             ),
           ],
@@ -567,7 +584,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(YomaRadii.lg),
                 border: Border.all(
                   color: theme.colorScheme.onSurface.withAlpha(18),
                 ),
@@ -916,7 +933,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (!widget.settingsMode || _matches('acerca version'))
             InkWell(
               onTap: () => _showAboutDialog(theme),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(YomaRadii.lg),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -924,7 +941,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(YomaRadii.lg),
                   border: Border.all(
                     color: theme.colorScheme.onSurface.withAlpha(20),
                   ),
@@ -982,7 +999,7 @@ class _SettingsCard extends StatelessWidget {
         elevation: 0,
         shadowColor: Colors.black.withAlpha(80),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(YomaRadii.lg),
           side: BorderSide(color: theme.colorScheme.onSurface.withAlpha(18)),
         ),
         clipBehavior: Clip.antiAlias,

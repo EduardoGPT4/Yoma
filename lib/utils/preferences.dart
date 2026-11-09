@@ -33,6 +33,7 @@ class PreferencesService {
   static const _keyWelcomeNoticeSeen = 'welcome_notice_seen_v1';
 
   static const _keyThemeAccent = 'theme_accent_v1';
+  static const _keyYomaAccentMigrated = 'theme_accent_yoma_migrated_v1';
   static const _keyMangaSourceLinks = 'manga_source_links_v1';
   static const _keyActiveMangaSource = 'active_manga_source_v1';
   static const _keyMangaDexLanguages = 'mangadex_languages_v1';
@@ -470,6 +471,14 @@ class PreferencesService {
       return null;
     }
     return prefs.getInt(_keyThemeAccent);
+  }
+
+  /// Devuelve `true` solo la primera vez: marca la migración al acento Yoma.
+  static Future<bool> takeYomaAccentMigration() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_keyYomaAccentMigrated) == true) return false;
+    await prefs.setBool(_keyYomaAccentMigrated, true);
+    return true;
   }
 
   static Future<void> setThemeAccent(int? argb) async {

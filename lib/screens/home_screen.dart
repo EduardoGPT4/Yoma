@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../design/yoma_components.dart';
+import '../design/yoma_tokens.dart';
 import '../models/manga_source.dart';
 import '../providers/library_provider.dart';
 import '../providers/profile_provider.dart';
@@ -33,17 +35,8 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: theme.colorScheme.onSurface.withAlpha(18),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(50),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+              borderRadius: YomaRadii.lgAll,
+              border: Border.all(color: YomaColors.borderSubtle),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -130,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
       isScrollControlled: true,
       backgroundColor: theme.colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(YomaRadii.xl)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -287,32 +280,20 @@ class _HomeScreenState extends State<HomeScreen> {
           child: FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    'assets/branding/2-Manga.png',
-                    width: 32,
-                    height: 32,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Image.asset(
-                  'assets/brand/yomashi_wordmark.png',
-                  semanticLabel: 'YomaShi',
-                  width: 104,
-                  height: 48,
-                  fit: BoxFit.contain,
-                  alignment: Alignment.centerLeft,
-                  color: theme.colorScheme.onSurface,
-                  colorBlendMode: BlendMode.srcIn,
-                  cacheWidth: 576,
-                  filterQuality: FilterQuality.medium,
-                ),
-              ],
+            child: YomaModuleTitle(
+              logoAsset: 'assets/branding/2-Manga.png',
+              label: Image.asset(
+                'assets/brand/yomashi_wordmark.png',
+                semanticLabel: 'YomaShi',
+                width: 104,
+                height: 48,
+                fit: BoxFit.contain,
+                alignment: Alignment.centerLeft,
+                color: theme.colorScheme.onSurface,
+                colorBlendMode: BlendMode.srcIn,
+                cacheWidth: 576,
+                filterQuality: FilterQuality.medium,
+              ),
             ),
           ),
         ),
@@ -405,7 +386,7 @@ ButtonStyle _headerActionStyle(BuildContext context) =>
         context,
       ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: YomaRadii.mdAll),
       alignment: Alignment.center,
     );
 

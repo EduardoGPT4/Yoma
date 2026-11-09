@@ -85,4 +85,11 @@ class AppMetrics {
     final density = context.watch<DensityProvider>().density;
     return density == UiDensity.comfortable ? comfortable : compact;
   }
+
+  /// Igual que [of], pero usa la densidad compacta si no hay proveedor
+  /// (YomaTV también se monta sin los proveedores de YomaShi en pruebas).
+  static AppMetrics maybeOf(BuildContext context) =>
+      context.watch<DensityProvider?>()?.density == UiDensity.comfortable
+      ? comfortable
+      : compact;
 }

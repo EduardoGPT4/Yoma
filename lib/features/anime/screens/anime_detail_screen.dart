@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../design/yoma_tokens.dart';
 import '../data/anime_controller.dart';
 import '../models/anime_models.dart';
 import '../widgets/anime_widgets.dart';
@@ -126,26 +127,14 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                       fit: StackFit.expand,
                       children: [
                         animeArtwork(anime.cover, width: 900),
-                        const DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.black26, Color(0xFF0E0D14)],
-                            ),
-                          ),
-                        ),
+                        const AnimeBackdropGradient(),
                         Positioned(
-                          left: 22,
-                          right: 22,
-                          bottom: 24,
+                          left: YomaSpacing.lg,
+                          right: YomaSpacing.lg,
+                          bottom: YomaSpacing.xxl,
                           child: Text(
                             anime.title,
-                            style: Theme.of(context).textTheme.headlineMedium
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                ),
+                            style: Theme.of(context).textTheme.headlineMedium,
                           ),
                         ),
                       ],
@@ -153,7 +142,12 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(
+                    YomaSpacing.lg,
+                    YomaSpacing.md,
+                    YomaSpacing.lg,
+                    YomaSpacing.xl,
+                  ),
                   sliver: SliverList.list(
                     children: [
                       Wrap(
@@ -168,7 +162,11 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                             Chip(label: Text('${anime.episodes} episodios')),
                           if (anime.score != null)
                             Chip(
-                              avatar: const Icon(Icons.star, size: 16),
+                              avatar: const Icon(
+                                Icons.star_rounded,
+                                size: 16,
+                                color: YomaColors.rating,
+                              ),
                               label: Text('${anime.score}'),
                             ),
                         ],
@@ -233,7 +231,9 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                       if (anime.synopsis.isNotEmpty)
                         SelectableText(
                           anime.synopsis,
-                          style: const TextStyle(height: 1.55),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyLarge?.copyWith(height: 1.55),
                         ),
                       if (anime.genres.isNotEmpty) ...[
                         const SizedBox(height: 12),
@@ -252,7 +252,8 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                         const SizedBox(height: 12),
                         Text(
                           detail.warning,
-                          style: const TextStyle(color: Color(0xFFFFCB77)),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: YomaColors.warning),
                         ),
                       ],
                       if (detail.seasons.length > 1) ...[

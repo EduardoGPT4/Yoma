@@ -23,6 +23,9 @@ import '../utils/manga_filter_utils.dart';
 import '../utils/network_errors.dart';
 import '../utils/time_format.dart';
 import '../utils/title_sanitizer.dart';
+import '../design/yoma_components.dart';
+import '../design/yoma_tokens.dart';
+import '../widgets/app_metrics.dart';
 import '../widgets/category_assign_sheet.dart';
 import '../widgets/contextual_tip.dart';
 import '../widgets/continue_reading_section.dart';
@@ -828,6 +831,7 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
     final favoriteItems = _onlineFavorites(favorites);
     final filteredTrending = _applyFilters(_trending, favorites);
     final filteredUpdated = _applyFilters(_updated, favorites);
+    final side = AppMetrics.of(context).horizontalPadding;
     final continueKey =
         '$sourceId::${_continueEntriesSignature(remoteProgress)}';
     if (continueKey != _continueEntriesKey) {
@@ -852,19 +856,8 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 const SliverToBoxAdapter(child: SizedBox(height: 10)),
-                if (_catalogSavedAt != null && _query.isEmpty)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Text(
-                        'Catálogo guardado ${formatTimeAgo(_catalogSavedAt!.millisecondsSinceEpoch)}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                  ),
-
                 SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: EdgeInsets.symmetric(horizontal: side),
                   sliver: SliverToBoxAdapter(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -894,19 +887,21 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
                             spacing: 8,
                             runSpacing: 4,
                             alignment: WrapAlignment.spaceBetween,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
+                              // El campo ya dice dónde se busca: aquí solo
+                              // queda el selector, con el alcance como valor.
                               if (widget.lockedSourceId == null)
-                                TextButton.icon(
-                                  onPressed: () =>
-                                      unawaited(_chooseSearchSources()),
-                                  icon: const Icon(
-                                    Icons.travel_explore,
-                                    size: 18,
-                                  ),
-                                  label: Text(
-                                    _query.isEmpty
-                                        ? 'Buscar: $_searchScopeLabel'
-                                        : 'Búsqueda: $_searchScopeLabel',
+                                Tooltip(
+                                  message: 'Elegir fuentes de búsqueda',
+                                  child: TextButton.icon(
+                                    onPressed: () =>
+                                        unawaited(_chooseSearchSources()),
+                                    icon: const Icon(
+                                      Icons.travel_explore,
+                                      size: YomaSizes.iconSm,
+                                    ),
+                                    label: Text(_searchScopeLabel),
                                   ),
                                 )
                               else
@@ -921,14 +916,35 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
                             message:
                                 'Escribe y pulsa las etiquetas para combinarlas: artista, grupo, serie, personaje, género (female o male), tipo e idioma. Ejemplo: female:big_breasts language:spanish male:dilf. En Filtros puedes mostrar las más buscadas. La tecla de buscar usa el texto como título.',
                           ),
+                        // Fuente activa y antigüedad de la copia guardada en
+                        // una sola línea discreta: ayudan a diagnosticar sin
+                        // competir con el contenido.
                         if (_query.isEmpty)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              widget.lockedSourceId == 'hitomi'
-                                  ? 'Catálogo ${HitomiService.languageLabel(widget.catalogKey)}'
-                                  : 'Catálogo de ${MangaSources.byId(sourceId).name}',
-                              style: theme.textTheme.labelMedium,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 14,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    [
+                                      widget.lockedSourceId == 'hitomi'
+                                          ? 'Catálogo ${HitomiService.languageLabel(widget.catalogKey)}'
+                                          : 'Catálogo de ${MangaSources.byId(sourceId).name}',
+                                      if (_catalogSavedAt != null)
+                                        'guardado ${formatTimeAgo(_catalogSavedAt!.millisecondsSinceEpoch).toLowerCase()}',
+                                    ].join(' · '),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                       ],
@@ -939,10 +955,10 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
                 // —— Continuar leyendo ——
                 if (remoteProgress.isNotEmpty && _query.isEmpty)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(
-                      12,
+                    padding: EdgeInsets.fromLTRB(
+                      side,
                       HomeContentLayout.sectionSpacing,
-                      20,
+                      side,
                       0,
                     ),
                     sliver: SliverToBoxAdapter(
@@ -973,7 +989,7 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
 
                 if (_error != null && _query.isEmpty)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(12, 16, 20, 0),
+                    padding: EdgeInsets.fromLTRB(side, 16, side, 0),
                     sliver: SliverToBoxAdapter(
                       child: _MessageCard(
                         icon: Icons.wifi_off_rounded,
@@ -989,13 +1005,15 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
                 ] else if (_loadingHome)
                   const SliverToBoxAdapter(child: _CatalogSkeleton())
                 else if (_trending.isEmpty && _updated.isEmpty)
-                  const SliverPadding(
-                    padding: EdgeInsets.fromLTRB(12, 28, 20, 0),
-                    sliver: SliverToBoxAdapter(child: _CatalogEmptyState()),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(side, 28, side, 0),
+                    sliver: const SliverToBoxAdapter(
+                      child: _CatalogEmptyState(),
+                    ),
                   )
                 else if (filteredTrending.isEmpty && filteredUpdated.isEmpty)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(12, 28, 20, 0),
+                    padding: EdgeInsets.fromLTRB(side, 28, side, 0),
                     sliver: SliverToBoxAdapter(
                       child: _MessageCard(
                         icon: Icons.filter_alt_off_rounded,
@@ -1007,10 +1025,10 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
                 else ...[
                   if (filteredUpdated.isNotEmpty)
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        20,
+                      padding: EdgeInsets.fromLTRB(
+                        side,
                         HomeContentLayout.sectionSpacing,
-                        20,
+                        side,
                         0,
                       ),
                       sliver: SliverToBoxAdapter(
@@ -1183,12 +1201,13 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
     if (items.isEmpty) {
       return const <Widget>[];
     }
+    final side = AppMetrics.of(context).horizontalPadding;
     return [
       SliverPadding(
-        padding: const EdgeInsets.fromLTRB(
-          12,
+        padding: EdgeInsets.fromLTRB(
+          side,
           HomeContentLayout.sectionSpacing,
-          20,
+          side,
           10,
         ),
         sliver: SliverToBoxAdapter(
@@ -1200,7 +1219,7 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
         ),
       ),
       SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: EdgeInsets.symmetric(horizontal: side),
         sliver: SliverMangaGrid(
           delegate: SliverChildBuilderDelegate(
             (context, index) {
@@ -1273,11 +1292,10 @@ class _CatalogSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fill = theme.colorScheme.surfaceContainerHighest;
+    final side = AppMetrics.of(context).horizontalPadding;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 22, 20, 0),
+      padding: EdgeInsets.fromLTRB(side, 22, side, 0),
       child: Column(
         children: [
           Row(
@@ -1288,14 +1306,9 @@ class _CatalogSkeleton extends StatelessWidget {
                     left: index == 0 ? 0 : 7,
                     right: index == 2 ? 0 : 7,
                   ),
-                  child: AspectRatio(
+                  child: const AspectRatio(
                     aspectRatio: MangaCardLayout.gridAspectRatio,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: fill,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
+                    child: YomaSkeleton(),
                   ),
                 ),
               );
@@ -1310,14 +1323,9 @@ class _CatalogSkeleton extends StatelessWidget {
                     left: index == 0 ? 0 : 7,
                     right: index == 2 ? 0 : 7,
                   ),
-                  child: AspectRatio(
+                  child: const AspectRatio(
                     aspectRatio: MangaCardLayout.gridAspectRatio,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: fill,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
+                    child: YomaSkeleton(),
                   ),
                 ),
               );
@@ -1452,59 +1460,10 @@ class _MessageCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final accent = isError
-        ? theme.colorScheme.error
-        : theme.colorScheme.primary;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 24),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isError
-              ? theme.colorScheme.error.withAlpha(60)
-              : theme.colorScheme.onSurface.withAlpha(18),
-        ),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: accent.withAlpha(28),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: accent, size: 26),
-          ),
-          if (title != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              title!,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: isError
-                  ? theme.colorScheme.error
-                  : theme.colorScheme.onSurface.withAlpha(170),
-              fontWeight: FontWeight.w600,
-              height: 1.4,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => YomaStateMessage(
+    icon: icon,
+    title: title,
+    message: message,
+    isError: isError,
+  );
 }

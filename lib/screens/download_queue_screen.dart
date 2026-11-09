@@ -1,3 +1,4 @@
+import '../design/yoma_tokens.dart';
 import '../widgets/contextual_tip.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -169,13 +170,13 @@ class _StatusBadge extends StatelessWidget {
       ),
       DownloadJobStatus.paused => (
         'Pausada',
-        const Color(0xFFF59E0B),
-        const Color(0x33F59E0B),
+        YomaColors.warning,
+        YomaColors.warning.withAlpha(51),
       ),
       DownloadJobStatus.completed => (
         'Completada',
-        const Color(0xFF34D399),
-        const Color(0x3334D399),
+        YomaColors.success,
+        YomaColors.success.withAlpha(51),
       ),
       DownloadJobStatus.stopped => (
         'Detenida',
@@ -243,7 +244,7 @@ class _ActiveJobCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(YomaRadii.lg),
         border: Border.all(
           color: isDownloading
               ? theme.colorScheme.primary.withAlpha(100)
@@ -413,7 +414,7 @@ class _ActiveJobCard extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(YomaRadii.md),
                       ),
                     ),
                   ),
@@ -591,7 +592,7 @@ class _ArchiveCard extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: isCompleted
-                            ? const Color(0x3334D399)
+                            ? YomaColors.success.withAlpha(51)
                             : theme.colorScheme.onSurface.withAlpha(20),
                         borderRadius: BorderRadius.circular(999),
                       ),
@@ -599,7 +600,7 @@ class _ArchiveCard extends StatelessWidget {
                         entry.reason,
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: isCompleted
-                              ? const Color(0xFF34D399)
+                              ? YomaColors.success
                               : theme.colorScheme.onSurface.withAlpha(180),
                           fontWeight: FontWeight.w700,
                         ),

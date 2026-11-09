@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../../design/yoma_tokens.dart';
 import '../../services/myanimelist_service.dart';
 
 class AnimeScreen extends StatefulWidget {
@@ -49,7 +50,7 @@ class AnimeScreenState extends State<AnimeScreen> with WidgetsBindingObserver {
   Future<void> _initialize(WebViewController controller) async {
     try {
       await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-      await controller.setBackgroundColor(const Color(0xFF100D17));
+      await controller.setBackgroundColor(YomaColors.background);
       await controller.setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (url) async {

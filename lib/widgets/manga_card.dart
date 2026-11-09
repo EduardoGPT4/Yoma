@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../design/yoma_components.dart';
+import '../design/yoma_tokens.dart';
 import '../utils/title_sanitizer.dart';
 import 'app_metrics.dart';
 import 'cached_thumbnail.dart';
@@ -155,14 +157,12 @@ class _MangaCardState extends State<MangaCard> {
         color: Colors.transparent,
         child: InkWell(
           onTap: _handleTap,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: YomaRadii.mdAll,
           child: Ink(
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: theme.colorScheme.onSurface.withAlpha(18),
-              ),
+              borderRadius: YomaRadii.mdAll,
+              border: Border.all(color: YomaColors.borderSubtle),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -171,7 +171,7 @@ class _MangaCardState extends State<MangaCard> {
                   aspectRatio: MangaCardLayout.coverAspectRatio,
                   child: ClipRRect(
                     borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(9),
+                      top: Radius.circular(YomaRadii.md - 1),
                     ),
                     child: Stack(
                       fit: StackFit.expand,
@@ -182,11 +182,9 @@ class _MangaCardState extends State<MangaCard> {
                             left: 0,
                             right: 0,
                             bottom: 0,
-                            child: LinearProgressIndicator(
+                            child: YomaProgressBar(
                               value: progress,
-                              minHeight: 3,
-                              backgroundColor: Colors.black.withAlpha(90),
-                              color: theme.colorScheme.primary,
+                              overImage: true,
                             ),
                           ),
                         if (widget.onFavoriteToggle != null)
@@ -205,7 +203,7 @@ class _MangaCardState extends State<MangaCard> {
                               visualDensity: VisualDensity.standard,
                               icon: DecoratedBox(
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withAlpha(160),
+                                  color: YomaColors.scrim.withAlpha(160),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Padding(
@@ -216,8 +214,8 @@ class _MangaCardState extends State<MangaCard> {
                                         : Icons.favorite_border_rounded,
                                     size: 18,
                                     color: widget.isFavorite
-                                        ? const Color(0xFFFF6B8A)
-                                        : Colors.white,
+                                        ? YomaColors.favorite
+                                        : YomaColors.textPrimary,
                                   ),
                                 ),
                               ),
@@ -231,7 +229,7 @@ class _MangaCardState extends State<MangaCard> {
                               tooltip: 'Opciones de $_displayTitle',
                               icon: DecoratedBox(
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withAlpha(160),
+                                  color: YomaColors.scrim.withAlpha(160),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Padding(
@@ -260,44 +258,16 @@ class _MangaCardState extends State<MangaCard> {
                           Positioned(
                             bottom: 6,
                             right: 4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withAlpha(230),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
+                            child: ConstrainedBox(
                               constraints: BoxConstraints(
                                 maxWidth:
                                     MediaQuery.sizeOf(context).width / 3 - 18,
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (widget.badgeIcon != null) ...[
-                                    Icon(
-                                      widget.badgeIcon,
-                                      size: 12,
-                                      color: theme.colorScheme.onPrimary,
-                                    ),
-                                    const SizedBox(width: 3),
-                                  ],
-                                  Flexible(
-                                    child: Text(
-                                      widget.badge!,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: theme.colorScheme.onPrimary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 10,
-                                        height: 1.2,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              child: YomaCoverTag(
+                                label: widget.badge!,
+                                icon: widget.badgeIcon,
+                                emphasis: true,
+                                maxLines: 2,
                               ),
                             ),
                           ),
@@ -331,16 +301,6 @@ class _MangaCardState extends State<MangaCard> {
     );
   }
 
-  Widget _placeholder(ThemeData theme) {
-    return Container(
-      color: theme.colorScheme.surfaceContainerHighest,
-      child: Center(
-        child: Icon(
-          Icons.auto_stories_outlined,
-          size: 28,
-          color: theme.colorScheme.onSurface.withAlpha(80),
-        ),
-      ),
-    );
-  }
+  Widget _placeholder(ThemeData theme) =>
+      const YomaImageFallback(icon: Icons.auto_stories_outlined);
 }

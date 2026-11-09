@@ -379,8 +379,8 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
                 VideoProgressIndicator(
                   video,
                   allowScrubbing: true,
-                  colors: const VideoProgressColors(
-                    playedColor: Color(0xFFFF6A55),
+                  colors: VideoProgressColors(
+                    playedColor: Theme.of(context).colorScheme.primary,
                   ),
                 ),
                 Row(

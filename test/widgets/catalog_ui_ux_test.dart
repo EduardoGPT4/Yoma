@@ -53,12 +53,14 @@ void main() {
         ),
         greaterThanOrEqualTo(4.5),
       );
+      // Superficie más clara del tema (chips, campos, menús) y su versión
+      // seleccionada; antes era el gris #2A2A2A de YomaShi.
+      final surface = theme.colorScheme.surfaceContainerHighest;
       for (final background in [
-        const Color(0xFF2A2A2A),
-        Color.alphaBlend(
-          theme.colorScheme.primary.withAlpha(36),
-          const Color(0xFF2A2A2A),
-        ),
+        surface,
+        Color.alphaBlend(theme.colorScheme.primary.withAlpha(36), surface),
+        theme.colorScheme.surface,
+        theme.scaffoldBackgroundColor,
       ]) {
         expect(
           contrastRatio(theme.colorScheme.primary, background),

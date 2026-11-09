@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/anime_models.dart';
 import 'anime_local_store.dart';
 import 'anime_mal_client.dart';
+import 'anime_mal_shelf.dart';
 import 'local_anime_downloads.dart';
 import 'yomatv_source.dart';
 
@@ -22,6 +23,15 @@ class AnimeController extends ChangeNotifier {
        store = store ?? AnimeLocalStore(),
        transfers = transfers ?? LocalAnimeDownloads();
   bool _disposed = false;
+
+  /// «Viendo» y «Plan to watch» de MAL que existen en YomaTV.
+  late final AnimeMalShelf malShelf = AnimeMalShelf(mal: mal, source: source);
+  List<MalShelfItem> malWatching = [], malPlanned = [];
+  DateTime? malShelfSavedAt;
+  bool malShelfLoading = false;
+  String? malShelfError;
+  int _malShelfOwner = 0;
+  Future<void>? _malShelfTask;
   final activity = ValueNotifier<bool>(true);
   String? _lastSnapshot;
   bool loading = true, searching = false, loadingMore = false;
@@ -77,6 +87,7 @@ class AnimeController extends ChangeNotifier {
     loading = false;
     mal.client.sessionChanges.addListener(_sessionChanged);
     unawaited(syncMal());
+    unawaited(loadMalShelf());
     changed();
     unawaited(loadFront());
     unawaited(search());
@@ -84,7 +95,86 @@ class AnimeController extends ChangeNotifier {
   }
 
   void _sessionChanged() {
-    if (!_disposed) unawaited(syncMal());
+    if (_disposed) return;
+    unawaited(syncMal());
+    unawaited(loadMalShelf());
+  }
+
+  void _applyMalShelf(MalShelfSnapshot? value) {
+    malWatching = value?.watching ?? [];
+    malPlanned = value?.planned ?? [];
+    malShelfSavedAt = value?.savedAt;
+  }
+
+  /// Muestra al instante la copia guardada y solo consulta MAL si tiene más
+  /// de [AnimeMalShelf.maxAge] o si se pide con [force].
+  Future<void> loadMalShelf({bool force = false}) async {
+    try {
+      final owner = await mal.owner();
+      if (_disposed) return;
+      if (owner <= 0) {
+        if (_malShelfOwner != 0 || malShelfSavedAt != null) {
+          _malShelfOwner = 0;
+          _applyMalShelf(null);
+          changed();
+        }
+        return;
+      }
+      if (owner != _malShelfOwner) {
+        _malShelfOwner = owner;
+        _applyMalShelf(await malShelf.cached(owner));
+        malShelfError = null;
+        changed();
+      }
+      final saved = malShelfSavedAt;
+      final fresh =
+          saved != null &&
+          DateTime.now().difference(saved) < AnimeMalShelf.maxAge;
+      if (fresh && !force) return;
+      await (_malShelfTask ??= _refreshMalShelf(
+        owner,
+      ).whenComplete(() => _malShelfTask = null));
+    } catch (e) {
+      malShelfError = e.toString();
+      changed();
+    }
+  }
+
+  Future<void> _refreshMalShelf(int owner) async {
+    malShelfLoading = true;
+    changed();
+    try {
+      if (!await mal.available()) return;
+      final snapshot = await malShelf.refresh(owner);
+      if (_disposed || _malShelfOwner != owner) return;
+      _applyMalShelf(snapshot);
+      malShelfError = null;
+    } catch (e) {
+      // La copia guardada sigue visible aunque MAL o YomaTV no respondan.
+      malShelfError = 'No se pudo actualizar tu lista de MyAnimeList: $e';
+    } finally {
+      malShelfLoading = false;
+      changed();
+    }
+  }
+
+  /// Vincula [slug] con su anime de MAL al empezar a verlo desde la sección
+  /// de MyAnimeList, para que los episodios vistos se sincronicen. Devuelve
+  /// `true` si se creó una vinculación nueva; nunca sustituye una existente.
+  Future<bool> autoLinkMal(String slug, MalAnimeEntry entry) async {
+    if (await mal.linkOf(slug) != null) return false;
+    await mal.link(slug, entry);
+    var watched = 0;
+    for (final row in positions.values) {
+      if (row['slug'] != slug || row['watched'] != true) continue;
+      final number = int.tryParse('${animeMap(row['episode'])['number']}') ?? 0;
+      if (number > watched) watched = number;
+    }
+    if (watched > 0) {
+      await mal.queueWatched(slug, watched);
+      await syncMal();
+    }
+    return true;
   }
 
   void setActive(bool active) {
@@ -93,6 +183,7 @@ class AnimeController extends ChangeNotifier {
     if (active && !_disposed) {
       unawaited(refreshDownloads());
       unawaited(syncMal());
+      unawaited(loadMalShelf());
     }
   }
 

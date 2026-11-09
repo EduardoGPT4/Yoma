@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-REPO = 'EduardoGPT4/YomaShi'
+REPO = 'EduardoGPT4/Yoma'
 API = 'https://api.github.com/repos/' + REPO
 
 
@@ -58,7 +58,7 @@ class GitHub:
             raise ValueError('Only GitHub release API endpoints are permitted')
         headers = {
             'Authorization': 'Bearer ' + self.token,
-            'User-Agent': 'YomaShi-release-publisher',
+            'User-Agent': 'Yoma-release-publisher',
             'X-GitHub-Api-Version': '2022-11-28', 'Accept': accept,
         }
         if payload is not None:
@@ -138,7 +138,7 @@ def main():
     args = parser.parse_args()
     version = re.search(r'^version:\s*([0-9]+\.[0-9]+\.[0-9]+)\+[0-9]+\s*$',
                         (ROOT/'pubspec.yaml').read_text(), re.MULTILINE).group(1)
-    if args.apk.name != f'YomaShi-{version}-arm64.apk':
+    if args.apk.name != f'Yoma-{version}-arm64.apk':
         raise ValueError('Use the versioned personal ARM64 APK matching pubspec.yaml')
     content = args.apk.read_bytes()
     if not content.startswith(b'PK'):
@@ -155,7 +155,7 @@ def main():
     github.verify_target(tag, target, release)
     if release is None:
         release = github.json(API + '/releases', method='POST', payload={
-            'tag_name': tag, 'target_commitish': target, 'name': 'YomaShi ' + version,
+            'tag_name': tag, 'target_commitish': target, 'name': 'Yoma ' + version,
             'body': notes, 'draft': True, 'prerelease': False,
         })
     upload = release['upload_url'].split('{', 1)[0]

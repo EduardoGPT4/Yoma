@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../design/yoma_components.dart';
+
 import '../widgets/bottom_nav_bar.dart';
 import 'download_queue_screen.dart';
 import 'hitomi_section_screen.dart';
@@ -53,24 +55,26 @@ class _MainShellState extends State<MainShell> {
           );
         }),
       ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_index != YomashiNavIndex.downloads) const DownloadActivity(),
-          YomashiBottomNavBar(
-            currentIndex: _index,
-            onTap: (value) {
-              if (value == _index) {
-                return;
-              }
-              FocusScope.of(context).unfocus();
-              setState(() {
-                _visited.add(value);
-                _index = value;
-              });
-            },
-          ),
-        ],
+      bottomNavigationBar: YomaHideOnScroll(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_index != YomashiNavIndex.downloads) const DownloadActivity(),
+            YomashiBottomNavBar(
+              currentIndex: _index,
+              onTap: (value) {
+                if (value == _index) {
+                  return;
+                }
+                FocusScope.of(context).unfocus();
+                setState(() {
+                  _visited.add(value);
+                  _index = value;
+                });
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

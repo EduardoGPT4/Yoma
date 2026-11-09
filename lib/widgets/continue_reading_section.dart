@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../design/yoma_components.dart';
+import '../design/yoma_tokens.dart';
 import '../utils/title_sanitizer.dart';
 import 'app_metrics.dart';
 import 'cached_thumbnail.dart';
@@ -42,7 +44,7 @@ class ContinueReadingSection extends StatelessWidget {
           icon: Icons.play_circle_outline_rounded,
           title: 'Continuar leyendo',
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: YomaSpacing.md),
         _FeaturedContinue(entry: entries.first),
         if (rest.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -80,21 +82,19 @@ class _ContinueCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: entry.onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: YomaRadii.mdAll,
         child: Ink(
           width: metrics.continueWidth,
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: theme.colorScheme.onSurface.withAlpha(18),
-            ),
+            borderRadius: YomaRadii.mdAll,
+            border: Border.all(color: YomaColors.borderSubtle),
           ),
           child: Row(
             children: [
               ClipRRect(
                 borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(11),
+                  left: Radius.circular(YomaRadii.md - 1),
                 ),
                 child: SizedBox(
                   width: metrics.continueCover,
@@ -103,20 +103,16 @@ class _ContinueCard extends StatelessWidget {
                     sourcePath: entry.coverPath,
                     size: 180,
                     fit: BoxFit.cover,
-                    placeholderBuilder: (_) => ColoredBox(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      child: Icon(
-                        Icons.auto_stories_outlined,
-                        size: 18,
-                        color: theme.colorScheme.onSurface.withAlpha(80),
-                      ),
+                    placeholderBuilder: (_) => const YomaImageFallback(
+                      icon: Icons.auto_stories_outlined,
+                      iconSize: 18,
                     ),
                   ),
                 ),
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                  padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -125,7 +121,7 @@ class _ContinueCard extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
+                        style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           fontSize: metrics.titleSize,
                           height: 1.15,
@@ -138,21 +134,10 @@ class _ContinueCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11,
                         ),
                       ),
                       const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 3,
-                          backgroundColor: theme.colorScheme.onSurface
-                              .withAlpha(24),
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
+                      YomaProgressBar(value: progress),
                     ],
                   ),
                 ),
@@ -172,16 +157,19 @@ class _FeaturedContinue extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: theme.colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(16),
+      color: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: YomaRadii.lgAll,
+        side: const BorderSide(color: YomaColors.borderSubtle),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(YomaSpacing.md),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(YomaRadii.sm),
               child: SizedBox(
                 width: 72,
                 height: 108,
@@ -189,11 +177,11 @@ class _FeaturedContinue extends StatelessWidget {
                   sourcePath: entry.coverPath,
                   size: 216,
                   placeholderBuilder: (_) =>
-                      const Center(child: Icon(Icons.menu_book_outlined)),
+                      const YomaImageFallback(icon: Icons.menu_book_outlined),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: YomaSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -202,23 +190,20 @@ class _FeaturedContinue extends StatelessWidget {
                     TitleSanitizer.clean(entry.title),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: theme.textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '${entry.chapterLabel} · Pág. ${entry.pageNumber}',
-                    style: theme.textTheme.bodySmall,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                   if (entry.timeAgo != null)
-                    Text(
-                      entry.timeAgo!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  const SizedBox(height: 8),
+                    Text(entry.timeAgo!, style: theme.textTheme.bodySmall),
+                  const SizedBox(height: YomaSpacing.sm),
+                  YomaProgressBar(value: entry.progress),
+                  const SizedBox(height: YomaSpacing.md),
                   FilledButton.icon(
                     onPressed: entry.onTap,
                     icon: const Icon(Icons.play_arrow),

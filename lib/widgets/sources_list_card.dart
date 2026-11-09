@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design/yoma_tokens.dart';
 
 import '../models/manga_source.dart';
 
@@ -54,7 +55,7 @@ class SourcesListCard extends StatelessWidget {
                     color: isActive
                         ? scheme.primary.withAlpha(36)
                         : scheme.onSurface.withAlpha(18),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(YomaRadii.md),
                   ),
                   child: Icon(
                     source.icon,

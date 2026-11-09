@@ -2,8 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/profile_provider.dart';
+import '../../design/yoma_components.dart';
+import '../../design/yoma_tokens.dart';
+import '../../widgets/app_metrics.dart';
+import '../../widgets/section_header.dart';
 import 'anime_screen.dart';
 import 'data/anime_controller.dart';
+import 'data/anime_mal_client.dart';
+import 'data/anime_mal_shelf.dart';
 import 'models/anime_models.dart';
 import 'screens/anime_detail_screen.dart';
 import 'screens/anime_mal_screen.dart';
@@ -54,17 +60,49 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen> {
       ),
     ),
   );
-  void _detail(String slug) => _navigator.currentState!.push(
-    MaterialPageRoute<void>(
-      builder: (_) => AnimeDetailScreen(
-        controller: app,
-        slug: slug,
-        play: _play,
-        openSeason: _detail,
-        openWeb: () => _web(),
-      ),
-    ),
-  );
+
+  /// Con [mal], la ficha viene de la sección de MyAnimeList: al empezar a
+  /// ver ese mismo anime se vincula para sincronizar los episodios vistos.
+  void _detail(String slug, {MalAnimeEntry? mal}) =>
+      _navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => AnimeDetailScreen(
+            controller: app,
+            slug: slug,
+            play: mal == null
+                ? _play
+                : (detail, episode) {
+                    if (detail.anime.slug == slug) {
+                      unawaited(_autoLink(slug, mal));
+                    }
+                    _play(detail, episode);
+                  },
+            openSeason: _detail,
+            openWeb: () => _web(),
+          ),
+        ),
+      );
+
+  Future<void> _autoLink(String slug, MalAnimeEntry mal) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      if (await app.autoLinkMal(slug, mal)) {
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Vinculado con MyAnimeList: ${mal.title}. '
+              'Los episodios vistos se sincronizarán.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text('No se pudo vincular con MyAnimeList: $e')),
+      );
+    }
+  }
+
   void _play(AnimeDetail detail, AnimeEpisode episode) =>
       _navigator.currentState!.push(
         MaterialPageRoute<void>(
@@ -87,45 +125,23 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen> {
     return false;
   }
 
+  /// YomaTV usa el tema único de Yoma (mismos neutros, acento y tipografía
+  /// que YomaShi); su carácter cinematográfico está en la composición.
   @override
-  Widget build(BuildContext context) => Theme(
-    data: ThemeData.dark(useMaterial3: true).copyWith(
-      colorScheme: const ColorScheme.dark(
-        primary: Color(0xFFFF6A55),
-        secondary: Color(0xFFAEE6C9),
-        surface: Color(0xFF1B1925),
-        onSurface: Color(0xFFF4EEE5),
-        onPrimary: Color(0xFF160C09),
-      ),
-      scaffoldBackgroundColor: const Color(0xFF0E0D14),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF0E0D14),
-        foregroundColor: Color(0xFFF4EEE5),
-        surfaceTintColor: Colors.transparent,
-      ),
-      navigationBarTheme: const NavigationBarThemeData(
-        backgroundColor: Color(0xFF17141F),
-        indicatorColor: Color(0xFF52332F),
-        iconTheme: WidgetStatePropertyAll(
-          IconThemeData(color: Color(0xFFF4EEE5)),
-        ),
-      ),
-    ),
-    child: Navigator(
-      key: _navigator,
-      observers: widget.navigatorObservers,
-      onGenerateRoute: (_) => MaterialPageRoute<void>(
-        builder: (_) => _AnimeMain(
-          app: app,
-          detail: _detail,
-          play: _play,
-          web: () => _web(),
-          home: widget.home,
-          mal: () => _navigator.currentState!.push(
-            MaterialPageRoute<void>(
-              builder: (_) =>
-                  AnimeMalScreen(controller: app, home: widget.home),
-            ),
+  Widget build(BuildContext context) => Navigator(
+    key: _navigator,
+    observers: widget.navigatorObservers,
+    onGenerateRoute: (_) => MaterialPageRoute<void>(
+      builder: (_) => _AnimeMain(
+        app: app,
+        detail: _detail,
+        openMal: (slug, entry) => _detail(slug, mal: entry),
+        play: _play,
+        web: () => _web(),
+        home: widget.home,
+        mal: () => _navigator.currentState!.push(
+          MaterialPageRoute<void>(
+            builder: (_) => AnimeMalScreen(controller: app, home: widget.home),
           ),
         ),
       ),
@@ -141,11 +157,13 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen> {
 class _AnimeMain extends StatelessWidget {
   final AnimeController app;
   final ValueChanged<String> detail;
+  final void Function(String slug, MalAnimeEntry entry) openMal;
   final void Function(AnimeDetail, AnimeEpisode) play;
   final VoidCallback web, home, mal;
   const _AnimeMain({
     required this.app,
     required this.detail,
+    required this.openMal,
     required this.play,
     required this.web,
     required this.home,
@@ -156,21 +174,9 @@ class _AnimeMain extends StatelessWidget {
     animation: app,
     builder: (context, _) => Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(9),
-              child: Image.asset(
-                'assets/branding/1-Anime.png',
-                width: 34,
-                height: 34,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text('YomaTV', style: TextStyle(fontWeight: FontWeight.w800)),
-          ],
+        title: const YomaModuleTitle(
+          logoAsset: 'assets/branding/1-Anime.png',
+          label: Text('YomaTV'),
         ),
         actions: [
           IconButton(
@@ -203,7 +209,7 @@ class _AnimeMain extends StatelessWidget {
       ),
       body: Column(
         children: [
-          if (app.loading) const LinearProgressIndicator(),
+          if (app.loading) const LinearProgressIndicator(minHeight: 2),
           if (app.error != null)
             MaterialBanner(
               content: Text(
@@ -232,7 +238,12 @@ class _AnimeMain extends StatelessWidget {
             child: IndexedStack(
               index: app.tab,
               children: [
-                _AnimeHome(app: app, detail: detail, play: play),
+                _AnimeHome(
+                  app: app,
+                  detail: detail,
+                  openMal: openMal,
+                  play: play,
+                ),
                 _AnimeCatalog(app: app, detail: detail),
                 _AnimeLibrary(app: app, detail: detail, play: play),
                 _AnimeDownloads(app: app, play: play),
@@ -249,26 +260,38 @@ class _AnimeMain extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: app.tab,
-        onDestinationSelected: app.selectTab,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.explore_outlined),
-            selectedIcon: Icon(Icons.explore),
-            label: 'Inicio',
-          ),
-          NavigationDestination(icon: Icon(Icons.search), label: 'Explorar'),
-          NavigationDestination(
-            icon: Icon(Icons.bookmarks_outlined),
-            label: 'Biblioteca',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.download_outlined),
-            label: 'Descargas',
-          ),
-          NavigationDestination(icon: Icon(Icons.tune), label: 'Más'),
-        ],
+      bottomNavigationBar: YomaHideOnScroll(
+        child: YomaNavigationBar(
+          selectedIndex: app.tab,
+          onDestinationSelected: app.selectTab,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.explore_outlined),
+              selectedIcon: Icon(Icons.explore_rounded),
+              label: 'Inicio',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.search_rounded),
+              selectedIcon: Icon(Icons.manage_search_rounded),
+              label: 'Explorar',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.bookmarks_outlined),
+              selectedIcon: Icon(Icons.bookmarks_rounded),
+              label: 'Biblioteca',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.download_outlined),
+              selectedIcon: Icon(Icons.download_rounded),
+              label: 'Descargas',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.tune_rounded),
+              selectedIcon: Icon(Icons.tune_rounded),
+              label: 'Más',
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -277,10 +300,12 @@ class _AnimeMain extends StatelessWidget {
 class _AnimeHome extends StatelessWidget {
   final AnimeController app;
   final ValueChanged<String> detail;
+  final void Function(String slug, MalAnimeEntry entry) openMal;
   final void Function(AnimeDetail, AnimeEpisode) play;
   const _AnimeHome({
     required this.app,
     required this.detail,
+    required this.openMal,
     required this.play,
   });
   Future<void> _resume(BuildContext context, Map<String, dynamic> row) async {
@@ -297,45 +322,148 @@ class _AnimeHome extends StatelessWidget {
     }
   }
 
-  Widget _shelf(BuildContext context, String title, List<AnimeTitle> items) =>
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 14),
-            child: Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
+  Widget _shelf(
+    BuildContext context,
+    String title,
+    IconData icon,
+    List<AnimeTitle> items, {
+    void Function(int index)? open,
+    double? Function(int index)? progress,
+    Widget? trailing,
+    String? note,
+  }) {
+    final side = AppMetrics.maybeOf(context).horizontalPadding;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(side, YomaSpacing.xxl, side, 12),
+          child: SectionHeader(
+            icon: icon,
+            title: title,
+            trailing: '${items.length}',
+            trailingWidget: trailing,
           ),
-          SizedBox(
-            height: 260,
-            child: ListView.separated(
-              key: PageStorageKey(title),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              scrollDirection: Axis.horizontal,
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 14),
-              itemBuilder: (_, i) => SizedBox(
-                width: 145,
-                child: AnimeCard(
-                  anime: items[i],
-                  onTap: () => detail(items[i].slug),
-                  favorite: app.isFavorite(items[i].slug),
-                ),
+        ),
+        if (note != null)
+          Padding(
+            padding: EdgeInsets.fromLTRB(side, 0, side, 12),
+            child: Text(note, style: Theme.of(context).textTheme.bodySmall),
+          ),
+        SizedBox(
+          height: 260,
+          child: ListView.separated(
+            key: PageStorageKey(title),
+            padding: EdgeInsets.symmetric(horizontal: side),
+            scrollDirection: Axis.horizontal,
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(width: YomaSpacing.md),
+            itemBuilder: (_, i) => SizedBox(
+              width: 145,
+              child: AnimeCard(
+                anime: items[i],
+                onTap: open == null
+                    ? () => detail(items[i].slug)
+                    : () => open(i),
+                favorite: app.isFavorite(items[i].slug),
+                progress: progress?.call(i),
               ),
             ),
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
+
+  /// Animes de «Viendo» y «Plan to watch» en MAL que existen en YomaTV con
+  /// el mismo nombre. Salen de la copia guardada en el teléfono.
+  List<Widget> _malShelves(BuildContext context) {
+    final side = AppMetrics.maybeOf(context).horizontalPadding;
+    final firstLoad = app.malShelfLoading && app.malShelfSavedAt == null;
+    final status = app.malShelfLoading
+        ? const SizedBox.square(
+            dimension: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : null;
+    Widget shelf(
+      String title,
+      IconData icon,
+      List<MalShelfItem> items, {
+      required bool watching,
+    }) => _shelf(
+      context,
+      title,
+      icon,
+      [for (final item in items) item.anime],
+      open: (i) => openMal(items[i].anime.slug, items[i].entry),
+      progress: watching
+          ? (i) {
+              final entry = items[i].entry;
+              return entry.total > 0 ? entry.watched / entry.total : null;
+            }
+          : null,
+      trailing: status,
+    );
+    return [
+      if (firstLoad)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(side, YomaSpacing.xxl, side, 0),
+            child: const Row(
+              children: [
+                SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: YomaSpacing.md),
+                Expanded(
+                  child: Text('Buscando tus animes de MyAnimeList en YomaTV…'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      if (app.malShelfError != null && !app.malShelfLoading)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(side, YomaSpacing.md, side, 0),
+            child: Text(
+              app.malShelfError!,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ),
+      if (app.malWatching.isNotEmpty)
+        SliverToBoxAdapter(
+          child: shelf(
+            'Viendo en MyAnimeList',
+            Icons.play_circle_outline_rounded,
+            app.malWatching,
+            watching: true,
+          ),
+        ),
+      if (app.malPlanned.isNotEmpty)
+        SliverToBoxAdapter(
+          child: shelf(
+            'Por ver en MyAnimeList',
+            Icons.bookmark_border_rounded,
+            app.malPlanned,
+            watching: false,
+          ),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final recent = app.front?.items ?? [];
     final airing = recent.where((a) => a.active).toList();
+    final theme = Theme.of(context);
+    final side = AppMetrics.maybeOf(context).horizontalPadding;
     return RefreshIndicator(
-      onRefresh: app.loadFront,
+      onRefresh: () =>
+          Future.wait([app.loadFront(), app.loadMalShelf(force: true)]),
       child: CustomScrollView(
         key: const PageStorageKey('anime-home'),
         slivers: [
@@ -347,19 +475,11 @@ class _AnimeHome extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     animeArtwork(recent.first.cover, width: 900),
-                    const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.black26, Color(0xFF0E0D14)],
-                        ),
-                      ),
-                    ),
+                    const AnimeBackdropGradient(),
                     Positioned(
-                      left: 22,
-                      right: 22,
-                      bottom: 16,
+                      left: side,
+                      right: side,
+                      bottom: YomaSpacing.lg,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -368,25 +488,25 @@ class _AnimeHome extends StatelessWidget {
                               recent.first.category,
                               recent.first.season,
                             ].where((e) => e.isNotEmpty).join(' · '),
-                            style: const TextStyle(color: Color(0xFFAEE6C9)),
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             recent.first.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.headlineMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
+                            style: theme.textTheme.headlineMedium,
                           ),
                           const SizedBox(height: 8),
                           Text(
                             recent.first.synopsis,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Color(0xFFE0DCE5)),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: YomaColors.textPrimary.withAlpha(215),
+                            ),
                           ),
                           const SizedBox(height: 16),
                           FilledButton.icon(
@@ -407,19 +527,25 @@ class _AnimeHome extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-                    child: Text(
-                      'Continuar viendo',
-                      style: Theme.of(context).textTheme.titleLarge,
+                    padding: EdgeInsets.fromLTRB(
+                      side,
+                      YomaSpacing.xxl,
+                      side,
+                      12,
+                    ),
+                    child: const SectionHeader(
+                      icon: Icons.play_circle_outline_rounded,
+                      title: 'Continuar viendo',
                     ),
                   ),
                   SizedBox(
                     height: 170,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: EdgeInsets.symmetric(horizontal: side),
                       itemCount: app.continuing.length,
-                      separatorBuilder: (_, _) => const SizedBox(width: 12),
+                      separatorBuilder: (_, _) =>
+                          const SizedBox(width: YomaSpacing.md),
                       itemBuilder: (context, i) {
                         final row = app.continuing[i],
                             anime = AnimeTitle.fromJson(animeMap(row['anime']));
@@ -434,18 +560,20 @@ class _AnimeHome extends StatelessWidget {
                                 fit: StackFit.expand,
                                 children: [
                                   animeArtwork(anime.cover, width: 420),
-                                  const DecoratedBox(
+                                  DecoratedBox(
                                     decoration: BoxDecoration(
                                       gradient: LinearGradient(
                                         colors: [
-                                          Colors.black87,
-                                          Colors.black12,
+                                          YomaColors.scrim.withAlpha(222),
+                                          YomaColors.scrim.withAlpha(30),
                                         ],
                                       ),
                                     ),
                                   ),
                                   Padding(
-                                    padding: const EdgeInsets.all(16),
+                                    padding: const EdgeInsets.all(
+                                      YomaSpacing.lg,
+                                    ),
                                     child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
@@ -455,24 +583,23 @@ class _AnimeHome extends StatelessWidget {
                                           anime.title,
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.white,
-                                          ),
+                                          style: theme.textTheme.titleSmall,
                                         ),
                                         Text(
                                           'Episodio ${animeMap(row['episode'])['number']}',
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                          ),
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: YomaColors.textPrimary
+                                                    .withAlpha(215),
+                                              ),
                                         ),
                                         const SizedBox(height: 10),
-                                        LinearProgressIndicator(
+                                        YomaProgressBar(
+                                          overImage: true,
                                           value: duration <= 0
                                               ? 0
-                                              : (animeInt(row['positionMs']) /
-                                                        duration)
-                                                    .clamp(0, 1),
+                                              : animeInt(row['positionMs']) /
+                                                    duration,
                                         ),
                                       ],
                                     ),
@@ -488,12 +615,25 @@ class _AnimeHome extends StatelessWidget {
                 ],
               ),
             ),
+          ..._malShelves(context),
           if (recent.isNotEmpty)
             SliverToBoxAdapter(
-              child: _shelf(context, 'Recién añadidos', recent),
+              child: _shelf(
+                context,
+                'Recién añadidos',
+                Icons.new_releases_outlined,
+                recent,
+              ),
             ),
           if (airing.isNotEmpty)
-            SliverToBoxAdapter(child: _shelf(context, 'En emisión', airing)),
+            SliverToBoxAdapter(
+              child: _shelf(
+                context,
+                'En emisión',
+                Icons.live_tv_rounded,
+                airing,
+              ),
+            ),
           if (recent.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -1309,12 +1449,14 @@ class _AnimeMore extends StatelessWidget {
           onTap: mal,
         ),
         ListTile(
+          contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.sync),
           title: const Text('Mi lista de anime MAL'),
           trailing: const Icon(Icons.chevron_right),
           onTap: mal,
         ),
         ListTile(
+          contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.history),
           title: const Text('Historial de reproducción'),
           subtitle: Text('${app.history.length} episodios'),

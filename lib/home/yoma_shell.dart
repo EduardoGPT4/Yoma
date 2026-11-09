@@ -5,6 +5,8 @@ import '../screens/main_shell.dart';
 import '../screens/myanimelist_screen.dart';
 import '../features/anime/native_anime_screen.dart';
 import '../features/anime/data/anime_controller.dart';
+import '../design/yoma_components.dart';
+import '../design/yoma_tokens.dart';
 
 /// Each experience owns a Navigator so a reader route survives section changes.
 class YomaShell extends StatefulWidget {
@@ -19,10 +21,15 @@ class _YomaShellState extends State<YomaShell> {
   final _anime = GlobalKey<NativeAnimeScreenState>();
   final _mangaPages = _PageDepthObserver();
   final _animePages = _PageDepthObserver();
+  static final _noPages = ValueNotifier<int>(0);
+
+  /// Barras del módulo y global: se ocultan juntas al desplazar hacia abajo.
+  final _barsVisible = ValueNotifier<bool>(true);
   int _section = 0;
   bool _mangaVisited = false, _animeVisited = false;
 
   void _select(int value) => setState(() {
+    _barsVisible.value = true;
     _section = value;
     _mangaVisited |= value == 1;
     _animeVisited |= value == 2;
@@ -38,7 +45,18 @@ class _YomaShellState extends State<YomaShell> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Al abrir o cerrar una página interna las barras vuelven a mostrarse.
+    _mangaPages.pages.addListener(_showBars);
+    _animePages.pages.addListener(_showBars);
+  }
+
+  void _showBars() => _barsVisible.value = true;
+
+  @override
   void dispose() {
+    _barsVisible.dispose();
     _mangaPages.dispose();
     _animePages.dispose();
     super.dispose();
@@ -52,73 +70,125 @@ class _YomaShellState extends State<YomaShell> {
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop) _back();
     },
-    child: Scaffold(
-      body: IndexedStack(
-        index: _section,
-        children: [
-          _Selector(onSelect: _select),
-          if (_mangaVisited)
-            TickerMode(
-              enabled: _section == 1,
-              child: Navigator(
-                key: _manga,
-                observers: [_mangaPages],
-                onGenerateRoute: _mainShellRoute,
-              ),
-            )
-          else
-            const SizedBox.shrink(),
-          if (_animeVisited)
-            NativeAnimeScreen(
-              key: _anime,
-              navigatorObservers: [_animePages],
-              controller: widget.animeController,
-              active: _section == 2,
-              home: () => _select(0),
-            )
-          else
-            const SizedBox.shrink(),
-        ],
+    // La barra se decide fuera del Scaffold: si recibiera un widget vacío,
+    // el Scaffold seguiría quitando el margen inferior del área segura al
+    // lector, al reproductor y a las fichas.
+    child: YomaBarsScope(
+      visible: _barsVisible,
+      child: ValueListenableBuilder<int>(
+        valueListenable: switch (_section) {
+          1 => _mangaPages.pages,
+          2 => _animePages.pages,
+          _ => _noPages,
+        },
+        builder: (context, pages, body) => Scaffold(
+          body: body,
+          bottomNavigationBar: _section == 0 || pages > 1
+              ? null
+              : YomaHideOnScroll(child: _sectionBar()),
+        ),
+        child: YomaScrollBars(
+          visible: _barsVisible,
+          child: IndexedStack(
+            index: _section,
+            children: [
+              _Selector(onSelect: _select),
+              if (_mangaVisited)
+                TickerMode(
+                  enabled: _section == 1,
+                  child: Navigator(
+                    key: _manga,
+                    observers: [_mangaPages],
+                    onGenerateRoute: _mainShellRoute,
+                  ),
+                )
+              else
+                const SizedBox.shrink(),
+              if (_animeVisited)
+                NativeAnimeScreen(
+                  key: _anime,
+                  navigatorObservers: [_animePages],
+                  controller: widget.animeController,
+                  active: _section == 2,
+                  home: () => _select(0),
+                )
+              else
+                const SizedBox.shrink(),
+            ],
+          ),
+        ),
       ),
-      bottomNavigationBar: _section == 0
-          ? null
-          : ValueListenableBuilder<int>(
-              valueListenable: _section == 1
-                  ? _mangaPages.pages
-                  : _animePages.pages,
-              builder: (context, pages, bar) =>
-                  pages > 1 ? const SizedBox.shrink() : bar!,
-              child: _sectionBar(),
-            ),
     ),
   );
 
   /// Solo en la pantalla principal de cada sección: no tapa lector ni video.
-  Widget _sectionBar() => SafeArea(
-    top: false,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          TextButton.icon(
-            onPressed: () => _select(0),
-            icon: const Icon(Icons.space_dashboard_outlined),
-            label: const Text('Yoma'),
-          ),
-          const Spacer(),
-          TextButton.icon(
-            onPressed: () => _select(_section == 1 ? 2 : 1),
-            icon: Icon(
-              _section == 1
-                  ? Icons.play_circle_outline
-                  : Icons.menu_book_outlined,
-            ),
-            label: Text(_section == 1 ? 'Ir a Anime' : 'Ir a Manga'),
-          ),
-        ],
-      ),
-    ),
+  /// Continúa la barra del módulo con un tono un paso más oscuro y una línea
+  /// fina, para que ambas se lean como una sola unidad.
+  Widget _sectionBar() => _SectionBar(
+    toAnime: _section == 1,
+    onHome: () => _select(0),
+    onSwitch: () => _select(_section == 1 ? 2 : 1),
   );
+}
+
+class _SectionBar extends StatelessWidget {
+  final bool toAnime;
+  final VoidCallback onHome, onSwitch;
+  const _SectionBar({
+    required this.toAnime,
+    required this.onHome,
+    required this.onSwitch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final label = Theme.of(context).textTheme.labelLarge;
+    ButtonStyle style(Color color) => TextButton.styleFrom(
+      foregroundColor: color,
+      textStyle: label,
+      iconSize: YomaSizes.iconSm,
+      minimumSize: const Size(48, YomaSizes.sectionBarHeight - 8),
+      padding: const EdgeInsets.symmetric(horizontal: YomaSpacing.md),
+    );
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: YomaColors.surfaceLow,
+        border: Border(top: BorderSide(color: YomaColors.borderSubtle)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: YomaSizes.sectionBarHeight,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: YomaSpacing.sm),
+            child: Row(
+              children: [
+                TextButton.icon(
+                  style: style(YomaColors.textSecondary),
+                  onPressed: onHome,
+                  icon: const Icon(Icons.space_dashboard_outlined),
+                  label: const Text('Yoma'),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  style: style(YomaColors.textPrimary),
+                  onPressed: onSwitch,
+                  icon: Icon(
+                    toAnime
+                        ? Icons.play_circle_outline
+                        : Icons.menu_book_outlined,
+                  ),
+                  label: Text(toAnime ? 'Ir a Anime' : 'Ir a Manga'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 Route<void> _mainShellRoute(RouteSettings settings) =>
@@ -197,9 +267,12 @@ class _Selector extends StatelessWidget {
             ).textTheme.displayMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Tu manga. Tu anime. Tu espacio.',
             textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: YomaColors.textSecondary),
           ),
           const SizedBox(height: 28),
           _experience(
@@ -210,7 +283,7 @@ class _Selector extends StatelessWidget {
             'Tu biblioteca, tus fuentes y tu lector offline.',
             'assets/branding/2-Manga.png',
             Icons.menu_book_rounded,
-            const Color(0xFFAF83FF),
+            YomaColors.mangaTint,
           ),
           const SizedBox(height: 16),
           _experience(
@@ -221,7 +294,7 @@ class _Selector extends StatelessWidget {
             'Explora el catálogo y continúa tu anime.',
             'assets/branding/1-Anime.png',
             Icons.play_circle_fill_rounded,
-            const Color(0xFFF080B7),
+            YomaColors.animeTint,
           ),
           const SizedBox(height: 24),
           Card(
@@ -249,9 +322,10 @@ class _Selector extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Una instalación · Dos experiencias',
             textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
@@ -274,14 +348,14 @@ class _Selector extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [accent.withValues(alpha: .18), const Color(0xFF19151F)],
+            colors: [accent.withValues(alpha: .18), YomaColors.surface],
           ),
         ),
         padding: const EdgeInsets.all(20),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(YomaRadii.lg),
               child: Image.asset(
                 image,
                 width: 76,
@@ -294,15 +368,23 @@ class _Selector extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(brand, style: TextStyle(color: accent)),
+                  Text(
+                    brand,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelLarge?.copyWith(color: accent),
+                  ),
                   Text(
                     title,
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const SizedBox(height: 6),
-                  Text(detail),
+                  Text(
+                    detail,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: YomaColors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),

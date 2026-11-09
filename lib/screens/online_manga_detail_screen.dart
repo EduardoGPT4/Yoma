@@ -1,4 +1,5 @@
 import '../providers/favorites_provider.dart';
+import '../design/yoma_tokens.dart';
 import '../widgets/mal_sync_status.dart';
 import '../widgets/contextual_tip.dart';
 import '../data/download_storage.dart';
@@ -676,7 +677,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: theme.colorScheme.surface,
-                          borderRadius: BorderRadius.circular(22),
+                          borderRadius: BorderRadius.circular(YomaRadii.lg),
                           border: Border.all(
                             color: theme.colorScheme.onSurface.withAlpha(18),
                           ),
@@ -804,7 +805,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                       padding: const EdgeInsets.all(18),
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surface,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(YomaRadii.lg),
                         border: Border.all(
                           color: theme.colorScheme.onSurface.withAlpha(18),
                         ),
@@ -1041,7 +1042,7 @@ class _CoverCard extends StatelessWidget {
       width: 108,
       height: 154,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(YomaRadii.md),
         border: Border.all(color: Colors.white.withAlpha(40)),
         boxShadow: [
           BoxShadow(
@@ -1052,7 +1053,7 @@ class _CoverCard extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(YomaRadii.md - 1),
         child: CachedThumbnail(
           sourcePath: coverUrl,
           size: 480,
@@ -1096,7 +1097,7 @@ class _ActionRow extends StatelessWidget {
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(YomaRadii.md),
               ),
             ),
           ),
@@ -1113,7 +1114,7 @@ class _ActionRow extends StatelessWidget {
               side: BorderSide(color: theme.colorScheme.outline),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(YomaRadii.md),
               ),
             ),
           ),
@@ -1136,7 +1137,7 @@ class _InfoStrip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(YomaRadii.lg),
         border: Border.all(color: theme.colorScheme.onSurface.withAlpha(18)),
       ),
       child: Wrap(

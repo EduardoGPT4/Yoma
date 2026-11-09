@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../design/yoma_tokens.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/chapter_read_provider.dart';
@@ -83,7 +84,7 @@ class _StatCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(YomaRadii.lg),
         border: Border.all(color: theme.colorScheme.onSurface.withAlpha(18)),
       ),
       child: Row(
