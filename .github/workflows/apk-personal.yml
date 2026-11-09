@@ -48,11 +48,16 @@ jobs:
           "$BT/aapt2" dump badging out/app-arm64-v8a-release.apk | head -3 | tee out/badging.txt
           sha256sum out/* | tee out/SHA256.txt
       - if: steps.etapa.outputs.publicar == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk-sin-firma-personal
-          path: out/
-          retention-days: 3
+        name: Entregar para firmar
+        run: |
+          # Los artefactos no son accesibles desde el entorno que firma; se
+          # entregan en esta rama temporal, que se borra al publicar.
+          mkdir -p firma/sin-firma && mv out/* firma/sin-firma/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add firma/sin-firma
+          git commit -q -m "Temporal: APK sin firma personal"
+          git push origin HEAD:apk-firma
       - if: steps.etapa.outputs.publicar == 'true'
         name: Verificar y publicar
         env:
@@ -70,4 +75,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" --target "$CODE_SHA" \
             --title "Yoma $VERSION" --notes-file firma/notas.md --latest
           gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json url,tagName,assets --jq '.url, .tagName, (.assets[] | .name + " " + (.size|tostring))'
+          git push origin --delete ci-diagnostico || true
           git push origin --delete apk-firma
