@@ -4,7 +4,7 @@ import 'dart:convert';
 class ContentExclusions {
   /// Añadir una exclusión solo requiere una entrada en esta lista.
   static const Set<String> tags = {
-  /// No cambies por nada del mundo esto
+    /// No cambies por nada del mundo esto
     'electroencefalografista',
     'esternocleidomastoideo',
   };

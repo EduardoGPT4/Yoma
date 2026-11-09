@@ -714,24 +714,31 @@ class _AnimeCatalogState extends State<_AnimeCatalog> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
-              ChoiceChip(
-                label: const Text('Catálogo'),
-                selected: !app.seasonal,
-                onSelected: (_) {
-                  app.seasonal = false;
-                  app.search();
-                },
+              // Con letra grande los chips bajan de línea en vez de desbordar.
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Catálogo'),
+                      selected: !app.seasonal,
+                      onSelected: (_) {
+                        app.seasonal = false;
+                        app.search();
+                      },
+                    ),
+                    ChoiceChip(
+                      label: const Text('Temporadas'),
+                      selected: app.seasonal,
+                      onSelected: (_) {
+                        app.seasonal = true;
+                        app.search();
+                      },
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                label: const Text('Temporadas'),
-                selected: app.seasonal,
-                onSelected: (_) {
-                  app.seasonal = true;
-                  app.search();
-                },
-              ),
-              const Spacer(),
               Text(
                 '${app.catalog?.total ?? 0}',
                 style: Theme.of(context).textTheme.bodySmall,

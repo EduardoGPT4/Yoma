@@ -279,6 +279,7 @@ class LibraryStore {
         'DELETE FROM app_records WHERE namespace=? AND record_key=?',
         [namespace, key],
       );
+
   /// Conserva solo los [keep] registros más recientes (`savedAt`) del espacio
   /// [namespace] cuyo id empieza por [prefix].
   Future<void> pruneRecords(String namespace, String prefix, int keep) =>

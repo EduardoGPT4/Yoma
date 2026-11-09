@@ -22,6 +22,7 @@ class AnimeLocalStore {
       await (await database()).pruneRecords('anime_cache', 'catalog:', 40);
     }
   }
+
   Future<void> _put(String ns, String key, Map<String, dynamic> value) async =>
       (await database()).putRecord(ns, key, value);
   Future<List<Map<String, dynamic>>> library() async =>

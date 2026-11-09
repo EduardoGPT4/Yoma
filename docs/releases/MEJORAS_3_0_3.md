@@ -6,7 +6,7 @@ Correcciones derivadas de la auditoría del 9 de noviembre de 2026. Los identifi
 
 | ID | Cambio | Archivos principales |
 | --- | --- | --- |
-| Y-01 | Las páginas de manga vistas se guardan en `files/Yoma/YomaShi/PaginasVistas` en lugar de la caché temporal. La caché antigua se migra una vez sin volver a descargar. Se mantiene el límite de 256 MiB. | `lib/services/image_repository.dart` |
+| Y-01 | Las páginas de manga vistas se guardan en `files/Yoma/YomaShi/PaginasVistas` en lugar de la caché temporal. La caché antigua se migra una vez sin volver a descargar. Se mantiene el límite de 256 MiB; en Almacenamiento aparecen como "Páginas vistas". | `lib/services/image_repository.dart` |
 | Y-02 | Al salir de Manga con un capítulo abierto, el lector suelta las teclas de volumen, la orientación y el modo de pantalla, guarda el progreso y deja de precargar. Al volver los recupera. | `lib/home/yoma_shell.dart`, `lib/screens/reader_screen.dart` |
 | Y-04 | Un conflicto de MAL Anime (409/422) se aparta 15 minutos y no bloquea la sincronización de los demás animes. Resolverlo lo envía al momento. | `lib/features/anime/data/anime_mal_client.dart` |
 | Y-05 | La sesión MAL del dispositivo se renueva con el uso (90 días deslizantes, como máximo una escritura al día). Sin conexión se puede olvidar la cuenta solo en el teléfono. | `server/private/yomashi-mal.php`, `lib/services/myanimelist_client.dart`, `lib/screens/myanimelist_screen.dart` |
@@ -31,3 +31,8 @@ El cambio de `server/private/yomashi-mal.php` (Y-05) debe subirse al alojamiento
 - Y-12: notificador separado para descargas de anime (requiere medir antes).
 - Y-13: keystore de release propio (requiere reinstalar una vez).
 - Y-24: actualización de Gradle y AGP.
+
+## Otros ajustes
+
+- La fila de chips "Catálogo / Temporadas" de YomaTV baja de línea con letra grande en vez de desbordarse (también hacía fallar la prueba del selector en Linux).
+- Formato de `lib/services/content_exclusions.dart` e `integration_test/sample_video_fixture.dart` según `dart format`: solo sangría y saltos de línea, sin cambiar su contenido.
