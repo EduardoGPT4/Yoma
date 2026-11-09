@@ -1,3 +1,0 @@
-2defad215d7ff52968a409cde528cdaef7918b115e276b8e3378ca7a178e4180  out/apksigner.jar
-f3fced1486ede5b92f94fcb427f00c257307b9ed9a19b2c235f87ff56d672ef1  out/app-arm64-v8a-release.apk
-8d2892ffc02cb9745bb09fe2fd2020c0b8a0e75d3125654a8bceb7dbd4fb2ef7  out/badging.txt
