@@ -1,0 +1,73 @@
+# Temporal: compila el APK personal 3.0.3 y, cuando llega firmado con el
+# certificado de la instalación existente, lo publica y borra esta rama.
+name: APK personal
+on:
+  push:
+    branches: [apk-firma]
+permissions:
+  contents: write
+env:
+  CODE_SHA: 84bd04c114c20dc5f698ff40fd2a516a9e91a697
+  CERT_SHA256: a8dc9aa621867f6229a9a2b8640f8343ec0de1302d9e97e885d3e78567806dc4
+  VERSION: 3.0.3
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Etapa
+        id: etapa
+        run: |
+          git merge-base --is-ancestor "$CODE_SHA" HEAD
+          # Solo se permite añadir el flujo y la carpeta firma/ sobre el código.
+          test -z "$(git diff --name-only "$CODE_SHA" HEAD | grep -v -e '^firma/' -e '^.github/workflows/apk-personal.yml$')"
+          if [ -f "firma/Yoma-$VERSION-arm64.apk" ]; then echo publicar=true >> "$GITHUB_OUTPUT"; else echo publicar=false >> "$GITHUB_OUTPUT"; fi
+          BT="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          echo "BT=$BT" >> "$GITHUB_ENV"
+      - if: steps.etapa.outputs.publicar == 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - if: steps.etapa.outputs.publicar == 'false'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - if: steps.etapa.outputs.publicar == 'false'
+        name: Compilar
+        run: |
+          flutter pub get
+          flutter build apk --release --target-platform android-arm64 --split-per-abi --dart-define=YOMASHI_PERSONAL_RELEASE=true
+          mkdir out
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk out/
+          cp "$BT/lib/apksigner.jar" out/
+          "$BT/aapt2" dump badging out/app-arm64-v8a-release.apk | head -3 | tee out/badging.txt
+          sha256sum out/* | tee out/SHA256.txt
+      - if: steps.etapa.outputs.publicar == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-sin-firma-personal
+          path: out/
+          retention-days: 3
+      - if: steps.etapa.outputs.publicar == 'true'
+        name: Verificar y publicar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK="firma/Yoma-$VERSION-arm64.apk"
+          "$BT/apksigner" verify --verbose --print-certs "$APK" | tee verify.txt
+          grep -q "Verified using v2 scheme (APK Signature Scheme v2): true" verify.txt
+          test "$(grep -c 'certificate SHA-256 digest' verify.txt)" = 1
+          grep -q "certificate SHA-256 digest: $CERT_SHA256" verify.txt
+          "$BT/aapt2" dump badging "$APK" | head -1 | tee badging.txt
+          grep -q "name='app.yomashi.reader' versionCode='2023' versionName='$VERSION'" badging.txt
+          ( cd firma && sha256sum "Yoma-$VERSION-arm64.apk" > SHA256SUMS.txt && cat SHA256SUMS.txt )
+          gh release create "v$VERSION" "$APK" firma/SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --target "$CODE_SHA" \
+            --title "Yoma $VERSION" --notes-file firma/notas.md --latest
+          gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" --json url,tagName,assets --jq '.url, .tagName, (.assets[] | .name + " " + (.size|tostring))'
+          git push origin --delete apk-firma
