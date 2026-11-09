@@ -1,0 +1,61 @@
+/* APK layout contracts, loaded after the shared web theme. */
+.yoma-native body {text-size-adjust:100%;-webkit-text-size-adjust:100%}
+.yoma-native #main,.yoma-native .panel,.yoma-native .field {min-width:0}
+.yoma-native .button,.yoma-native .text-button {line-height:1.4;max-width:100%;white-space:normal}
+.yoma-native .button {justify-content:center;text-align:center}
+.yoma-native .button svg,.yoma-native .text-button svg,.yoma-native .icon-button svg {width:20px;height:20px;flex:none;align-self:center}
+
+/* An inline label has no useful box for centering its absolutely positioned icon. */
+.yoma-native .search-box {display:block;position:relative;width:100%;min-width:0;max-width:none;height:auto;box-sizing:border-box}
+.yoma-native .search-box>svg {position:absolute;left:14px;right:auto;top:50%;transform:translateY(-50%);width:20px;height:20px;margin:0;pointer-events:none}
+.yoma-native .search-box input {display:block;box-sizing:border-box;width:100%;height:48px;min-height:48px;padding:11px 14px 11px 44px;margin:0;font-size:16px;line-height:1.4}
+
+/* Explicit flex tracks avoid conflicting density-grid rules and off-card text paint. */
+.yoma-native .personal-cards,.yoma-native .yoma-horizontal {display:flex;grid-template-columns:none;grid-auto-flow:initial;gap:13px;width:100%;max-width:100%;overflow-x:auto;align-items:stretch;padding:3px 0 10px;scroll-snap-type:x proximity}
+.yoma-native .personal-cards>.anime-card,.yoma-native .personal-cards>.anime-card:nth-child(n+5),.yoma-native .yoma-horizontal>.anime-card {display:flex;flex-direction:column;flex:0 0 calc((100% - 13px)/2.15);width:calc((100% - 13px)/2.15);min-width:0;max-width:100%;position:relative;overflow:hidden;contain:layout paint;scroll-snap-align:start}
+.yoma-native .anime-card:hover .poster {transform:none}
+.yoma-native .mal-title {display:block;position:static;align-self:stretch;width:100%;max-width:100%;min-width:0;min-height:0;text-align:start;line-height:1.4;padding:0;margin:0;appearance:none}
+.yoma-native .anime-card .card-title {font-size:16px;line-height:1.4;height:auto;min-height:2.8em;max-height:2.8em;margin:12px 0 6px;overflow-wrap:anywhere}
+.yoma-native .mal-card .card-meta {display:block;position:static;flex:none;box-sizing:border-box;width:100%;min-width:0;min-height:3em;height:auto;margin:4px 0 0;white-space:normal;overflow-wrap:anywhere;line-height:1.5;font-size:14px}
+.yoma-native .mal-card-actions {position:static;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;flex:none;min-width:0;width:100%;margin-top:auto;padding:12px 0 0}
+.yoma-native .mal-card-actions .text-button {position:static;transform:none;display:flex;align-items:center;justify-content:flex-start;box-sizing:border-box;flex:none;min-width:0;width:100%;min-height:44px;padding:8px 0;margin:0;text-align:start;line-height:1.4;white-space:normal;overflow-wrap:anywhere}
+.yoma-native .anime-card :focus-visible {outline-offset:-2px}
+.yoma-native .card-actions {width:100%;min-width:0;align-items:center;flex-wrap:nowrap}
+.yoma-native .card-meta,.yoma-native .watch-caption,.yoma-native .mal-card-progress {min-width:0;line-height:1.5;overflow-wrap:anywhere}
+
+.yoma-native .section-heading {flex-wrap:wrap;align-items:center;gap:10px}
+.yoma-native .section-heading>div {min-width:0;flex:1 1 180px}
+.yoma-native .section-heading h2,.yoma-native .section-heading h3 {min-width:0;overflow-wrap:anywhere}
+.yoma-native .section-heading>.text-button,.yoma-native .section-heading>.button {flex:0 1 auto;max-width:100%;white-space:normal}
+.yoma-native .continue-card {box-sizing:border-box;flex:0 0 100%;min-width:0}
+.yoma-native .continue-card>div {min-width:0;overflow-wrap:anywhere}
+.yoma-native .continue-card span {font-size:14px;line-height:1.5;white-space:normal}
+
+/* Keep field names above their controls, and checkboxes beside their own text. */
+.yoma-native .field {display:flex;flex-direction:column;gap:8px;margin:14px 0}
+.yoma-native .field>label {display:block;line-height:1.45;margin:0;padding:0}
+.yoma-native .field>small {display:block;margin:0;line-height:1.5;overflow-wrap:anywhere}
+.yoma-native .field-pair {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.yoma-native .field-pair>.field {margin:0}
+.yoma-native .form-input,.yoma-native .select-input {box-sizing:border-box;width:100%;min-width:0;min-height:48px;font-size:16px;line-height:1.4}
+.yoma-native textarea.form-input {min-height:96px}
+.yoma-native .select-input {text-overflow:ellipsis;padding-right:38px}
+.yoma-native .episode-selection>label,.yoma-native .batch-match {display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:0}
+.yoma-native label:has(>input[type=checkbox]),.yoma-native label:has(>input[type=radio]) {display:flex;flex-direction:row;align-items:center;gap:10px;min-width:0;line-height:1.45}
+.yoma-native input[type=checkbox],.yoma-native input[type=radio] {flex:none}
+.yoma-native .toolbar,.yoma-native .queue-pagination,.yoma-native .settings-footer {flex-wrap:wrap;gap:12px;min-width:0}
+.yoma-native .toolbar>*,.yoma-native .settings-footer>* {min-width:0;max-width:100%}
+.yoma-native .settings-footer>.button {width:100%}
+.yoma-native .watch-heading {flex-wrap:wrap;gap:12px}
+.yoma-native .watch-heading>div {min-width:0;flex:1 1 220px}
+.yoma-native .watch-heading h1,.yoma-native .watch-anime-info p,.yoma-native .watch-bookmarks {overflow-wrap:anywhere}
+.yoma-native .watch-transport nav {grid-template-columns:repeat(2,minmax(0,1fr))}
+.yoma-native .watch-transport .button {min-width:0}
+@media(max-width:360px) {
+  .yoma-native .field-pair {grid-template-columns:minmax(0,1fr)}
+  .yoma-native .section-heading>div {flex-basis:100%}
+}
+
+/* The home rails display three compact posters, while the full catalog keeps two. */
+.yoma-native .personal-cards>.anime-card,.yoma-native .personal-cards>.anime-card:nth-child(n+5),.yoma-native .yoma-horizontal>.anime-card{flex-basis:calc((100% - 26px)/3);width:calc((100% - 26px)/3)}
+.yoma-native .personal-cards .card-title{font-size:15px}.yoma-native .personal-cards .card-meta{font-size:14px}

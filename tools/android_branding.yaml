@@ -1,0 +1,7 @@
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: assets/branding/3-AniManga.png
+  adaptive_icon_background: '#140E1E'
+  adaptive_icon_foreground: assets/branding/3-AniManga.png
+  adaptive_icon_foreground_inset: 16
