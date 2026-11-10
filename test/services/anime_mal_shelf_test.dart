@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,13 +34,24 @@ class ListClient extends MyAnimeListClient {
     ],
   };
   int libraryCalls = 0;
+
+  /// Sin conexión: toda petición a MAL falla.
+  bool offline = false;
+
+  /// Episodios enviados con `anime_update`, por id de MAL.
+  final updates = <int, int>{};
   @override
   Future<Map<String, dynamic>> request(
     Map<String, dynamic> input, {
     bool anonymous = false,
     int? expectedOwner,
   }) async {
+    if (offline) throw const MalFailure('Sin conexión de prueba.');
     if (input['action'] == 'anime_capabilities') return {'anime': true};
+    if (input['action'] == 'anime_update') {
+      updates[input['id'] as int] = input['episodes_watched'] as int;
+      return {};
+    }
     if (input['action'] == 'anime_library') {
       libraryCalls++;
       final status = input['status'] as String;
@@ -237,4 +250,127 @@ void main() {
       expect((await mal.pending()).single['episodes'], 2);
     },
   );
+
+  group('watching syncs through the MAL list match', () {
+    late StreamController<bool> network;
+    late AnimeController controller;
+    final demons = AnimeTitle.fromJson({
+      'slug': 'demons-crest',
+      'title': "Demons' Crest",
+    });
+    AnimeEpisode episode(String number) => AnimeEpisode.fromJson({
+      'id': int.parse(number),
+      'slug': 'demons-crest',
+      'number': number,
+    });
+
+    setUp(() async {
+      network = StreamController<bool>.broadcast();
+      controller = AnimeController(
+        source: source,
+        mal: mal,
+        store: AnimeLocalStore(database: () async => db),
+        connectivity: () => network.stream,
+      );
+      await shelf.refresh(7);
+    });
+
+    tearDown(() async {
+      controller.dispose();
+      await network.close();
+    });
+
+    test(
+      'an anime from the list is linked and synced from any screen',
+      () async {
+        // Se abre desde la ficha o Explorar: no hay vinculación previa.
+        expect(await mal.linkOf('demons-crest'), isNull);
+        await controller.progress(
+          demons,
+          episode('2'),
+          1000,
+          1000,
+          watched: true,
+        );
+        await controller.syncMal();
+        expect((await mal.linkOf('demons-crest'))!['malId'], 1);
+        expect(client.updates, {1: 2});
+        expect(await mal.pending(), isEmpty);
+      },
+    );
+
+    test('an anime outside the MAL list is not linked', () async {
+      final other = AnimeTitle.fromJson({'slug': 'otro', 'title': 'Otro'});
+      await controller.progress(
+        other,
+        AnimeEpisode.fromJson({'id': 9, 'slug': 'otro', 'number': '1'}),
+        1000,
+        1000,
+        watched: true,
+      );
+      await controller.syncMal();
+      expect(await mal.linkOf('otro'), isNull);
+      expect(client.updates, isEmpty);
+    });
+
+    test(
+      'episodes watched offline are uploaded when the network returns',
+      () async {
+        await controller.initialize();
+        client.offline = true;
+        await controller.progress(
+          demons,
+          episode('3'),
+          1000,
+          1000,
+          watched: true,
+        );
+        await controller.syncMal();
+        // Queda en la cola del teléfono, vinculado con la copia guardada.
+        expect((await mal.pending()).single['episodes'], 3);
+        expect(client.updates, isEmpty);
+
+        client.offline = false;
+        network.add(true);
+        for (var i = 0; i < 20 && client.updates.isEmpty; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(client.updates, {1: 3});
+        expect(await mal.pending(), isEmpty);
+      },
+    );
+
+    test(
+      'episodes watched before linking are sent, never lowering MAL',
+      () async {
+        // Visto en el teléfono antes de esta versión: episodio 4, MAL tiene 1.
+        await AnimeLocalStore(database: () async => db).saveProgress(
+          demons,
+          episode('4'),
+          positionMs: 1000,
+          durationMs: 1000,
+          watched: true,
+        );
+        final fresh = AnimeController(
+          source: source,
+          mal: mal,
+          store: AnimeLocalStore(database: () async => db),
+          connectivity: () => network.stream,
+        );
+        addTearDown(fresh.dispose);
+        await fresh.initialize();
+        for (var i = 0; i < 50 && client.updates.isEmpty; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        expect(client.updates, {1: 4});
+
+        // Si MAL ya tiene más episodios que el teléfono, no se toca.
+        client.updates.clear();
+        client.lists['watching']![0]['episodes_watched'] = 9;
+        await fresh.loadMalShelf(force: true);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect(client.updates, isEmpty);
+      },
+    );
+  });
 }

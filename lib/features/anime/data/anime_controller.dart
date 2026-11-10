@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../models/anime_models.dart';
 import 'anime_local_store.dart';
@@ -13,16 +14,28 @@ class AnimeController extends ChangeNotifier {
   final YomaTvSource source;
   final AnimeLocalStore store;
   final LocalAnimeDownloads transfers;
+
+  /// Avisa de cada cambio de red con `true` si hay conexión; al volver la
+  /// conexión se envían a MAL los episodios vistos sin internet.
+  final Stream<bool> Function() connectivity;
+
   AnimeController({
     YomaTvSource? source,
     AnimeMalClient? mal,
     AnimeLocalStore? store,
     LocalAnimeDownloads? transfers,
-  }) : mal = mal ?? AnimeMalClient(),
+    Stream<bool> Function()? connectivity,
+  }) : connectivity = connectivity ?? _deviceConnectivity,
+       mal = mal ?? AnimeMalClient(),
        source = source ?? YomaTvSource(),
        store = store ?? AnimeLocalStore(),
        transfers = transfers ?? LocalAnimeDownloads();
   bool _disposed = false;
+  StreamSubscription<bool>? _network;
+
+  static Stream<bool> _deviceConnectivity() => Connectivity()
+      .onConnectivityChanged
+      .map((results) => results.any((r) => r != ConnectivityResult.none));
 
   /// «Viendo» y «Plan to watch» de MAL que existen en YomaTV.
   late final AnimeMalShelf malShelf = AnimeMalShelf(mal: mal, source: source);
@@ -86,6 +99,7 @@ class AnimeController extends ChangeNotifier {
     if (_disposed) return;
     loading = false;
     mal.client.sessionChanges.addListener(_sessionChanged);
+    _listenForNetwork();
     unawaited(syncMal());
     unawaited(loadMalShelf());
     changed();
@@ -111,6 +125,18 @@ class AnimeController extends ChangeNotifier {
     }
   }
 
+  /// Los episodios vistos sin conexión (por ejemplo en Descargas) quedan en
+  /// la cola de MAL del teléfono; se suben solos cuando vuelve internet.
+  void _listenForNetwork() {
+    try {
+      _network = connectivity().listen((online) {
+        if (online && !_disposed) unawaited(syncMal());
+      }, onError: (Object error) => debugPrint('Conectividad: $error'));
+    } catch (error) {
+      debugPrint('Conectividad opcional: $error');
+    }
+  }
+
   void _sessionChanged() {
     if (_disposed) return;
     unawaited(syncMal());
@@ -121,6 +147,71 @@ class AnimeController extends ChangeNotifier {
     malWatching = value?.watching ?? [];
     malPlanned = value?.planned ?? [];
     malShelfSavedAt = value?.savedAt;
+    if (value != null && !value.isEmpty) unawaited(_syncWatchedFromShelf());
+  }
+
+  /// Entrada de MAL («Viendo» o «Plan to watch») que coincide por nombre
+  /// exacto con [slug]; usa la copia guardada si aún no se ha cargado.
+  Future<MalAnimeEntry?> malMatchFor(String slug) async {
+    MalAnimeEntry? find(List<MalShelfItem> items) {
+      for (final item in items) {
+        if (item.anime.slug == slug) return item.entry;
+      }
+      return null;
+    }
+
+    final known = find(malWatching) ?? find(malPlanned);
+    if (known != null || malShelfSavedAt != null) return known;
+    final cached = await malShelf.cached(await mal.owner());
+    if (cached == null) return null;
+    return find(cached.watching) ?? find(cached.planned);
+  }
+
+  /// Vincula [slug] con su anime de la lista de MAL si aún no lo está.
+  Future<bool> _ensureMalLink(String slug) async {
+    if (await mal.linkOf(slug) != null) return true;
+    final entry = await malMatchFor(slug);
+    if (entry == null) return false;
+    await mal.link(slug, entry);
+    return true;
+  }
+
+  /// Episodio vistos más alto guardado en el teléfono para [slug].
+  int _localWatched(String slug) {
+    var watched = 0;
+    for (final row in positions.values) {
+      if (row['slug'] != slug || row['watched'] != true) continue;
+      final number = int.tryParse('${animeMap(row['episode'])['number']}') ?? 0;
+      if (number > watched) watched = number;
+    }
+    return watched;
+  }
+
+  bool _syncingShelf = false;
+
+  /// Animes de la lista de MAL que ya se vieron en YomaTV sin vincular: se
+  /// vinculan y se envía el avance local. MAL nunca baja: si allí hay más
+  /// episodios vistos, se conserva su número.
+  Future<void> _syncWatchedFromShelf() async {
+    if (_syncingShelf || _disposed) return;
+    _syncingShelf = true;
+    try {
+      var queued = false;
+      for (final item in [...malWatching, ...malPlanned]) {
+        final slug = item.anime.slug;
+        final watched = _localWatched(slug);
+        if (watched <= item.entry.watched) continue;
+        if (await mal.linkOf(slug) == null) await mal.link(slug, item.entry);
+        await mal.queueWatched(slug, watched);
+        queued = true;
+      }
+      if (queued) await syncMal();
+    } catch (error) {
+      malError = 'Progreso local guardado; MAL pendiente: $error';
+      changed();
+    } finally {
+      _syncingShelf = false;
+    }
   }
 
   /// Muestra al instante la copia guardada y solo consulta MAL si tiene más
@@ -181,12 +272,7 @@ class AnimeController extends ChangeNotifier {
   Future<bool> autoLinkMal(String slug, MalAnimeEntry entry) async {
     if (await mal.linkOf(slug) != null) return false;
     await mal.link(slug, entry);
-    var watched = 0;
-    for (final row in positions.values) {
-      if (row['slug'] != slug || row['watched'] != true) continue;
-      final number = int.tryParse('${animeMap(row['episode'])['number']}') ?? 0;
-      if (number > watched) watched = number;
-    }
+    final watched = _localWatched(slug);
     if (watched > 0) {
       await mal.queueWatched(slug, watched);
       await syncMal();
@@ -445,6 +531,9 @@ class AnimeController extends ChangeNotifier {
     final number = int.tryParse(episode.number);
     if (watched == true && number != null && number > 0) {
       try {
+        // Sin vinculación guardada se usa la coincidencia con la lista de
+        // MAL, entre a la ficha desde donde se entre.
+        await _ensureMalLink(anime.slug);
         await mal.queueWatched(anime.slug, number);
         unawaited(syncMal());
         malError = null;
@@ -556,6 +645,7 @@ class AnimeController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    unawaited(_network?.cancel());
     mal.client.sessionChanges.removeListener(_sessionChanged);
     _poll?.cancel();
     source.close();
