@@ -14,6 +14,7 @@ import '../services/bookmark_service.dart';
 import '../services/alternative_chapter_service.dart';
 import '../services/myanimelist_service.dart';
 import 'myanimelist_screen.dart';
+import 'online_manga_detail_screen.dart';
 import '../widgets/alternative_chapter_picker.dart';
 
 import 'dart:async';
@@ -52,11 +53,16 @@ class ReaderScreen extends StatefulWidget {
   final int initialChapterIndex;
   final int initialPageIndex;
 
+  /// El lector se abrió desde la ficha de este manga: el botón de ficha
+  /// vuelve a ella en lugar de abrir otra encima.
+  final bool openedFromDetail;
+
   const ReaderScreen({
     super.key,
     required this.manga,
     required this.initialChapterIndex,
     required this.initialPageIndex,
+    this.openedFromDetail = false,
   });
 
   @override
@@ -557,6 +563,35 @@ class _ReaderScreenState extends State<ReaderScreen>
   void _recordChapterStats() {
     final library = context.read<LibraryProvider>();
     unawaited(library.recordChapterOpen());
+  }
+
+  /// Fuente del manga si tiene ficha (los mangas locales sin fuente no).
+  String? get _detailRef {
+    final ref = widget.manga.sourceUrl ?? widget.manga.path;
+    return ContentIdentity.isRemote(ref) ? ref : null;
+  }
+
+  /// Va a la ficha del manga. Desde la ficha se vuelve a ella; desde la
+  /// biblioteca, el historial o «Continuar leyendo» el lector se sustituye
+  /// por la ficha, para que se cierre como siempre (guarda el progreso y
+  /// restaura la pantalla completa y la orientación).
+  Future<void> _openDetail() async {
+    final ref = _detailRef;
+    if (ref == null) return;
+    _saveProgress();
+    final navigator = Navigator.of(context);
+    if (widget.openedFromDetail && navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    await navigator.pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => OnlineMangaDetailScreen(
+          mangaUrl: ref,
+          sourceId: OnlineCatalogService.sourceIdForRef(ref),
+        ),
+      ),
+    );
   }
 
   void _saveProgress() {
@@ -1462,6 +1497,12 @@ class _ReaderScreenState extends State<ReaderScreen>
                     ),
                   ),
                 ),
+              ),
+            if (_detailRef != null)
+              IconButton(
+                tooltip: 'Ficha del manga',
+                onPressed: () => unawaited(_openDetail()),
+                icon: const Icon(Icons.info_outline_rounded),
               ),
             IconButton(
               tooltip: 'Ajustes del lector',

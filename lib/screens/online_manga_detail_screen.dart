@@ -331,6 +331,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
           manga: manga,
           initialChapterIndex: chapterIndex,
           initialPageIndex: pageIndex,
+          openedFromDetail: true,
         ),
       ),
     );
