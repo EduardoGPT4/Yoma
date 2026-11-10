@@ -13,6 +13,27 @@ int malEpisodeCount(String number) {
   return value == null || !value.isFinite || value < 1 ? 0 : value.floor();
 }
 
+/// Nombre visible de un idioma de episodio; el código (SUB, LAT, DUB) es
+/// el que usan la fuente y las descargas.
+String animeLanguageLabel(String code) => switch (code.toUpperCase()) {
+  'SUB' => 'Subtitulado',
+  'LAT' => 'Latino',
+  'DUB' => 'Doblado',
+  _ => code,
+};
+
+/// Nombre visible del estado de una descarga.
+String animeDownloadStateLabel(String state) => switch (state) {
+  'queued' => 'En cola',
+  'downloading' => 'Descargando',
+  'verifying' => 'Verificando',
+  'paused' => 'Pausado',
+  'retry' => 'Esperando reintento',
+  'failed' => 'No se pudo descargar',
+  'done' => 'Descargado',
+  _ => state,
+};
+
 List<String> animeStrings(Object? value) => value is List
     ? value.map((e) => '$e').where((e) => e.isNotEmpty).toList()
     : [];
@@ -153,5 +174,5 @@ class AnimeServer {
       server = '${json['server']}',
       embed = '${json['embed']}',
       supported = json['supported'] == true;
-  String get label => '$language · $server';
+  String get label => '${animeLanguageLabel(language)} · $server';
 }

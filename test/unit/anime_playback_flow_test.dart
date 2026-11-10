@@ -346,9 +346,15 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 50)),
       );
       await tester.pump();
-      expect(find.textContaining('MAL pendiente'), findsOneWidget);
+      expect(
+        find.textContaining('No se pudo enviar a MyAnimeList'),
+        findsOneWidget,
+      );
       expect(find.text('Sincronizar ahora'), findsOneWidget);
-      expect(find.textContaining('Pendiente: 1 episodios'), findsOneWidget);
+      expect(
+        find.textContaining('Por enviar: hasta el episodio 1'),
+        findsOneWidget,
+      );
       await tester.pumpWidget(const SizedBox());
     });
   });

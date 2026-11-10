@@ -454,7 +454,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
         title: Text('Episodio ${_episode.number}'),
         actions: [
           IconButton(
-            tooltip: 'Abrir respaldo web',
+            tooltip: 'Ver en la web',
             onPressed: () {
               _video?.pause();
               widget.openWeb(_episode);
@@ -502,7 +502,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
                               ),
                               OutlinedButton(
                                 onPressed: () => widget.openWeb(_episode),
-                                child: const Text('Abrir en la web'),
+                                child: const Text('Ver en la web'),
                               ),
                             ],
                           ),
@@ -629,7 +629,9 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '${_episode.slug} · ${_selected?.language ?? app.settings['language'] ?? 'SUB'}',
+                  animeLanguageLabel(
+                    '${_selected?.language ?? app.settings['language'] ?? 'SUB'}',
+                  ),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

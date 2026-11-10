@@ -17,6 +17,10 @@ class AnimeController extends ChangeNotifier {
   /// una sincronización posterior sin novedades no lo borre sin leerse.
   String? malNotice;
 
+  static const _malUnsent =
+      'Tu progreso está guardado en el teléfono. '
+      'No se pudo enviar a MyAnimeList:';
+
   /// Lo que hay que contar al usuario sobre la sincronización, si algo.
   String? get malStatus => malError ?? malNotice;
   final YomaTvSource source;
@@ -254,7 +258,7 @@ class AnimeController extends ChangeNotifier {
       }
       if (queued) await syncMal();
     } catch (error) {
-      malError = 'Progreso local guardado; MAL pendiente: $error';
+      malError = '$_malUnsent $error';
       changed();
     } finally {
       _syncingShelf = false;
@@ -658,7 +662,7 @@ class AnimeController extends ChangeNotifier {
         unawaited(syncMal());
         malError = null;
       } catch (error) {
-        malError = 'Progreso local guardado; MAL pendiente: $error';
+        malError = '$_malUnsent $error';
         changed();
       }
     } else if (watched == false) {
@@ -682,7 +686,7 @@ class AnimeController extends ChangeNotifier {
       malNotice = mal.takeNotice() ?? malNotice;
       malError = null;
     } catch (error) {
-      malError = 'Progreso local guardado; MAL pendiente: $error';
+      malError = '$_malUnsent $error';
     }
     changed();
   }

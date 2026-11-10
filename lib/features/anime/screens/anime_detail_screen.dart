@@ -126,7 +126,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                   pinned: true,
                   actions: [
                     IconButton(
-                      tooltip: 'Abrir respaldo web',
+                      tooltip: 'Ver en la web',
                       onPressed: widget.openWeb,
                       icon: const Icon(Icons.open_in_browser),
                     ),
@@ -321,7 +321,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                                   .map(
                                     (s) => DropdownMenuItem(
                                       value: s,
-                                      child: Text(s),
+                                      child: Text(animeLanguageLabel(s)),
                                     ),
                                   )
                                   .toList(),
@@ -339,7 +339,11 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                                         .toList(),
                                   ),
                             icon: const Icon(Icons.download),
-                            label: Text('${_selected.length}'),
+                            label: Text(
+                              _selected.isEmpty
+                                  ? 'Descargar'
+                                  : 'Descargar ${_selected.length}',
+                            ),
                           ),
                         ],
                       ),
@@ -374,7 +378,9 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                           if (animeInt(p?['positionMs']) > 0)
                             '${animeInt(p?['positionMs']) ~/ 60000} min',
                           if (downloaded != null)
-                            downloaded.ready ? 'Descargado' : downloaded.state,
+                            downloaded.ready
+                                ? 'Descargado'
+                                : animeDownloadStateLabel(downloaded.state),
                         ].join(' · '),
                       ),
                       onTap: () => widget.play(detail, ep),

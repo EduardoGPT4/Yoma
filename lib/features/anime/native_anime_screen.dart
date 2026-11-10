@@ -186,7 +186,7 @@ class _AnimeMain extends StatelessWidget {
             icon: const Icon(Icons.search),
           ),
           IconButton(
-            tooltip: 'MyAnimeList de Anime',
+            tooltip: 'MyAnimeList',
             onPressed: mal,
             icon: const Icon(Icons.account_circle_outlined),
           ),
@@ -203,7 +203,7 @@ class _AnimeMain extends StatelessWidget {
                 value: 'refresh',
                 child: Text('Actualizar catálogo'),
               ),
-              PopupMenuItem(value: 'web', child: Text('YomaTV Web · respaldo')),
+              PopupMenuItem(value: 'web', child: Text('YomaTV en la web')),
             ],
           ),
         ],
@@ -1248,7 +1248,7 @@ class _AnimeDownloadsState extends State<_AnimeDownloads> {
             ),
           if (!app.supportedDownloads)
             const AnimeMessage(
-              'Las descargas nativas requieren Android 8 o posterior.',
+              'Las descargas necesitan Android 8 o posterior.',
             ),
           Wrap(
             spacing: 8,
@@ -1416,7 +1416,7 @@ class _AnimeDownloadsState extends State<_AnimeDownloads> {
             ? theme.colorScheme.primary
             : theme.colorScheme.onSurfaceVariant,
       ),
-      title: Text('Episodio ${d.number} · ${d.language}'),
+      title: Text('Episodio ${d.number} · ${animeLanguageLabel(d.language)}'),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1478,7 +1478,7 @@ class _AnimeDownloadsState extends State<_AnimeDownloads> {
           if (d.ready)
             const PopupMenuItem(
               value: 'play',
-              child: Text('Reproducir offline'),
+              child: Text('Reproducir sin conexión'),
             ),
           if (!d.ready)
             const PopupMenuItem(value: 'pause', child: Text('Pausar')),
@@ -1491,24 +1491,14 @@ class _AnimeDownloadsState extends State<_AnimeDownloads> {
             ),
           PopupMenuItem(
             value: d.ready ? 'delete' : 'cancel',
-            child: Text(
-              d.ready ? 'Eliminar archivo' : 'Cancelar y eliminar parcial',
-            ),
+            child: Text(d.ready ? 'Eliminar archivo' : 'Cancelar descarga'),
           ),
         ],
       ),
     );
   }
 
-  String _label(String value) => switch (value) {
-    'queued' => 'En cola',
-    'downloading' => 'Descargando',
-    'verifying' => 'Verificando',
-    'paused' => 'Pausado',
-    'retry' => 'Esperando reintento',
-    'failed' => 'No se pudo descargar',
-    _ => value,
-  };
+  String _label(String value) => animeDownloadStateLabel(value);
 }
 
 class _AnimeMore extends StatelessWidget {
@@ -1556,7 +1546,7 @@ class _AnimeMore extends StatelessWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.sync),
-          title: const Text('Mi lista de anime MAL'),
+          title: const Text('Mi lista de MyAnimeList'),
           // Un avance que no llegó a MAL no se queda en silencio.
           subtitle: app.malStatus == null ? null : Text(app.malStatus!),
           trailing: const Icon(Icons.chevron_right),
@@ -1632,11 +1622,14 @@ class _AnimeMore extends StatelessWidget {
         DropdownButtonFormField<String>(
           initialValue: '${app.settings['language'] ?? 'SUB'}',
           decoration: const InputDecoration(labelText: 'Idioma preferido'),
-          items: [
-            'SUB',
-            'LAT',
-            'DUB',
-          ].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+          items: ['SUB', 'LAT', 'DUB']
+              .map(
+                (v) => DropdownMenuItem(
+                  value: v,
+                  child: Text(animeLanguageLabel(v)),
+                ),
+              )
+              .toList(),
           onChanged: (v) => app.saveSetting('language', v),
         ),
         const SizedBox(height: 16),
@@ -1666,7 +1659,7 @@ class _AnimeMore extends StatelessWidget {
             await app.store.clearMetadataCache();
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Caché de metadatos eliminada.')),
+                const SnackBar(content: Text('Caché del catálogo borrada.')),
               );
             }
           },
@@ -1675,7 +1668,7 @@ class _AnimeMore extends StatelessWidget {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.open_in_browser),
-          title: const Text('YomaTV Web · respaldo'),
+          title: const Text('YomaTV en la web'),
           subtitle: const Text(
             'Radio, cuenta web, herramientas de PC y proveedores web.',
           ),

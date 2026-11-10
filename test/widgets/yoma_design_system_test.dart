@@ -371,9 +371,9 @@ void main() {
           find.textContaining('3 episodios · 2 descargados'),
           findsOneWidget,
         );
-        expect(find.text('Episodio 3 · SUB'), findsOneWidget);
-        final first = tester.getTopLeft(find.text('Episodio 1 · SUB')).dy;
-        final second = tester.getTopLeft(find.text('Episodio 2 · SUB')).dy;
+        expect(find.text('Episodio 3 · Subtitulado'), findsOneWidget);
+        final first = tester.getTopLeft(find.text('Episodio 1 · Subtitulado')).dy;
+        final second = tester.getTopLeft(find.text('Episodio 2 · Subtitulado')).dy;
         expect(first, lessThan(second));
         // Al plegar un grupo queda a la vista el siguiente; un grupo de un
         // solo episodio se muestra abierto y se pliega al tocarlo.
@@ -381,13 +381,13 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
         await tester.pump();
-        expect(find.text('Episodio 3 · SUB'), findsNothing);
+        expect(find.text('Episodio 3 · Subtitulado'), findsNothing);
         expect(find.text('Dark Machine: The Animation'), findsOneWidget);
-        expect(find.text('Episodio 1 · SUB'), findsOneWidget);
+        expect(find.text('Episodio 1 · Subtitulado'), findsOneWidget);
         await tester.tap(find.text('Dark Machine: The Animation'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
-        expect(find.text('Episodio 1 · SUB'), findsNothing);
+        expect(find.text('Episodio 1 · Subtitulado'), findsNothing);
       }
       await tester.tap(find.text('Más').last);
       await capture('06-anime-more');

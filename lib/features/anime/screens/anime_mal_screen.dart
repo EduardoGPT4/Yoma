@@ -225,8 +225,8 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
                 subtitle: Text(
                   row['conflict'] == null
                       ? (row['decrease'] == true
-                            ? 'Pendiente: deshacer en MAL hasta el episodio ${row['episodes']}'
-                            : 'Pendiente: ${row['episodes']} episodios locales')
+                            ? 'Por deshacer en MyAnimeList: volver al episodio ${row['episodes']}'
+                            : 'Por enviar: hasta el episodio ${row['episodes']}')
                       : 'Conflicto: ${row['conflict']}',
                 ),
                 trailing: TextButton(
@@ -236,16 +236,16 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
                       builder: (c) => AlertDialog(
                         title: const Text('Resolver progreso pendiente'),
                         content: const Text(
-                          'Puedes conservar el progreso actual de MAL o volver a enviar el avance local. Tu historial local se conserva. Si MAL cambia otra vez, se pedirá revisar el conflicto.',
+                          'Puedes dejar MyAnimeList como está o volver a enviar tu progreso de Yoma. Tu historial en el teléfono no cambia. Si MyAnimeList cambia otra vez, se pedirá revisarlo de nuevo.',
                         ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(c, true),
-                            child: const Text('Conservar MAL'),
+                            child: const Text('Dejar MAL como está'),
                           ),
                           FilledButton(
                             onPressed: () => Navigator.pop(c, false),
-                            child: const Text('Enviar el local'),
+                            child: const Text('Enviar mi progreso'),
                           ),
                         ],
                       ),
