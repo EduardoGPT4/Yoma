@@ -25,7 +25,9 @@ class YomaStorageMigration {
 
   static const _storage = MethodChannel('app.yomashi.reader/storage');
 
-  static Future<void> run() async {
+  /// [onMoving] se llama justo antes de mover la carpeta anterior, para
+  /// mostrar una pantalla de espera; no se llama si no hay nada que mover.
+  static Future<void> run({Future<void> Function()? onMoving}) async {
     if (!Platform.isAndroid || const bool.fromEnvironment('YOMASHI_QA')) return;
     try {
       if (!await StoragePermissionService.isManageAllFilesGranted()) return;
@@ -36,6 +38,9 @@ class YomaStorageMigration {
       final legacy = YomashiPublicStorage.legacyFolderPath;
       final target = YomashiPublicStorage.appFolderPath;
       if (legacy == null || target == null) return;
+      if (onMoving != null && await Directory(legacy).exists()) {
+        await onMoving();
+      }
       final moved = await migrate(
         legacy: Directory(legacy),
         target: Directory(target),

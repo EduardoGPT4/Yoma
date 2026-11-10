@@ -29,6 +29,7 @@ import 'widgets/app_metrics.dart';
 import 'widgets/app_theme.dart';
 import 'widgets/onboarding_flow.dart';
 import 'widgets/startup_storage.dart';
+import 'widgets/storage_migration_screen.dart';
 
 @pragma('vm:entry-point')
 Future<void> downloadMain() => runDownloadHost();
@@ -73,7 +74,12 @@ Future<void> main() async {
     debugPrint('DownloadNotificationService.init failed: $error\n$stackTrace');
   }
   // Antes de cargar la biblioteca: la carpeta YomaShi pasa a Yoma/YomaShi.
-  await YomaStorageMigration.run();
+  await YomaStorageMigration.run(
+    onMoving: () async {
+      runApp(const StorageMigrationApp());
+      await WidgetsBinding.instance.endOfFrame;
+    },
+  );
   runApp(const MangaReaderApp());
   unawaited(_prepareMaintenance());
 }
