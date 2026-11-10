@@ -284,6 +284,8 @@ void main() {
           boundary.currentContext!,
         );
       });
+      // La entrada del selector dura unos 3 s; la captura es del resultado.
+      await tester.pump(const Duration(seconds: 4));
       await capture('01-selector');
 
       await tester.tap(find.text('Manga'));
