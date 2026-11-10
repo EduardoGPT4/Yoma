@@ -45,7 +45,14 @@ class Client extends MyAnimeListClient {
     }
     writes++;
     await onUpdate?.call();
-    return {};
+    // Como el servidor: confirma el anime y el número que quedó guardado.
+    return {
+      'anime': {
+        'id': input['id'],
+        'episodes_watched': input['episodes_watched'],
+        'status': 'watching',
+      },
+    };
   }
 }
 

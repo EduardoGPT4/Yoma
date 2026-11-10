@@ -10,6 +10,7 @@ import 'anime_screen.dart';
 import 'data/anime_controller.dart';
 import 'data/anime_mal_client.dart';
 import 'data/anime_mal_shelf.dart';
+import 'data/local_anime_downloads.dart';
 import 'models/anime_models.dart';
 import 'screens/anime_detail_screen.dart';
 import 'screens/anime_mal_screen.dart';
@@ -1140,7 +1141,7 @@ class _AnimeDownloadsState extends State<_AnimeDownloads> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(animeErrorText(e))));
       }
     }
   }
@@ -1556,6 +1557,8 @@ class _AnimeMore extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.sync),
           title: const Text('Mi lista de anime MAL'),
+          // Un avance que no llegó a MAL no se queda en silencio.
+          subtitle: app.malError == null ? null : Text(app.malError!),
           trailing: const Icon(Icons.chevron_right),
           onTap: mal,
         ),

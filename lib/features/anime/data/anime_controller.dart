@@ -19,18 +19,49 @@ class AnimeController extends ChangeNotifier {
   /// conexión se envían a MAL los episodios vistos sin internet.
   final Stream<bool> Function() connectivity;
 
+  /// Tiempo tras el que una ficha ya abierta en esta sesión se vuelve a
+  /// pedir a YomaTV en segundo plano (episodios nuevos de un anime en emisión).
+  final Duration detailMaxAge;
+
   AnimeController({
     YomaTvSource? source,
     AnimeMalClient? mal,
     AnimeLocalStore? store,
     LocalAnimeDownloads? transfers,
     Stream<bool> Function()? connectivity,
+    this.detailMaxAge = const Duration(minutes: 10),
   }) : connectivity = connectivity ?? _deviceConnectivity,
        mal = mal ?? AnimeMalClient(),
        source = source ?? YomaTvSource(),
        store = store ?? AnimeLocalStore(),
-       transfers = transfers ?? LocalAnimeDownloads();
+       transfers = transfers ?? LocalAnimeDownloads() {
+    this.mal.onRemoteProgress = _malProgressConfirmed;
+  }
   bool _disposed = false;
+
+  /// MAL confirmó un avance: la sección de MyAnimeList lo refleja al
+  /// instante en vez de esperar a la próxima descarga de las listas.
+  void _malProgressConfirmed(int malId, int watched, String status) {
+    if (_disposed) return;
+    unawaited(() async {
+      try {
+        final owner = await mal.owner();
+        final updated = await malShelf.applyProgress(
+          owner,
+          malId,
+          watched,
+          status,
+        );
+        if (updated == null || _disposed || owner != _malShelfOwner) return;
+        malWatching = updated.watching;
+        malPlanned = updated.planned;
+        changed();
+      } catch (error) {
+        debugPrint('Lista de MAL sin actualizar: $error');
+      }
+    }());
+  }
+
   StreamSubscription<bool>? _network;
 
   static Stream<bool> _deviceConnectivity() => Connectivity()
@@ -41,6 +72,7 @@ class AnimeController extends ChangeNotifier {
   late final AnimeMalShelf malShelf = AnimeMalShelf(mal: mal, source: source);
   List<MalShelfItem> malWatching = [], malPlanned = [];
   DateTime? malShelfSavedAt;
+  bool malShelfPartial = false;
   bool malShelfLoading = false;
   String? malShelfError;
   int _malShelfOwner = 0;
@@ -147,6 +179,7 @@ class AnimeController extends ChangeNotifier {
     malWatching = value?.watching ?? [];
     malPlanned = value?.planned ?? [];
     malShelfSavedAt = value?.savedAt;
+    malShelfPartial = value?.partial ?? false;
     if (value != null && !value.isEmpty) unawaited(_syncWatchedFromShelf());
   }
 
@@ -235,9 +268,13 @@ class AnimeController extends ChangeNotifier {
         changed();
       }
       final saved = malShelfSavedAt;
+      // Una copia a la que le faltan búsquedas se completa pronto.
       final fresh =
           saved != null &&
-          DateTime.now().difference(saved) < AnimeMalShelf.maxAge;
+          DateTime.now().difference(saved) <
+              (malShelfPartial
+                  ? AnimeMalShelf.retryPartial
+                  : AnimeMalShelf.maxAge);
       if (fresh && !force) return;
       await (_malShelfTask ??= _refreshMalShelf(
         owner,
@@ -256,7 +293,10 @@ class AnimeController extends ChangeNotifier {
       final snapshot = await malShelf.refresh(owner);
       if (_disposed || _malShelfOwner != owner) return;
       _applyMalShelf(snapshot);
-      malShelfError = null;
+      malShelfError = snapshot.partial
+          ? 'YomaTV no respondió al buscar algunos animes de tu lista; '
+                'se volverá a intentar.'
+          : null;
     } catch (e) {
       // La copia guardada sigue visible aunque MAL o YomaTV no respondan.
       malShelfError = 'No se pudo actualizar tu lista de MyAnimeList: $e';
@@ -416,12 +456,27 @@ class AnimeController extends ChangeNotifier {
     }
   }
 
+  /// Última vez que se pidió cada ficha a YomaTV en esta sesión.
+  final Map<String, DateTime> _detailChecked = {};
+
   Future<AnimeDetail> detail(String slug, {bool refresh = false}) async {
-    if (!refresh && details.containsKey(slug)) return details[slug]!;
+    final known = details[slug];
+    if (!refresh && known != null) {
+      // La ficha en memoria se muestra al instante, pero no para siempre:
+      // un anime en emisión recibe episodios con la app abierta durante días.
+      final checked = _detailChecked[slug];
+      if (checked == null ||
+          DateTime.now().difference(checked) >= detailMaxAge) {
+        _detailChecked[slug] = DateTime.now();
+        unawaited(detail(slug, refresh: true).catchError((Object _) => known));
+      }
+      return known;
+    }
     final cached = await store.cache('detail:$slug');
     if (!refresh && cached != null) {
       final detail = AnimeDetail.fromJson(animeMap(cached['data']));
       details[slug] = detail;
+      _detailChecked[slug] = DateTime.now();
       // Return persistent metadata immediately, including when the device is offline.
       unawaited(
         this.detail(slug, refresh: true).catchError((Object _) => detail),
@@ -432,6 +487,7 @@ class AnimeController extends ChangeNotifier {
       final data = await source.detail(slug);
       final detail = AnimeDetail.fromJson(data);
       details[slug] = detail;
+      _detailChecked[slug] = DateTime.now();
       await store.putCache('detail:$slug', data);
       if (refresh) changed();
       return detail;
@@ -455,16 +511,42 @@ class AnimeController extends ChangeNotifier {
           (a, b) =>
               animeInt(b['updatedAt']).compareTo(animeInt(a['updatedAt'])),
         );
+
+  /// Un episodio a medias por anime, y solo si es lo último que se abrió de
+  /// él: si después se terminó otro episodio, uno anterior que quedó a
+  /// medias ya no es por donde se continúa.
   List<Map<String, dynamic>> get continuing {
     final slugs = <String>{};
     return history
         .where(
           (e) =>
+              slugs.add('${e['slug']}') &&
               e['watched'] != true &&
-              animeInt(e['positionMs']) > 0 &&
-              slugs.add('${e['slug']}'),
+              animeInt(e['positionMs']) > 0,
         )
         .toList();
+  }
+
+  /// Episodio con el que sigue «Reproducir» en la ficha: el último que se
+  /// abrió o, si ya se vio completo, el siguiente que falta por ver.
+  AnimeEpisode? resumeEpisode(AnimeDetail detail) {
+    final episodes = detail.episodes;
+    if (episodes.isEmpty) return null;
+    for (final row in history) {
+      if (row['slug'] != detail.anime.slug) continue;
+      final last = AnimeEpisode.fromJson(animeMap(row['episode']));
+      var index = episodes.indexWhere((e) => e.id == last.id);
+      if (index < 0) {
+        index = episodes.indexWhere((e) => e.number == last.number);
+      }
+      if (index < 0) break;
+      if (row['watched'] != true) return episodes[index];
+      for (final next in episodes.skip(index + 1)) {
+        if (positions[next.key]?['watched'] != true) return next;
+      }
+      return episodes[index];
+    }
+    return episodes.first;
   }
 
   Future<void> updateLibrary(
@@ -539,6 +621,15 @@ class AnimeController extends ChangeNotifier {
         malError = null;
       } catch (error) {
         malError = 'Progreso local guardado; MAL pendiente: $error';
+        changed();
+      }
+    } else if (watched == false && number != null) {
+      // Desmarcado antes de enviarse: el pendiente baja al episodio visto
+      // más alto que queda, para no subir a MAL uno que ya no cuenta.
+      try {
+        await mal.retractWatched(anime.slug, _localWatched(anime.slug));
+      } catch (error) {
+        malError = 'No se pudo actualizar el pendiente de MAL: $error';
         changed();
       }
     }
@@ -646,6 +737,9 @@ class AnimeController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     unawaited(_network?.cancel());
+    if (mal.onRemoteProgress == _malProgressConfirmed) {
+      mal.onRemoteProgress = null;
+    }
     mal.client.sessionChanges.removeListener(_sessionChanged);
     _poll?.cancel();
     source.close();

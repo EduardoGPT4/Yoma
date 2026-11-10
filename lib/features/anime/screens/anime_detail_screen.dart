@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../design/yoma_tokens.dart';
 import '../data/anime_controller.dart';
+import '../data/local_anime_downloads.dart';
 import '../models/anime_models.dart';
 import '../widgets/anime_widgets.dart';
 
@@ -68,7 +69,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
+        ).showSnackBar(SnackBar(content: Text(animeErrorText(e))));
       }
     }
   }
@@ -178,22 +179,8 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                         children: [
                           FilledButton.icon(
                             onPressed: () {
-                              if (detail.episodes.isEmpty) return;
-                              final history = app.history
-                                  .where((e) => e['slug'] == anime.slug)
-                                  .toList();
-                              final last = history.isEmpty
-                                  ? null
-                                  : AnimeEpisode.fromJson(
-                                      animeMap(history.first['episode']),
-                                    );
-                              widget.play(
-                                detail,
-                                detail.episodes.firstWhere(
-                                  (e) => e.id == last?.id,
-                                  orElse: () => detail.episodes.first,
-                                ),
-                              );
+                              final episode = app.resumeEpisode(detail);
+                              if (episode != null) widget.play(detail, episode);
                             },
                             icon: const Icon(Icons.play_arrow),
                             label: const Text('Reproducir'),

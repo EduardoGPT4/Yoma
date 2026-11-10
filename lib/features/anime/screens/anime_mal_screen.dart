@@ -25,6 +25,9 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
   String? _error;
   String _status = 'watching';
   int _offset = 0, _generation = 0;
+
+  /// Página siguiente según el servidor; `null` en la última.
+  int? _next;
   List<MalAnimeEntry> _entries = [];
   List<Map<String, dynamic>> _pending = [];
   @override
@@ -32,6 +35,12 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
     super.initState();
     _load();
     _mal.client.sessionChanges.addListener(_sessionChanged);
+    widget.controller.addListener(_controllerChanged);
+  }
+
+  /// El aviso de sincronización cambia fuera de esta pantalla.
+  void _controllerChanged() {
+    if (mounted) setState(() {});
   }
 
   void _sessionChanged() {
@@ -48,9 +57,9 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
     }
     try {
       final available = await _mal.available();
-      final rows = available
-          ? await _mal.library(status: _status, offset: _offset)
-          : <MalAnimeEntry>[];
+      final page = available
+          ? await _mal.libraryPage(status: _status, offset: _offset)
+          : const MalAnimePage([], null);
       final pending = available
           ? await _mal.pending()
           : <Map<String, dynamic>>[];
@@ -58,7 +67,8 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
         setState(() {
           _pending = pending;
           _available = available;
-          _entries = rows;
+          _entries = page.items;
+          _next = page.nextOffset;
           _error = null;
         });
       }
@@ -167,6 +177,15 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
           if (_busy) const LinearProgressIndicator(),
           if (_error != null)
             AnimeMessage(_error!, action: 'Reintentar', onAction: _load),
+          if (widget.controller.malError != null)
+            AnimeMessage(
+              widget.controller.malError!,
+              action: 'Sincronizar ahora',
+              onAction: () async {
+                await widget.controller.syncMal();
+                if (mounted) await _load();
+              },
+            ),
           if (!_busy && !_available && profile.usesMyAnimeListIdentity)
             const AnimeMessage(
               'Tu cuenta está conectada. La consulta y sincronización de anime todavía no están disponibles en esta conexión. Tu biblioteca y progreso local se conservan.',
@@ -258,6 +277,7 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
               onChanged: (v) {
                 _status = v!;
                 _offset = 0;
+                _next = null;
                 _load();
               },
             ),
@@ -283,16 +303,17 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
                       ? null
                       : () {
                           _offset = (_offset - 50).clamp(0, 1000000);
+                          _next = null;
                           _load();
                         },
                   child: const Text('Anterior'),
                 ),
                 const Spacer(),
                 TextButton(
-                  onPressed: _entries.length < 50
+                  onPressed: _next == null
                       ? null
                       : () {
-                          _offset += 50;
+                          _offset = _next!;
                           _load();
                         },
                   child: const Text('Siguiente'),
@@ -336,6 +357,7 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
   void dispose() {
     _malId.dispose();
     _mal.client.sessionChanges.removeListener(_sessionChanged);
+    widget.controller.removeListener(_controllerChanged);
     super.dispose();
   }
 }

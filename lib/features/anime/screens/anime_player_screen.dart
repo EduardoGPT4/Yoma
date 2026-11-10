@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../data/anime_controller.dart';
+import '../data/local_anime_downloads.dart';
 import '../models/anime_models.dart';
 
 class AnimePlayerScreen extends StatefulWidget {
@@ -122,7 +123,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
       if (generation == _generation && mounted) {
         setState(() {
           _loading = false;
-          _error = e.toString();
+          _error = animeErrorText(e);
         });
       }
     }
@@ -188,7 +189,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
       if (ticket == _generation && mounted) {
         setState(() {
           _loading = false;
-          _error = e.toString();
+          _error = animeErrorText(e);
         });
       }
     }
@@ -245,6 +246,8 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
   }
 
   Future<void> _writes = Future.value();
+  String? _savedKey;
+  int _savedPosition = -1;
   Future<void> _save({bool? watched}) {
     final video = _video;
     if (video == null || !video.value.isInitialized || !_played) {
@@ -253,11 +256,22 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     final episode = _episode;
     final position = video.value.position.inMilliseconds;
     final duration = video.value.duration.inMilliseconds;
+    // En pausa la posición no cambia: no se reescribe cada 5 segundos ni se
+    // mueve el episodio al principio del historial sin haberlo visto más.
+    if (watched == null &&
+        _savedKey == episode.key &&
+        _savedPosition == position) {
+      return _writes;
+    }
+    _savedKey = episode.key;
+    _savedPosition = position;
     // Snapshot before awaiting: a server/episode change must not misattribute progress.
     final write = _writes.then(
       (_) => app.progress(anime, episode, position, duration, watched: watched),
     );
     _writes = write.catchError((Object error) {
+      // Lo que no se guardó se vuelve a intentar en el siguiente guardado.
+      _savedPosition = -1;
       if (mounted && !_closed) {
         setState(() => _error = 'No se pudo guardar el progreso: $error');
       }
@@ -580,7 +594,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
                         } catch (e) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(e.toString())),
+                              SnackBar(content: Text(animeErrorText(e))),
                             );
                           }
                         }

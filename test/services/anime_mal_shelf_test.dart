@@ -50,7 +50,13 @@ class ListClient extends MyAnimeListClient {
     if (input['action'] == 'anime_capabilities') return {'anime': true};
     if (input['action'] == 'anime_update') {
       updates[input['id'] as int] = input['episodes_watched'] as int;
-      return {};
+      return {
+        'anime': {
+          'id': input['id'],
+          'episodes_watched': input['episodes_watched'],
+          'status': 'watching',
+        },
+      };
     }
     if (input['action'] == 'anime_library') {
       libraryCalls++;

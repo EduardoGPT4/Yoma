@@ -3,6 +3,19 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import '../models/anime_models.dart';
 
+/// Texto de un error para mostrarlo en pantalla. Los fallos del reproductor
+/// y de las descargas llegan de Android como [PlatformException]; se muestra
+/// su mensaje y no «PlatformException(anime_local, …, null, null)».
+String animeErrorText(Object error) {
+  if (error is PlatformException) {
+    final message = error.message?.trim() ?? '';
+    return message.isEmpty
+        ? 'No se pudo completar la operación en el dispositivo.'
+        : message;
+  }
+  return error.toString();
+}
+
 class LocalAnimeDownloads {
   static const channel = MethodChannel('app.yoma/anime_local');
   Future<Map<String, dynamic>> snapshot() async {
