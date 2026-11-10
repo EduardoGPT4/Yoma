@@ -335,8 +335,58 @@ void main() {
 
       await tester.tap(find.text('Explorar'));
       await capture('04-anime-explore');
+      // Las descargas se agrupan por anime, con los episodios en orden.
+      AnimeDownload job(
+        String slug,
+        String title,
+        String number,
+        String state,
+      ) => AnimeDownload({
+        'key': '$slug:$number:SUB',
+        'slug': slug,
+        'title': title,
+        'number': number,
+        'state': state,
+        'file': state == 'done' ? '/x/$slug-$number.mp4' : '',
+        'bytes': 50 * 1024 * 1024,
+        'total': 100 * 1024 * 1024,
+        'language': 'SUB',
+      });
+      anime.downloads = [
+        job('demons-crest', "Demons' Crest", '2', 'done'),
+        job('dark-machine', 'Dark Machine: The Animation', '1', 'done'),
+        job('demons-crest', "Demons' Crest", '1', 'done'),
+        job('demons-crest', "Demons' Crest", '3', 'downloading'),
+      ];
+      anime.changed();
       await tester.tap(find.text('Descargas').last);
       await capture('05-anime-downloads');
+      // En la pantalla pequeña con texto grande los grupos quedan bajo el
+      // borde; ahí solo se comprueba que nada se desborde.
+      if (name == 'phone') {
+        expect(find.text("Demons' Crest"), findsOneWidget);
+        expect(
+          find.textContaining('3 episodios · 2 descargados'),
+          findsOneWidget,
+        );
+        expect(find.text('Episodio 3 · SUB'), findsOneWidget);
+        final first = tester.getTopLeft(find.text('Episodio 1 · SUB')).dy;
+        final second = tester.getTopLeft(find.text('Episodio 2 · SUB')).dy;
+        expect(first, lessThan(second));
+        // Al plegar un grupo queda a la vista el siguiente; un grupo de un
+        // solo episodio se muestra abierto y se pliega al tocarlo.
+        await tester.tap(find.text("Demons' Crest"));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump();
+        expect(find.text('Episodio 3 · SUB'), findsNothing);
+        expect(find.text('Dark Machine: The Animation'), findsOneWidget);
+        expect(find.text('Episodio 1 · SUB'), findsOneWidget);
+        await tester.tap(find.text('Dark Machine: The Animation'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Episodio 1 · SUB'), findsNothing);
+      }
       await tester.tap(find.text('Más').last);
       await capture('06-anime-more');
 

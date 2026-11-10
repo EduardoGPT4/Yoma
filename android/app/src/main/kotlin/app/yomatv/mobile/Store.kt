@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.os.Build
 import android.os.Environment
 import org.json.JSONObject
 import java.io.File
@@ -173,17 +174,62 @@ class Store(private val context: Context, private val databaseName: String = "yo
     fun recover(owner: Long) { writableDatabase.execSQL("UPDATE downloads SET state='queued',speed=0 WHERE owner=? AND state IN ('downloading','verifying')", arrayOf(owner)) }
     fun claim(ep: Episode): Boolean = writableDatabase.update("downloads", ContentValues().apply { put("state", "downloading"); put("error", ""); put("speed", 0) },
         "id=? AND owner=? AND state IN ('queued','retry')", arrayOf(ep.key, ep.owner.toString())) == 1
-    fun video(ep: Episode, partial: Boolean = false): File {
+    private val localDownloads get() = databaseName == "yoma_anime_local_downloads.db"
+
+    private fun fileTitle(ep: Episode) =
+        ep.title.replace(Regex("[<>:\"/\\\\|?*\\p{Cntrl}]"), "_").trim(' ', '.').take(90).ifBlank { ep.slug }
+
+    /** Ubicación anterior, privada de la app (se sigue leyendo hasta migrar). */
+    fun legacyVideo(ep: Episode, partial: Boolean = false): File {
         val base = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: context.filesDir
         val root = File(base, "Yoma/YomaTV/EpisodiosDescargados")
         val season = ep.payload.optString("season").takeIf { Regex("(?:invierno|primavera|verano|otoño)\\d{4}").matches(it) } ?: "biblioteca"
         val number = ep.number.substringBefore('.').padStart(4, '0') + ep.number.substringAfter('.', "").let { if (it.isEmpty()) "" else ".$it" }
-        val title = ep.title.replace(Regex("[<>:\"/\\\\|?*\\p{Cntrl}]"), "_").trim(' ', '.').take(90).ifBlank { ep.slug }
-        val ownerFolder = if(databaseName=="yoma_anime_local_downloads.db")"local" else ep.owner.toString()
-        val file = File(root, "$ownerFolder/$season/${ep.slug}/capitulos/$title - $number [${ep.language}].mp4${if (partial) ".part" else ""}")
+        val ownerFolder = if(localDownloads)"local" else ep.owner.toString()
+        val file = File(root, "$ownerFolder/$season/${ep.slug}/capitulos/${fileTitle(ep)} - $number [${ep.language}].mp4${if (partial) ".part" else ""}")
         require(file.canonicalPath.startsWith(root.canonicalPath + File.separator))
         return file
     }
+
+    /** Yoma/YomaTV/Anime en la raíz del teléfono; requiere acceso a todos los archivos. */
+    private fun publicRoot(): File? {
+        if (!localDownloads || Build.VERSION.SDK_INT < 30 || !Environment.isExternalStorageManager()) return null
+        return File(Environment.getExternalStorageDirectory(), "Yoma/YomaTV/Anime")
+    }
+
+    /** Yoma/YomaTV/Anime/<anime>/Episodio 01 [SUB].mp4 */
+    private fun publicVideo(ep: Episode, partial: Boolean): File? {
+        val root = publicRoot() ?: return null
+        val number = ep.number.substringBefore('.').padStart(2, '0') + ep.number.substringAfter('.', "").let { if (it.isEmpty()) "" else ".$it" }
+        val file = File(root, "${fileTitle(ep)}/Episodio $number [${ep.language}].mp4${if (partial) ".part" else ""}")
+        require(file.canonicalPath.startsWith(root.canonicalPath + File.separator))
+        return file
+    }
+
+    /** Archivo del episodio: el que ya exista (nuevo o anterior); si no hay
+     *  ninguno, la ubicación pública cuando está disponible. */
+    fun video(ep: Episode, partial: Boolean = false): File {
+        val modern = publicVideo(ep, partial) ?: return legacyVideo(ep, partial)
+        if (modern.exists()) return modern
+        val legacy = legacyVideo(ep, partial)
+        return if (legacy.exists()) legacy else modern
+    }
+
+    /** Lleva a Yoma/YomaTV/Anime los episodios completos guardados en la carpeta
+     *  privada. Devuelve cuántos se movieron. */
+    fun migrateLocal(owner: Long): Int {
+        val root = publicRoot() ?: return 0
+        root.mkdirs(); File(root, ".nomedia").takeIf { !it.exists() }?.createNewFile()
+        var moved = 0
+        for (ep in list(owner).filter { it.state == "done" }) {
+            val legacy = legacyVideo(ep)
+            val target = publicVideo(ep, false) ?: continue
+            if (!legacy.isFile || target.exists() || legacy.length() != ep.total) continue
+            if (moveFile(legacy, target)) moved++
+        }
+        return moved
+    }
+
     fun removeVideo(ep: Episode) {
         writableDatabase.beginTransaction()
         try {
@@ -197,4 +243,17 @@ class Store(private val context: Context, private val databaseName: String = "yo
             writableDatabase.setTransactionSuccessful()
         } finally { writableDatabase.endTransaction() }
     }
+}
+
+/** Renombra; si el sistema no permite renombrar entre carpetas, copia,
+ *  comprueba el tamaño y borra el original. */
+fun moveFile(source: File, target: File): Boolean {
+    target.parentFile?.mkdirs()
+    if (source.renameTo(target)) return true
+    val temp = File(target.path + ".moving")
+    return try {
+        source.copyTo(temp, overwrite = true)
+        if (temp.length() != source.length() || !temp.renameTo(target)) { temp.delete(); false }
+        else { source.delete(); true }
+    } catch (_: Exception) { temp.delete(); false }
 }

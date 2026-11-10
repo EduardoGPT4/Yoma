@@ -2,11 +2,20 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-/// Carpeta pública de YomaShi en la raíz del almacenamiento interno.
+/// Carpeta pública de YomaShi dentro de la carpeta común de Yoma.
 ///
-/// Android: `/storage/emulated/0/YomaShi`
+/// Android: `/storage/emulated/0/Yoma/YomaShi` (mangas en `Manga/` y copias de
+/// seguridad en `Backups/`). Los episodios de YomaTV van en
+/// `/storage/emulated/0/Yoma/YomaTV/Anime`.
 class YomashiPublicStorage {
+  static const String yomaFolderName = 'Yoma';
   static const String folderName = 'YomaShi';
+
+  /// Ruta relativa a la raíz del teléfono.
+  static String get relativePath => p.join(yomaFolderName, folderName);
+
+  /// Raíces con las que Android puede guardar la misma carpeta.
+  static const List<String> rootAliases = _androidRoots;
 
   static const List<String> _androidRoots = <String>[
     '/storage/emulated/0',
@@ -32,10 +41,16 @@ class YomashiPublicStorage {
     if (root == null) {
       return null;
     }
-    return p.join(root.path, folderName);
+    return p.join(root.path, yomaFolderName, folderName);
   }
 
-  /// Crea `/storage/emulated/0/YomaShi` si no existe.
+  /// Ubicación anterior a Yoma 3.2 (`/storage/emulated/0/YomaShi`).
+  static String? get legacyFolderPath {
+    final root = publicRoot();
+    return root == null ? null : p.join(root.path, folderName);
+  }
+
+  /// Crea `/storage/emulated/0/Yoma/YomaShi` si no existe.
   static Future<Directory?> ensureAppFolder() async {
     final path = appFolderPath;
     if (path == null) {

@@ -77,6 +77,9 @@ class DownloadHostService : Service() {
                     if (call.method == "freeBytes") {
                         try { result.success(StatFs(call.arguments as String).availableBytes) }
                         catch (error: Exception) { result.error("STORAGE", error.message, null) }
+                    } else if (call.method == "hostKind") {
+                        // La migración de carpetas solo se hace con la cola detenida.
+                        result.success(hostKind())
                     } else result.notImplemented()
                 }
         }

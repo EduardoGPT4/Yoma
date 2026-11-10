@@ -132,7 +132,7 @@ open class DownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                     if (isStopped || prefs.owner != owner || prefs.paused || store.get(job.key, owner)?.state == "paused") throw TransferStopped()
                     val target = store.video(job)
                     if (target.exists()) throw IOException("Ya existe un video final. No se sobrescribió.")
-                    if (!partial.renameTo(target)) throw IOException("No se pudo guardar el video verificado.")
+                    if (!moveFile(partial, target)) throw IOException("No se pudo guardar el video verificado.")
                     store.update(job.key, owner, "state" to "done", "bytes" to result.bytes, "total" to result.total, "duration" to duration,
                         "hash" to hash, "attempts" to 0, "error" to "", "speed" to 0.0)
                     Notices.result(context, "Capítulo ${job.number} descargado", job.title, job.key.hashCode())

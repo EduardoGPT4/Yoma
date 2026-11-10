@@ -18,6 +18,7 @@ import 'models/automation_settings.dart';
 import 'services/maintenance_service.dart';
 import 'services/rotating_backup_service.dart';
 import 'services/diagnostics.dart';
+import 'services/yoma_storage_migration.dart';
 import 'services/myanimelist_service.dart';
 import 'home/yoma_shell.dart';
 import 'design/yoma_tokens.dart';
@@ -71,6 +72,8 @@ Future<void> main() async {
   } catch (error, stackTrace) {
     debugPrint('DownloadNotificationService.init failed: $error\n$stackTrace');
   }
+  // Antes de cargar la biblioteca: la carpeta YomaShi pasa a Yoma/YomaShi.
+  await YomaStorageMigration.run();
   runApp(const MangaReaderApp());
   unawaited(_prepareMaintenance());
 }

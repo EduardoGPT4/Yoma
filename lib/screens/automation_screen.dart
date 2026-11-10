@@ -360,7 +360,7 @@ class _AutomationScreenState extends State<AutomationScreen> {
                       title: const Text('Carpeta de copias'),
                       subtitle: Text(
                         _backupPath.contains('/YomaShi/Backups')
-                            ? 'YomaShi / Backups'
+                            ? 'Yoma / YomaShi / Backups'
                             : 'Carpeta privada de la app',
                       ),
                       trailing: const Icon(Icons.chevron_right),

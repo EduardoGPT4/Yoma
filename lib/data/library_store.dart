@@ -309,6 +309,59 @@ class LibraryStore {
         .toList();
   }
 
+  /// Cambia la carpeta [from] por [to] (rutas absolutas sin barra final) en
+  /// el progreso, los capítulos leídos, los favoritos y todos los registros.
+  /// Solo afecta a rutas que empiezan exactamente por [from]; es idempotente.
+  /// Devuelve cuántas filas cambiaron.
+  Future<int> relocatePathPrefix(String from, String to) {
+    if (from.isEmpty || from == to || from.endsWith('/') || to.endsWith('/')) {
+      throw ArgumentError('Rutas de carpeta no válidas.');
+    }
+    return transaction(() async {
+      var changed = 0;
+      Future<void> column(String table, String name) async {
+        changed += await _db.customUpdate(
+          'UPDATE OR REPLACE $table SET $name = ? || substr($name, ?) '
+          'WHERE $name = ? OR substr($name, 1, ?) = ?',
+          variables: [
+            Variable.withString(to),
+            Variable.withInt(from.length + 1),
+            Variable.withString(from),
+            Variable.withInt(from.length + 1),
+            Variable.withString('$from/'),
+          ],
+          updates: {
+            _db.readingProgressRows,
+            _db.readChapterRows,
+            _db.favoriteRows,
+          },
+        );
+      }
+
+      await column('reading_progress_rows', 'manga_path');
+      await column('reading_progress_rows', 'cover_path');
+      await column('reading_progress_rows', 'chapter_path');
+      await column('read_chapter_rows', 'chapter_path');
+      await column('favorite_rows', 'manga_key');
+      await column('favorite_rows', 'cover_path');
+      await column('app_records', 'record_key');
+      // Dentro de los registros JSON: rutas que continúan y rutas exactas.
+      changed += await _db.customUpdate(
+        'UPDATE app_records SET payload = replace(replace(payload, ?, ?), ?, ?) '
+        'WHERE instr(payload, ?) > 0 OR instr(payload, ?) > 0',
+        variables: [
+          Variable.withString('$from/'),
+          Variable.withString('$to/'),
+          Variable.withString('"$from"'),
+          Variable.withString('"$to"'),
+          Variable.withString('$from/'),
+          Variable.withString('"$from"'),
+        ],
+      );
+      return changed;
+    });
+  }
+
   Future<void> replaceRecords(
     String namespace,
     List<Map<String, dynamic>> records,

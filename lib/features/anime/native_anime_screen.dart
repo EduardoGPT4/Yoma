@@ -1282,114 +1282,218 @@ class _AnimeDownloadsState extends State<_AnimeDownloads> {
             const AnimeMessage(
               'Descarga episodios desde una ficha o el reproductor para verlos aquí.',
             ),
-          for (final d in jobs)
-            Card(
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(14),
-                leading: SizedBox(
-                  width: 45,
-                  height: 64,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: animeArtwork('${d.raw['cover'] ?? ''}', width: 120),
-                  ),
-                ),
-                title: Text(
-                  d.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          for (final group in _groups(jobs)) _group(context, group),
+        ],
+      ),
+    );
+  }
+
+  /// Episodios agrupados por anime, en el orden de la cola, cada grupo
+  /// ordenado por número de episodio (así se guardan también en el teléfono:
+  /// una carpeta por anime).
+  List<List<AnimeDownload>> _groups(List<AnimeDownload> jobs) {
+    final groups = <String, List<AnimeDownload>>{};
+    for (final d in jobs) {
+      groups.putIfAbsent(d.slug, () => []).add(d);
+    }
+    for (final items in groups.values) {
+      items.sort(
+        (a, b) => (double.tryParse(a.number) ?? 0).compareTo(
+          double.tryParse(b.number) ?? 0,
+        ),
+      );
+    }
+    return groups.values.toList();
+  }
+
+  /// Grupos abiertos o cerrados a mano; por defecto se abren los que tienen
+  /// descargas en curso o con error.
+  final Map<String, bool> _open = {};
+
+  Widget _group(BuildContext context, List<AnimeDownload> items) {
+    final theme = Theme.of(context);
+    final first = items.first;
+    final ready = items.where((d) => d.ready).length;
+    final active = items.where((d) => !d.ready).toList();
+    final bytes = items.fold<int>(0, (n, d) => n + d.bytes);
+    final open = _open[first.slug] ?? (active.isNotEmpty || items.length == 1);
+    final total = active.fold<int>(0, (n, d) => n + d.total);
+    final done = active.fold<int>(0, (n, d) => n + d.bytes);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: YomaSpacing.md),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              onTap: () => setState(() => _open[first.slug] = !open),
+              child: Padding(
+                padding: const EdgeInsets.all(YomaSpacing.md),
+                child: Row(
                   children: [
-                    Text('Episodio ${d.number} · ${d.language}'),
-                    Text(d.ready ? 'Descargado' : _label(d.state)),
-                    if (d.total > 0 && !d.ready)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: LinearProgressIndicator(
-                          value: (d.bytes / d.total).clamp(0, 1),
+                    SizedBox(
+                      width: 45,
+                      height: 64,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(YomaRadii.sm),
+                        child: animeArtwork(
+                          '${first.raw['cover'] ?? ''}',
+                          width: 120,
                         ),
                       ),
-                    Text(
-                      '${animeBytes(d.bytes)}${d.total > 0 ? ' / ${animeBytes(d.total)}' : ''}',
-                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    if (d.error.isNotEmpty)
-                      Text(
-                        d.error,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                  ],
-                ),
-                onTap: d.ready ? () => _play(d) : null,
-                trailing: PopupMenuButton<String>(
-                  onSelected: (v) async {
-                    if (v == 'play') {
-                      await _play(d);
-                      return;
-                    }
-                    if (v == 'delete' || v == 'cancel') {
-                      final yes = await showDialog<bool>(
-                        context: context,
-                        builder: (c) => AlertDialog(
-                          title: Text(
-                            d.ready ? 'Eliminar descarga' : 'Cancelar descarga',
+                    const SizedBox(width: YomaSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            first.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium,
                           ),
-                          content: const Text(
-                            'Se conserva tu historial y progreso local.',
+                          const SizedBox(height: 2),
+                          Text(
+                            [
+                              items.length == 1
+                                  ? '1 episodio'
+                                  : '${items.length} episodios',
+                              '$ready descargados',
+                              animeBytes(bytes),
+                            ].join(' · '),
+                            style: theme.textTheme.bodySmall,
                           ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(c, false),
-                              child: const Text('Conservar'),
-                            ),
-                            FilledButton(
-                              onPressed: () => Navigator.pop(c, true),
-                              child: const Text('Eliminar'),
-                            ),
+                          if (active.isNotEmpty && total > 0) ...[
+                            const SizedBox(height: YomaSpacing.sm),
+                            YomaProgressBar(value: done / total),
                           ],
-                        ),
-                      );
-                      if (yes != true) return;
-                    }
-                    await _action(v, key: d.key);
-                  },
-                  itemBuilder: (_) => [
-                    if (d.ready)
-                      const PopupMenuItem(
-                        value: 'play',
-                        child: Text('Reproducir offline'),
+                        ],
                       ),
-                    if (!d.ready)
-                      const PopupMenuItem(
-                        value: 'pause',
-                        child: Text('Pausar'),
-                      ),
-                    if (!d.ready)
-                      const PopupMenuItem(
-                        value: 'retry',
-                        child: Text('Reintentar'),
-                      ),
-                    if (d.ready)
-                      const PopupMenuItem(
-                        value: 'verify',
-                        child: Text('Verificar archivo'),
-                      ),
-                    PopupMenuItem(
-                      value: d.ready ? 'delete' : 'cancel',
-                      child: Text(
-                        d.ready
-                            ? 'Eliminar archivo'
-                            : 'Cancelar y eliminar parcial',
-                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: open ? .5 : 0,
+                      duration: YomaMotion.of(context, YomaMotion.fast),
+                      child: const Icon(Icons.expand_more_rounded),
                     ),
                   ],
                 ),
               ),
             ),
+            AnimatedSize(
+              duration: YomaMotion.of(context, YomaMotion.medium),
+              curve: YomaMotion.curve,
+              alignment: Alignment.topCenter,
+              child: open
+                  ? Column(
+                      children: [
+                        const Divider(height: 1),
+                        for (final d in items) _episode(context, d),
+                      ],
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _episode(BuildContext context, AnimeDownload d) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: const EdgeInsets.fromLTRB(
+        YomaSpacing.lg,
+        YomaSpacing.xs,
+        YomaSpacing.xs,
+        YomaSpacing.xs,
+      ),
+      leading: Icon(
+        d.ready ? Icons.play_circle_outline_rounded : Icons.downloading_rounded,
+        color: d.ready
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurfaceVariant,
+      ),
+      title: Text('Episodio ${d.number} · ${d.language}'),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            [
+              d.ready ? 'Descargado' : _label(d.state),
+              '${animeBytes(d.bytes)}${d.total > 0 && !d.ready ? ' / ${animeBytes(d.total)}' : ''}',
+            ].join(' · '),
+            style: theme.textTheme.bodySmall,
+          ),
+          if (d.total > 0 && !d.ready)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: YomaProgressBar(value: d.bytes / d.total),
+            ),
+          if (d.error.isNotEmpty)
+            Text(
+              d.error,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+        ],
+      ),
+      onTap: d.ready ? () => _play(d) : null,
+      trailing: PopupMenuButton<String>(
+        onSelected: (v) async {
+          if (v == 'play') {
+            await _play(d);
+            return;
+          }
+          if (v == 'delete' || v == 'cancel') {
+            final yes = await showDialog<bool>(
+              context: context,
+              builder: (c) => AlertDialog(
+                title: Text(
+                  d.ready ? 'Eliminar descarga' : 'Cancelar descarga',
+                ),
+                content: const Text(
+                  'Se conserva tu historial y progreso local.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: const Text('Conservar'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: const Text('Eliminar'),
+                  ),
+                ],
+              ),
+            );
+            if (yes != true) return;
+          }
+          await _action(v, key: d.key);
+        },
+        itemBuilder: (_) => [
+          if (d.ready)
+            const PopupMenuItem(
+              value: 'play',
+              child: Text('Reproducir offline'),
+            ),
+          if (!d.ready)
+            const PopupMenuItem(value: 'pause', child: Text('Pausar')),
+          if (!d.ready)
+            const PopupMenuItem(value: 'retry', child: Text('Reintentar')),
+          if (d.ready)
+            const PopupMenuItem(
+              value: 'verify',
+              child: Text('Verificar archivo'),
+            ),
+          PopupMenuItem(
+            value: d.ready ? 'delete' : 'cancel',
+            child: Text(
+              d.ready ? 'Eliminar archivo' : 'Cancelar y eliminar parcial',
+            ),
+          ),
         ],
       ),
     );

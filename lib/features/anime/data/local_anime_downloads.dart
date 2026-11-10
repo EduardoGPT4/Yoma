@@ -83,6 +83,13 @@ class LocalAnimeDownloads {
     );
   }
 
+  /// Mueve los episodios ya descargados a Yoma/YomaTV/Anime. Devuelve
+  /// cuántos se movieron (0 si falta el permiso o hay una descarga activa).
+  Future<int> migrate() async {
+    if (!Platform.isAndroid) return 0;
+    return await channel.invokeMethod<int>('migrate') ?? 0;
+  }
+
   Future<void> control(String action, {String? key, bool? value}) =>
       channel.invokeMethod<void>(
         'control',

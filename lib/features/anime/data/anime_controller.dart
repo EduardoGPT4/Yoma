@@ -91,7 +91,24 @@ class AnimeController extends ChangeNotifier {
     changed();
     unawaited(loadFront());
     unawaited(search());
-    unawaited(refreshDownloads());
+    unawaited(_migrateDownloads());
+  }
+
+  /// Los episodios pasan una vez a Yoma/YomaTV/Anime; después se actualiza la
+  /// lista para que muestre la ubicación nueva.
+  Future<void> _migrateDownloads() async {
+    String? failure;
+    try {
+      await transfers.migrate();
+    } catch (e) {
+      failure = 'No se pudieron mover los episodios a Yoma/YomaTV: $e';
+    }
+    await refreshDownloads();
+    // La actualización limpia los errores; el de la migración se conserva.
+    if (failure != null && !_disposed) {
+      downloadError = failure;
+      changed();
+    }
   }
 
   void _sessionChanged() {

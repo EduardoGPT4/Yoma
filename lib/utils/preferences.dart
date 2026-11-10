@@ -40,7 +40,7 @@ class PreferencesService {
   static const _keyHitomiLanguage = 'hitomi_language_v1';
   static const _keyProfileDisplayName = 'profile_display_name_v1';
   static const _keyProfileAvatarPath = 'profile_avatar_path_v1';
-  static const _keyManageStorageExplained = 'manage_storage_explained_v1';
+  static const _keyNotificationsAsked = 'notifications_permission_asked_v1';
   static const _keyUiDensity = 'ui_density_v1';
 
   static Future<List<String>> getLibraryPaths() async {
@@ -444,14 +444,15 @@ class PreferencesService {
     await prefs.setString(_keyUiDensity, value);
   }
 
-  static Future<bool> getManageStorageExplained() async {
+  /// La pantalla de permisos ya preguntó por las notificaciones.
+  static Future<bool> getNotificationsAsked() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyManageStorageExplained) ?? false;
+    return prefs.getBool(_keyNotificationsAsked) ?? false;
   }
 
-  static Future<void> setManageStorageExplained(bool value) async {
+  static Future<void> setNotificationsAsked(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyManageStorageExplained, value);
+    await prefs.setBool(_keyNotificationsAsked, value);
   }
 
   static Future<Set<String>> getReadChapterKeys() async {

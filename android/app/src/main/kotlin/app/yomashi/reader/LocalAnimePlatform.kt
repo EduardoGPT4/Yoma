@@ -64,6 +64,15 @@ object LocalAnimePlatform {
                             } }
                             JSONObject().put("items",org.json.JSONArray(rows)).put("paused",prefs.paused).put("wifiOnly",prefs.wifiOnly).put("supported",Build.VERSION.SDK_INT>=26).toString()
                         }
+                        "migrate" -> store(context).use { db ->
+                            // Episodios completos de la carpeta privada a Yoma/YomaTV/Anime;
+                            // nunca mientras se descarga o verifica un episodio.
+                            if(db.list(1).any{it.state in setOf("downloading","verifying")}) 0
+                            else FileOutputStream(java.io.File(context.filesDir,"yoma-anime-local-downloads.lock"),true).channel.use { channel ->
+                                val lock=try{channel.tryLock()}catch(_:java.nio.channels.OverlappingFileLockException){null}
+                                if(lock==null) 0 else try{db.migrateLocal(1)}finally{lock.release()}
+                            }
+                        }
                         "enqueue" -> {
                             require(Build.VERSION.SDK_INT>=26){"Las descargas de anime necesitan Android 8 o posterior."}
                             val data=payload(call.arguments)
