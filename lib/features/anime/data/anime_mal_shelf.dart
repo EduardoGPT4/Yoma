@@ -168,14 +168,53 @@ class AnimeMalShelf {
     return snapshot;
   }
 
-  /// Descarga las dos listas, busca cada título en YomaTV y guarda el
-  /// resultado. Las coincidencias ya conocidas no se vuelven a buscar.
-  Future<MalShelfSnapshot> refresh(int owner) async {
+  /// Dos obras con el mismo título no son la misma si YomaTV ya publica más
+  /// episodios de los que la obra tiene en MAL, o si se estrenaron con años
+  /// de diferencia (un remake). Sin esos datos no se descarta nada.
+  static bool compatible(MalAnimeEntry entry, AnimeTitle anime) {
+    // Margen de 2: YomaTV a veces numera un resumen o un especial.
+    if (entry.total > 0 && anime.episodes > entry.total + 2) return false;
+    final year = int.tryParse(anime.year) ?? 0;
+    if (entry.year > 0 && year > 0 && (entry.year - year).abs() > 1) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Título normalizado → animes del índice público de YomaTV: slug, título
+  /// y categoría de todo el catálogo en una sola consulta. `null` si no
+  /// está disponible; entonces se busca título por título.
+  Future<Map<String, List<AnimeTitle>>?> _index() async {
+    try {
+      final items = (await source.publicIndex())['items'];
+      if (items is! List || items.isEmpty) return null;
+      final index = <String, List<AnimeTitle>>{};
+      for (final row in items) {
+        final anime = AnimeTitle.fromJson(animeMap(row));
+        if (anime.slug.isEmpty) continue;
+        (index[normalize(anime.title)] ??= []).add(anime);
+      }
+      return index;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Descarga las dos listas, las empareja con YomaTV y guarda el resultado.
+  ///
+  /// Las coincidencias ya conocidas salen del teléfono. Para el resto, el
+  /// índice público dice en una sola consulta qué títulos existen: los que
+  /// no están no se buscan, y los que sí se muestran enseguida con
+  /// [onProgress] mientras se pide su ficha (portada, episodios y año) para
+  /// comprobar que es la misma obra.
+  Future<MalShelfSnapshot> refresh(
+    int owner, {
+    void Function(MalShelfSnapshot interim)? onProgress,
+  }) async {
     final store = await database();
-    final lists = <String, List<MalShelfItem>>{};
-    var failures = 0;
+    final lists = <String, List<MalAnimeEntry>>{};
     for (final status in statuses) {
-      final entries = <MalAnimeEntry>[];
+      final entries = lists[status] = <MalAnimeEntry>[];
       // La continuación la da el servidor; el tope de páginas solo protege
       // de una respuesta que nunca termina.
       int? offset = 0;
@@ -184,19 +223,69 @@ class AnimeMalShelf {
         entries.addAll(page.items);
         offset = page.nextOffset;
       }
-      // Tres búsquedas a la vez, igual que el máximo de conexiones a YomaTV;
-      // se conserva el orden de la lista de MAL.
-      final found = List<AnimeTitle?>.filled(entries.length, null);
+    }
+    MalShelfSnapshot build(
+      Map<int, AnimeTitle> matches, {
+      bool partial = false,
+    }) {
+      List<MalShelfItem> items(String status) => [
+        for (final entry in lists[status]!)
+          if (matches[entry.id] != null)
+            MalShelfItem(entry, matches[entry.id]!),
+      ];
+      return MalShelfSnapshot(
+        owner: owner,
+        savedAt: DateTime.now(),
+        watching: items('watching'),
+        planned: items('plan_to_watch'),
+        partial: partial,
+      );
+    }
+
+    // Id de MAL → anime de YomaTV comprobado.
+    final found = <int, AnimeTitle>{};
+    var pending = <MalAnimeEntry>[];
+    for (final entry in [for (final status in statuses) ...lists[status]!]) {
+      final known = await _known(store, entry);
+      if (!known.settled) {
+        pending.add(entry);
+      } else if (known.anime != null) {
+        found[entry.id] = known.anime!;
+      }
+    }
+    var failures = 0;
+    if (pending.isNotEmpty) {
+      final index = await _index();
+      if (index != null) {
+        final interim = <int, AnimeTitle>{};
+        final listed = <MalAnimeEntry>[];
+        for (final entry in pending) {
+          final candidates = index[normalize(entry.title)];
+          if (candidates == null) {
+            // No está en el catálogo: no hace falta buscarlo.
+            await _remember(store, entry, null);
+            continue;
+          }
+          if (candidates.length == 1) interim[entry.id] = candidates.single;
+          listed.add(entry);
+        }
+        pending = listed;
+        if (interim.isNotEmpty) {
+          onProgress?.call(build({...found, ...interim}, partial: true));
+        }
+      }
+      // Tres búsquedas a la vez, igual que el máximo de conexiones a YomaTV.
       var next = 0;
       Future<void> worker() async {
-        while (next < entries.length) {
-          final index = next++;
+        while (next < pending.length) {
+          final entry = pending[next++];
+          if (failures >= maxSearchFailures) {
+            failures++;
+            continue;
+          }
           try {
-            found[index] = await _match(
-              store,
-              entries[index],
-              search: failures < maxSearchFailures,
-            );
+            final anime = await _search(store, entry);
+            if (anime != null) found[entry.id] = anime;
           } on _Unsearched {
             failures++;
           }
@@ -204,44 +293,56 @@ class AnimeMalShelf {
       }
 
       await Future.wait([for (var i = 0; i < 3; i++) worker()]);
-      lists[status] = [
-        for (var i = 0; i < entries.length; i++)
-          if (found[i] != null) MalShelfItem(entries[i], found[i]!),
-      ];
     }
+    // Dos entradas de la lista que apuntan al mismo anime de YomaTV: no se
+    // puede saber cuál es, así que no se vincula ninguna.
+    final uses = <String, int>{};
+    for (final anime in found.values) {
+      uses[anime.slug] = (uses[anime.slug] ?? 0) + 1;
+    }
+    found.removeWhere((_, anime) => uses[anime.slug]! > 1);
     if (await mal.owner() != owner) {
       throw StateError('La cuenta de MyAnimeList cambió durante la carga.');
     }
-    final now = DateTime.now();
-    final snapshot = MalShelfSnapshot(
-      owner: owner,
-      savedAt: now,
-      watching: lists['watching']!,
-      planned: lists['plan_to_watch']!,
-      partial: failures > 0,
-    );
+    final snapshot = build(found, partial: failures > 0);
     await _save(store, snapshot);
     return snapshot;
   }
 
-  /// Coincidencia guardada o buscada en YomaTV. Lanza [_Unsearched] si hay
-  /// que buscar y no se puede (la fuente falla o [search] es `false`): ese
-  /// título queda sin comprobar, no como «no existe».
-  Future<AnimeTitle?> _match(
+  /// Lo que el teléfono ya sabe de [entry]: `settled` si no hay que volver a
+  /// buscarlo (coincidencia guardada, o ausencia reciente).
+  Future<({bool settled, AnimeTitle? anime})> _known(
     LibraryStore store,
-    MalAnimeEntry entry, {
-    bool search = true,
-  }) async {
-    final key = 'match:${entry.id}';
-    final known = animeMap(await store.getRecord(namespace, key));
-    final checked = animeInt(known['checkedAt']);
-    if (known['title'] == entry.title) {
-      final anime = animeMap(known['anime']);
-      if (anime.isNotEmpty) return AnimeTitle.fromJson(anime);
-      final age = DateTime.now().millisecondsSinceEpoch - checked;
-      if (age < retryMissing.inMilliseconds) return null;
+    MalAnimeEntry entry,
+  ) async {
+    final known = animeMap(
+      await store.getRecord(namespace, 'match:${entry.id}'),
+    );
+    if (known['title'] != entry.title) return (settled: false, anime: null);
+    final anime = animeMap(known['anime']);
+    if (anime.isNotEmpty) {
+      // Una coincidencia guardada también debe seguir siendo la misma obra.
+      final title = AnimeTitle.fromJson(anime);
+      return (settled: true, anime: compatible(entry, title) ? title : null);
     }
-    if (!search) throw const _Unsearched();
+    final age =
+        DateTime.now().millisecondsSinceEpoch - animeInt(known['checkedAt']);
+    return (settled: age < retryMissing.inMilliseconds, anime: null);
+  }
+
+  Future<void> _remember(
+    LibraryStore store,
+    MalAnimeEntry entry,
+    AnimeTitle? found,
+  ) => store.putRecord(namespace, 'match:${entry.id}', {
+    'title': entry.title,
+    'anime': found?.toJson(),
+    'checkedAt': DateTime.now().millisecondsSinceEpoch,
+  });
+
+  /// Busca [entry] en YomaTV. Lanza [_Unsearched] si la fuente falla: ese
+  /// título queda sin comprobar, no como «no existe».
+  Future<AnimeTitle?> _search(LibraryStore store, MalAnimeEntry entry) async {
     final AnimePage page;
     try {
       page = AnimePage.fromJson(await source.catalog(search: entry.title));
@@ -249,18 +350,13 @@ class AnimeMalShelf {
       // Un fallo de YomaTV con un título no descarta la lista entera.
       throw const _Unsearched();
     }
-    AnimeTitle? found;
-    for (final item in page.items) {
-      if (sameName(entry.title, item)) {
-        found = item;
-        break;
-      }
-    }
-    await store.putRecord(namespace, key, {
-      'title': entry.title,
-      'anime': found?.toJson(),
-      'checkedAt': DateTime.now().millisecondsSinceEpoch,
-    });
+    final matches = [
+      for (final item in page.items)
+        if (sameName(entry.title, item) && compatible(entry, item)) item,
+    ];
+    // Varias obras de YomaTV con ese nombre: no se elige una al azar.
+    final found = matches.length == 1 ? matches.single : null;
+    await _remember(store, entry, found);
     return found;
   }
 }

@@ -51,4 +51,26 @@ class TestAnimeBridge(unittest.TestCase):
         self.assertEqual(self.api('anime_library',status='reading')[0],422)
         self.assertEqual(self.api('anime_update',id=1,owner_id=7,expected_episodes=2,episodes_watched=-1)[0],422)
         self.assertEqual(calls,Fixture.token_calls)
+    def test_explicit_undo_lowers_only_from_the_expected_count(self):
+        # Sin la marca de deshacer el progreso nunca baja.
+        self.assertEqual(self.api('anime_update',id=1,owner_id=7,expected_episodes=2,episodes_watched=1)[0],409)
+        # Si MAL ya no está donde Yoma lo dejó, tampoco.
+        self.assertEqual(self.api('anime_update',id=1,owner_id=7,expected_episodes=3,episodes_watched=1,decrease=True)[0],409)
+        self.assertEqual(self.api('anime_update',id=1,owner_id=7,expected_episodes=2,episodes_watched=1,decrease='yes')[0],422)
+        self.assertEqual(Fixture.anime_writes,0)
+        status,data=self.api('anime_update',id=1,owner_id=7,expected_episodes=2,episodes_watched=1,decrease=True)
+        self.assertEqual(status,200);self.assertEqual(data['anime']['episodes_watched'],1)
+        self.assertEqual(data['anime']['status'],'watching')
+        self.assertEqual(Fixture.episodes,1);self.assertEqual(Fixture.anime_writes,1)
+    def test_undo_of_a_completed_anime_returns_to_watching(self):
+        Fixture.episodes=12;Fixture.anime_status='completed'
+        data=self.api('anime_update',id=1,owner_id=7,expected_episodes=12,episodes_watched=11,decrease=True)[1]
+        self.assertEqual(data['anime']['status'],'watching');self.assertEqual(Fixture.episodes,11)
+    def test_undo_keeps_a_paused_status_and_is_announced(self):
+        Fixture.anime_status='on_hold'
+        data=self.api('anime_update',id=1,owner_id=7,expected_episodes=2,episodes_watched=0,decrease=True)[1]
+        self.assertEqual(data['anime']['status'],'on_hold');self.assertEqual(data['anime']['episodes_watched'],0)
+        self.assertEqual(self.api('anime_capabilities')[1]['decrease'],True)
+        # Sin temporada de estreno en MAL el año es 0, no un valor inventado.
+        self.assertEqual(self.api('anime_detail',id=1)[1]['anime']['year'],0)
 if __name__=='__main__':unittest.main()

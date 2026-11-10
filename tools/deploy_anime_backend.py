@@ -10,7 +10,9 @@ class HostingFTP(ftplib.FTP_TLS):
 def read(ftp,path):
     data=io.BytesIO();ftp.retrbinary('RETR '+path,data.write);return data.getvalue()
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--publish',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--publish',action='store_true')
+    # Opt-in: also point the authorization page (yomashi-connect.php) at this extension.
+    parser.add_argument('--connect',action='store_true');args=parser.parse_args()
     print('Waiting for deployment credential on stdin (not saved).',flush=True)
     import getpass
     auth={'username':input('FTP user: '),'password':getpass.getpass('FTP password: ')}
@@ -26,8 +28,11 @@ def main():
     adapter=read(ftp,'releases/'+active+'/private/mal-http.php');(folder/'mal-http-inspected.php').write_bytes(adapter)
     if not args.publish:
         print(json.dumps({'active_release':active,'entry_bytes':len(old),'entry_sha256':hashlib.sha256(old).hexdigest(),'read_only':True}));ftp.quit();return
-    api=(ROOT/'server/yomashi-api.php').read_text(encoding='utf-8').replace("require __DIR__.'/private/app.php';", "require YOMA_WEB_BOOTSTRAP;")
-    files={'yomashi-api.php':api.encode(),'private/yomashi-mal.php':(ROOT/'server/private/yomashi-mal.php').read_bytes(),'private/yoma-anime-mal.php':(ROOT/'server/private/yoma-anime-mal.php').read_bytes()}
+    def entry(name):
+        source=(ROOT/'server'/name).read_text(encoding='utf-8')
+        if source.count("require __DIR__.'/private/app.php';")!=1:raise RuntimeError('Unexpected bootstrap in '+name)
+        return source.replace("require __DIR__.'/private/app.php';", "require YOMA_WEB_BOOTSTRAP;").encode()
+    files={'yomashi-api.php':entry('yomashi-api.php'),'yomashi-connect.php':entry('yomashi-connect.php'),'private/yomashi-mal.php':(ROOT/'server/private/yomashi-mal.php').read_bytes(),'private/yoma-anime-mal.php':(ROOT/'server/private/yoma-anime-mal.php').read_bytes()}
     digest=hashlib.sha256(b''.join(files[k] for k in sorted(files))).hexdigest();release='yoma-native-mal-'+digest[:16]
     # Add an immutable extension, not a new active web release.
     base='releases/'+release
@@ -44,25 +49,33 @@ def main():
         if previous is not None and previous!=data:raise RuntimeError('Immutable extension mismatch')
         if previous is None:ftp.storbinary('STOR '+path,io.BytesIO(data))
         if read(ftp,path)!=data:raise RuntimeError('Uploaded file differs')
-    wrapper='''<?php
+    def publish(name,before):
+        # Replace one root entry with a wrapper for this extension, keeping a verified backup.
+        stem=name[:-4]
+        wrapper='''<?php
 $root=__DIR__;
 $current=json_decode((string)@file_get_contents($root.'/private/current.json'),true);
 $id=$current['release']??'';
 if(!is_string($id)||!preg_match('/^[a-z0-9][a-z0-9-]{5,63}$/D',$id)||!is_file($root.'/releases/'.$id.'/private/ready.json')){http_response_code(503);exit;}
 define('SEASON_APP_ROOT',$root);define('SEASON_RELEASE_ID',$id);
 define('YOMA_WEB_BOOTSTRAP',$root.'/releases/'.$id.'/private/app.php');
-require $root.'/releases/RELEASE/yomashi-api.php';
-'''.replace('RELEASE/yomashi',release+'/yomashi').encode()
-    if read(ftp,'yomashi-api.php')!=old or json.loads(read(ftp,'private/current.json'))!=current:raise RuntimeError('Concurrent site change; deployment stopped')
-    backup='private/yomashi-api.backup-'+hashlib.sha256(old).hexdigest()[:16]+'.php'
-    ftp.storbinary('STOR '+backup,io.BytesIO(old))
-    if read(ftp,backup)!=old:raise RuntimeError('Backup verification failed')
-    pending='yomashi-api.pending-'+digest[:12]+'.php';ftp.storbinary('STOR '+pending,io.BytesIO(wrapper))
-    if read(ftp,pending)!=wrapper:raise RuntimeError('Pending entry mismatch')
-    ftp.rename(pending,'yomashi-api.php')
-    if read(ftp,'yomashi-api.php')!=wrapper:raise RuntimeError('Entry publication mismatch')
-    if json.loads(read(ftp,'private/current.json'))!=current:raise RuntimeError('Concurrent active release change')
+require $root.'/releases/RELEASE/ENTRY';
+'''.replace('RELEASE/ENTRY',release+'/'+name).encode()
+        if read(ftp,name)!=before or json.loads(read(ftp,'private/current.json'))!=current:raise RuntimeError('Concurrent site change; deployment stopped')
+        backup='private/'+stem+'.backup-'+hashlib.sha256(before).hexdigest()[:16]+'.php'
+        ftp.storbinary('STOR '+backup,io.BytesIO(before))
+        if read(ftp,backup)!=before:raise RuntimeError('Backup verification failed')
+        pending=stem+'.pending-'+digest[:12]+'.php';ftp.storbinary('STOR '+pending,io.BytesIO(wrapper))
+        if read(ftp,pending)!=wrapper:raise RuntimeError('Pending entry mismatch')
+        ftp.rename(pending,name)
+        if read(ftp,name)!=wrapper:raise RuntimeError('Entry publication mismatch')
+        if json.loads(read(ftp,'private/current.json'))!=current:raise RuntimeError('Concurrent active release change')
+        return backup,wrapper
+    backup,wrapper=publish('yomashi-api.php',old)
     receipt={'extension':release,'active_web_release_unchanged':active,'backup':backup,'entry_sha256':hashlib.sha256(wrapper).hexdigest(),'sha256':{k:hashlib.sha256(v).hexdigest() for k,v in files.items()}}
+    if args.connect:
+        previous=read(ftp,'yomashi-connect.php');(folder/'yomashi-connect.before.php').write_bytes(previous)
+        receipt['connect_backup'],page=publish('yomashi-connect.php',previous);receipt['connect_entry_sha256']=hashlib.sha256(page).hexdigest()
     (folder/'receipt.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8');print(json.dumps(receipt));ftp.quit()
 if __name__=='__main__':
     try:main()

@@ -578,7 +578,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
                     OutlinedButton.icon(
                       onPressed: () async {
                         try {
-                          await app.enqueue(
+                          final outcome = await app.enqueue(
                             anime,
                             _episode,
                             _selected?.language ??
@@ -586,8 +586,12 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
                           );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Episodio añadido a Descargas.'),
+                              SnackBar(
+                                content: Text(
+                                  AnimeController.downloadNotice([
+                                    outcome,
+                                  ], paused: app.paused),
+                                ),
                               ),
                             );
                           }

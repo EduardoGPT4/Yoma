@@ -6,11 +6,15 @@ import '../models/anime_models.dart';
 
 class MalAnimeEntry {
   final int id, watched, total;
+
+  /// Año de estreno en MAL; 0 si se desconoce.
+  final int year;
   final String title, picture, status;
   MalAnimeEntry.fromJson(Map<String, dynamic> v)
     : id = animeInt(v['id']),
       watched = animeInt(v['episodes_watched']),
       total = animeInt(v['num_episodes']),
+      year = animeInt(v['year']),
       title = '${v['title']}',
       picture = '${v['picture'] ?? ''}',
       status = '${v['status'] ?? 'plan_to_watch'}';
@@ -21,6 +25,7 @@ class MalAnimeEntry {
     'status': status,
     'episodes_watched': watched,
     'num_episodes': total,
+    'year': year,
   };
 }
 
@@ -51,16 +56,31 @@ class AnimeMalClient {
   /// Sesión para la que el servidor ya confirmó la extensión de anime; evita
   /// repetir la consulta en cada sincronización.
   String? _capableToken;
+
+  /// El servidor admite bajar el progreso como deshacer explícito.
+  bool _canDecrease = false;
+
+  /// Aviso de la última sincronización que no es un error (por ejemplo, un
+  /// deshacer que MAL ya no admite). Se entrega una sola vez.
+  String? _notice;
+  String? takeNotice() {
+    final value = _notice;
+    _notice = null;
+    return value;
+  }
+
   Future<bool> available() async {
     final auth = await client.credentials.load();
     if (auth?['connected'] != true) return false;
     final token = '${auth?['device_token']}';
     if (_capableToken == token) return true;
     try {
-      final capable =
-          (await client.request({'action': 'anime_capabilities'}))['anime'] ==
-          true;
-      if (capable) _capableToken = token;
+      final features = await client.request({'action': 'anime_capabilities'});
+      final capable = features['anime'] == true;
+      if (capable) {
+        _capableToken = token;
+        _canDecrease = features['decrease'] == true;
+      }
       return capable;
     } on MalFailure catch (e) {
       if (e.status == 404) return false;
@@ -140,10 +160,29 @@ class AnimeMalClient {
       'malId': value.id,
       'title': value.title,
       'remoteEpisodes': value.watched,
+      // Lo que MAL tenía por su cuenta: un deshacer nunca baja de aquí.
+      'floor': value.watched,
       'status': value.status,
       'version': DateTime.now().microsecondsSinceEpoch,
     });
   }
+
+  /// Número por debajo del cual un deshacer no baja: lo que MAL tenía antes
+  /// de que Yoma enviara nada. Una vinculación anterior a este dato no
+  /// permite deshacer lo ya enviado.
+  static int _floor(Map<String, dynamic> link) => link.containsKey('floor')
+      ? animeInt(link['floor'])
+      : animeInt(link['remoteEpisodes']);
+
+  /// Vinculación con el número que MAL tiene ahora. Si no coincide con lo
+  /// último que Yoma conocía, MAL cambió por su cuenta y ese es el nuevo
+  /// mínimo para deshacer.
+  static Map<String, dynamic> _observed(Map<String, dynamic> link, int count) =>
+      {
+        ...link,
+        'remoteEpisodes': count,
+        if (count != animeInt(link['remoteEpisodes'])) 'floor': count,
+      };
 
   Future<void> queueWatched(String slug, int episode) async {
     if (episode < 1) return;
@@ -155,10 +194,24 @@ class AnimeMalClient {
       final link = animeMap(await store.getRecord('anime_mal_links', slug));
       if (link['owner'] != owner) return;
       final old = animeMap(await store.getRecord('anime_mal_pending', slug));
+      final current =
+          old['owner'] == owner && old['version'] == link['version'];
       final base = animeInt(link['remoteEpisodes']);
+      if (current && old['decrease'] == true) {
+        // Había un deshacer pendiente y se vuelve a marcar un episodio.
+        if (episode <= animeInt(old['episodes'])) return;
+        if (episode < base) {
+          await store.putRecord('anime_mal_pending', slug, {
+            ...old,
+            'episodes': episode,
+          });
+          return;
+        }
+        // De vuelta donde MAL ya está (o más allá): no hay nada que bajar.
+        await store.deleteRecord('anime_mal_pending', slug);
+      }
       if (episode <= base) return;
-      final previous =
-          old['owner'] == owner && old['version'] == link['version']
+      final previous = current && old['decrease'] != true
           ? animeInt(old['episodes'])
           : 0;
       await store.putRecord('anime_mal_pending', slug, {
@@ -172,9 +225,13 @@ class AnimeMalClient {
     });
   }
 
-  /// Al desmarcar un episodio, el pendiente baja a [highest], el episodio
-  /// visto más alto que queda en el teléfono. Lo que MAL ya confirmó no se
-  /// reduce: Yoma nunca baja el progreso de MAL.
+  /// Al desmarcar un episodio, MAL debe quedar en [highest], el episodio
+  /// visto más alto que queda en el teléfono.
+  ///
+  /// Si el avance aún no se envió, basta con bajar o quitar el pendiente. Si
+  /// Yoma ya lo envió, se encola un deshacer: baja MAL hasta [highest], pero
+  /// nunca por debajo de lo que MAL tenía por su cuenta, y el servidor solo
+  /// lo acepta si MAL sigue exactamente donde Yoma lo dejó.
   Future<void> retractWatched(String slug, int highest) async {
     final auth = await client.credentials.load();
     final owner = animeInt(animeMap(auth?['profile'])['id']);
@@ -182,21 +239,39 @@ class AnimeMalClient {
     final store = await database();
     await store.transaction(() async {
       final link = animeMap(await store.getRecord('anime_mal_links', slug));
+      if (link['owner'] != owner) return;
       final old = animeMap(await store.getRecord('anime_mal_pending', slug));
-      if (link['owner'] != owner ||
-          old['owner'] != owner ||
-          old['version'] != link['version'] ||
-          animeInt(old['episodes']) <= highest) {
-        return;
-      }
-      if (highest <= animeInt(link['remoteEpisodes'])) {
+      final current =
+          old['owner'] == owner && old['version'] == link['version'];
+      final remote = animeInt(link['remoteEpisodes']);
+      if (current && old['decrease'] != true) {
+        if (animeInt(old['episodes']) <= highest) return;
+        if (highest > remote) {
+          final next = {...old, 'episodes': highest}
+            ..remove('conflict')
+            ..remove('retryAt');
+          await store.putRecord('anime_mal_pending', slug, next);
+          return;
+        }
         await store.deleteRecord('anime_mal_pending', slug);
+      }
+      final floor = _floor(link);
+      final target = highest > floor ? highest : floor;
+      if (target >= remote) {
+        if (current && old['decrease'] == true) {
+          await store.deleteRecord('anime_mal_pending', slug);
+        }
         return;
       }
-      final next = {...old, 'episodes': highest}
-        ..remove('conflict')
-        ..remove('retryAt');
-      await store.putRecord('anime_mal_pending', slug, next);
+      await store.putRecord('anime_mal_pending', slug, {
+        'owner': owner,
+        'malId': link['malId'],
+        'version': link['version'],
+        'episodes': target,
+        'expected_episodes': remote,
+        'decrease': true,
+        'status': 'watching',
+      });
     });
   }
 
@@ -237,7 +312,8 @@ class AnimeMalClient {
       throw const MalFailure('MAL devolvió otro anime.', 502);
     }
     final count = animeInt(remote['episodes_watched']);
-    if (!keepRemote && animeInt(row['episodes']) < count) {
+    final undo = row['decrease'] == true;
+    if (!keepRemote && !undo && animeInt(row['episodes']) < count) {
       throw const MalFailure(
         'MAL ya tiene más episodios. Conserva su progreso; el historial local no se elimina.',
         409,
@@ -259,11 +335,9 @@ class AnimeMalClient {
           409,
         );
       }
-      await store.putRecord('anime_mal_links', key, {
-        ...link,
-        'remoteEpisodes': count,
-      });
-      if (keepRemote) {
+      await store.putRecord('anime_mal_links', key, _observed(link, count));
+      // Un deshacer sin nada que bajar también termina aquí.
+      if (keepRemote || (undo && animeInt(current['episodes']) >= count)) {
         await store.deleteRecord('anime_mal_pending', key);
       } else {
         final next = {...current, 'expected_episodes': count};
@@ -298,6 +372,19 @@ class AnimeMalClient {
 
   static const conflictRetry = Duration(minutes: 15);
 
+  /// Retira un pendiente si no cambió desde que se leyó.
+  Future<void> _drop(String key, Map<String, dynamic> row) async {
+    final store = await database();
+    await store.transaction(() async {
+      final current = animeMap(await store.getRecord('anime_mal_pending', key));
+      if (current['version'] == row['version'] &&
+          current['episodes'] == row['episodes'] &&
+          current['decrease'] == row['decrease']) {
+        await store.deleteRecord('anime_mal_pending', key);
+      }
+    });
+  }
+
   Future<void> flush() {
     final pending = _sync;
     if (pending != null) return pending;
@@ -320,6 +407,7 @@ class AnimeMalClient {
       'id': row['malId'],
       'episodes_watched': row['episodes'],
       'expected_episodes': row['expected_episodes'],
+      if (row['decrease'] == true) 'decrease': true,
     }, expectedOwner: owner);
     final anime = animeMap(data['anime']);
     if (anime['id'] != row['malId'] ||
@@ -339,8 +427,9 @@ class AnimeMalClient {
   Future<Map<String, dynamic>?> _autoResolve(
     String key,
     Map<String, dynamic> row,
-    int owner,
-  ) async {
+    int owner, {
+    bool drop = false,
+  }) async {
     final data = await client.request({
       'action': 'anime_detail',
       'id': row['malId'],
@@ -362,11 +451,8 @@ class AnimeMalClient {
           current['version'] != row['version']) {
         return;
       }
-      await store.putRecord('anime_mal_links', key, {
-        ...link,
-        'remoteEpisodes': count,
-      });
-      if (animeInt(current['episodes']) <= count) {
+      await store.putRecord('anime_mal_links', key, _observed(link, count));
+      if (drop || animeInt(current['episodes']) <= count) {
         await store.deleteRecord('anime_mal_pending', key);
         result = {};
         return;
@@ -412,12 +498,33 @@ class AnimeMalClient {
       // Lo que se envió de verdad: tras resolver un conflicto puede incluir
       // un episodio visto mientras tanto.
       var sent = row;
+      final undo = row['decrease'] == true;
+      if (undo && !_canDecrease) {
+        // El servidor aún no admite deshacer: MAL conserva su número.
+        await _drop(key, row);
+        _notice =
+            'MyAnimeList conserva el episodio ${row['expected_episodes']} de '
+            '«${link['title']}»; este servidor no permite deshacerlo.';
+        continue;
+      }
       Map<String, dynamic> saved;
       try {
         saved = await _send(row, owner);
       } on MalFailure catch (error) {
         // Un conflicto de un anime no bloquea la sincronización de los demás.
         if (error.status != 409 && error.status != 422) rethrow;
+        if (undo) {
+          // MAL ya no está donde Yoma lo dejó: no se baja nada y se anota
+          // su número actual.
+          final seen = error.status == 409
+              ? await _autoResolve(key, row, owner, drop: true)
+              : null;
+          if (seen == null) await _drop(key, row);
+          _notice =
+              'MyAnimeList cambió desde entonces; no se deshizo el progreso '
+              'de «${link['title']}».';
+          continue;
+        }
         // Lo habitual es que MAL cambiara desde que se guardó el número
         // esperado (web, otra app o una copia de la lista de hace horas): se
         // consulta MAL y se resuelve si es seguro.
@@ -465,13 +572,30 @@ class AnimeMalClient {
         if (queued['owner'] != owner || queued['version'] != row['version']) {
           return;
         }
-        if (animeInt(queued['episodes']) <= animeInt(sent['episodes'])) {
+        final wanted = animeInt(queued['episodes']);
+        final done = animeInt(sent['episodes']);
+        if (wanted == done) {
           await store.deleteRecord('anime_mal_pending', key);
+        } else if (wanted > done) {
+          // Se vieron más episodios mientras se enviaba.
+          final next = {...queued, 'expected_episodes': done}
+            ..remove('decrease');
+          await store.putRecord('anime_mal_pending', key, next);
         } else {
-          await store.putRecord('anime_mal_pending', key, {
-            ...queued,
-            'expected_episodes': sent['episodes'],
-          });
+          // Se desmarcó mientras se enviaba: lo recién subido se deshace
+          // hasta donde corresponde, nunca por debajo de lo que tenía MAL.
+          final floor = _floor(currentLink);
+          final target = wanted > floor ? wanted : floor;
+          if (target >= done) {
+            await store.deleteRecord('anime_mal_pending', key);
+          } else {
+            await store.putRecord('anime_mal_pending', key, {
+              ...queued,
+              'episodes': target,
+              'expected_episodes': done,
+              'decrease': true,
+            });
+          }
         }
       });
       if (confirmed) {

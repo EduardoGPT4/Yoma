@@ -4,6 +4,15 @@ Map<String, dynamic> animeMap(Object? value) =>
     value is Map ? Map<String, dynamic>.from(value) : {};
 int animeInt(Object? value, [int fallback = 0]) =>
     value is num ? value.toInt() : int.tryParse('$value') ?? fallback;
+
+/// Episodios que cuenta MyAnimeList al ver el episodio [number]: su parte
+/// entera. Un especial «12.5» va después del 12, así que cuenta 12; «0.5»
+/// no cuenta ninguno.
+int malEpisodeCount(String number) {
+  final value = double.tryParse(number);
+  return value == null || !value.isFinite || value < 1 ? 0 : value.floor();
+}
+
 List<String> animeStrings(Object? value) => value is List
     ? value.map((e) => '$e').where((e) => e.isNotEmpty).toList()
     : [];

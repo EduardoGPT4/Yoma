@@ -77,8 +77,11 @@ object LocalAnimePlatform {
                             require(Build.VERSION.SDK_INT>=26){"Las descargas de anime necesitan Android 8 o posterior."}
                             val data=payload(call.arguments)
                             require(data.getLong("episode_id")>0&&data.getString("title").length in 1..500)
-                            store(context).use { it.add(data) }
-                            Prefs(context,true).paused=false;Queue.startLocal(context);null
+                            val outcome=store(context).use { it.enqueueLocal(data) }
+                            // Añadir un episodio no reanuda una cola que el usuario pausó:
+                            // startLocal no hace nada mientras siga en pausa.
+                            if(outcome=="added"||outcome=="requeued")Queue.startLocal(context)
+                            outcome
                         }
                         "control" -> {
                             val args=JSONObject(call.arguments as String);val action=args.getString("action");val prefs=Prefs(context,true)

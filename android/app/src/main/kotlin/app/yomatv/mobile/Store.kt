@@ -91,6 +91,28 @@ class Store(private val context: Context, private val databaseName: String = "yo
         }
         return writableDatabase.update("downloads", reset, "id=? AND owner=? AND state='removed'", arrayOf(key, owner.toString())) == 1
     }
+    /** Pide un episodio para la cola local y dice qué pasó: "added" (nuevo), "requeued" (había
+     *  fallado, estaba en pausa o su archivo ya no existe), "exists" (ya está en la cola) o "done"
+     *  (ya está descargado). Volver a pedirlo nunca duplica ni reinicia una descarga en curso. */
+    fun enqueueLocal(payload: JSONObject): String {
+        if (add(payload)) return "added"
+        val owner = payload.getLong("owner")
+        val key = Episode.key(owner, payload.getString("slug"), payload.getString("number"), payload.getString("language"))
+        val existing = get(key, owner) ?: return "exists"
+        return when (existing.state) {
+            "done" -> {
+                val file = video(existing)
+                if (file.isFile && file.length() == existing.total) "done"
+                else {
+                    update(key, owner, "state" to "queued", "bytes" to 0L, "total" to 0L, "etag" to "", "modified" to "",
+                        "hash" to "", "attempts" to 0, "error" to "", "speed" to 0.0)
+                    "requeued"
+                }
+            }
+            "failed", "paused" -> { update(key, owner, "state" to "queued", "attempts" to 0, "error" to ""); "requeued" }
+            else -> "exists"
+        }
+    }
     fun list(owner: Long): List<Episode> = read("owner=?", arrayOf(owner.toString()))
     fun playback(owner: Long): List<Episode> = read("owner=?", arrayOf(owner.toString()), true)
     /** Online progress never becomes a download job or changes a downloaded file's identity. */

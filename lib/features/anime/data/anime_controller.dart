@@ -11,6 +11,14 @@ import 'yomatv_source.dart';
 class AnimeController extends ChangeNotifier {
   final AnimeMalClient mal;
   String? malError;
+
+  /// Aviso de MAL que no es un fallo (un deshacer que ya no procede). Se
+  /// conserva hasta el siguiente episodio marcado o desmarcado, para que
+  /// una sincronización posterior sin novedades no lo borre sin leerse.
+  String? malNotice;
+
+  /// Lo que hay que contar al usuario sobre la sincronización, si algo.
+  String? get malStatus => malError ?? malNotice;
   final YomaTvSource source;
   final AnimeLocalStore store;
   final LocalAnimeDownloads transfers;
@@ -73,6 +81,10 @@ class AnimeController extends ChangeNotifier {
   List<MalShelfItem> malWatching = [], malPlanned = [];
   DateTime? malShelfSavedAt;
   bool malShelfPartial = false;
+
+  /// La sección muestra coincidencias del índice de YomaTV aún sin
+  /// comprobar; sirven para verlas ya, no para vincular con MAL.
+  bool _malShelfInterim = false;
   bool malShelfLoading = false;
   String? malShelfError;
   int _malShelfOwner = 0;
@@ -180,6 +192,7 @@ class AnimeController extends ChangeNotifier {
     malPlanned = value?.planned ?? [];
     malShelfSavedAt = value?.savedAt;
     malShelfPartial = value?.partial ?? false;
+    _malShelfInterim = false;
     if (value != null && !value.isEmpty) unawaited(_syncWatchedFromShelf());
   }
 
@@ -193,6 +206,7 @@ class AnimeController extends ChangeNotifier {
       return null;
     }
 
+    if (_malShelfInterim) return null;
     final known = find(malWatching) ?? find(malPlanned);
     if (known != null || malShelfSavedAt != null) return known;
     final cached = await malShelf.cached(await mal.owner());
@@ -214,7 +228,7 @@ class AnimeController extends ChangeNotifier {
     var watched = 0;
     for (final row in positions.values) {
       if (row['slug'] != slug || row['watched'] != true) continue;
-      final number = int.tryParse('${animeMap(row['episode'])['number']}') ?? 0;
+      final number = malEpisodeCount('${animeMap(row['episode'])['number']}');
       if (number > watched) watched = number;
     }
     return watched;
@@ -290,7 +304,23 @@ class AnimeController extends ChangeNotifier {
     changed();
     try {
       if (!await mal.available()) return;
-      final snapshot = await malShelf.refresh(owner);
+      final snapshot = await malShelf.refresh(
+        owner,
+        onProgress: (interim) {
+          // Solo en la primera carga: lo ya guardado no se sustituye por
+          // una lista a medio comprobar.
+          if (_disposed ||
+              _malShelfOwner != owner ||
+              malShelfSavedAt != null ||
+              interim.isEmpty) {
+            return;
+          }
+          malWatching = interim.watching;
+          malPlanned = interim.planned;
+          _malShelfInterim = true;
+          changed();
+        },
+      );
       if (_disposed || _malShelfOwner != owner) return;
       _applyMalShelf(snapshot);
       malShelfError = snapshot.partial
@@ -300,6 +330,12 @@ class AnimeController extends ChangeNotifier {
     } catch (e) {
       // La copia guardada sigue visible aunque MAL o YomaTV no respondan.
       malShelfError = 'No se pudo actualizar tu lista de MyAnimeList: $e';
+      // Una lista a medio comprobar no se deja en pantalla.
+      if (_malShelfInterim) {
+        malWatching = [];
+        malPlanned = [];
+        _malShelfInterim = false;
+      }
     } finally {
       malShelfLoading = false;
       changed();
@@ -310,7 +346,7 @@ class AnimeController extends ChangeNotifier {
   /// de MyAnimeList, para que los episodios vistos se sincronicen. Devuelve
   /// `true` si se creó una vinculación nueva; nunca sustituye una existente.
   Future<bool> autoLinkMal(String slug, MalAnimeEntry entry) async {
-    if (await mal.linkOf(slug) != null) return false;
+    if (_malShelfInterim || await mal.linkOf(slug) != null) return false;
     await mal.link(slug, entry);
     final watched = _localWatched(slug);
     if (watched > 0) {
@@ -610,8 +646,10 @@ class AnimeController extends ChangeNotifier {
         animeInt(oldPosition['positionMs']) == 0) {
       changed();
     }
-    final number = int.tryParse(episode.number);
-    if (watched == true && number != null && number > 0) {
+    if (watched != null) malNotice = null;
+    // Un especial «12.5» cuenta en MAL como haber visto hasta el 12.
+    final number = malEpisodeCount(episode.number);
+    if (watched == true && number > 0) {
       try {
         // Sin vinculación guardada se usa la coincidencia con la lista de
         // MAL, entre a la ficha desde donde se entre.
@@ -623,11 +661,13 @@ class AnimeController extends ChangeNotifier {
         malError = 'Progreso local guardado; MAL pendiente: $error';
         changed();
       }
-    } else if (watched == false && number != null) {
-      // Desmarcado antes de enviarse: el pendiente baja al episodio visto
-      // más alto que queda, para no subir a MAL uno que ya no cuenta.
+    } else if (watched == false) {
+      // Desmarcado: MAL debe quedar en el episodio visto más alto que
+      // queda. Si aún no se envió baja el pendiente; si ya se envió, se
+      // deshace en MAL.
       try {
         await mal.retractWatched(anime.slug, _localWatched(anime.slug));
+        unawaited(syncMal());
       } catch (error) {
         malError = 'No se pudo actualizar el pendiente de MAL: $error';
         changed();
@@ -638,6 +678,8 @@ class AnimeController extends ChangeNotifier {
   Future<void> syncMal() async {
     try {
       await mal.flush();
+      // Un deshacer que MAL ya no admite se explica; no es un fallo.
+      malNotice = mal.takeNotice() ?? malNotice;
       malError = null;
     } catch (error) {
       malError = 'Progreso local guardado; MAL pendiente: $error';
@@ -714,14 +756,46 @@ class AnimeController extends ChangeNotifier {
     return null;
   }
 
-  Future<void> enqueue(
+  /// Devuelve el resultado de [LocalAnimeDownloads.enqueue].
+  Future<String> enqueue(
     AnimeTitle anime,
     AnimeEpisode ep,
     String language,
   ) async {
-    await transfers.enqueue(anime, ep, language);
+    final outcome = await transfers.enqueue(anime, ep, language);
     await updateLibrary(anime, savedValue: true);
     await refreshDownloads();
+    return outcome;
+  }
+
+  /// Mensaje para el usuario tras pedir una o varias descargas: dice lo que
+  /// pasó de verdad, no siempre «añadido».
+  static String downloadNotice(
+    Iterable<String> outcomes, {
+    required bool paused,
+  }) {
+    final all = outcomes.toList();
+    final queued = all.where((o) => o == 'added' || o == 'requeued').length;
+    final String text;
+    if (all.length == 1) {
+      text = switch (all.single) {
+        'requeued' => 'Descarga puesta de nuevo en la cola.',
+        'exists' => 'Este episodio ya está en la cola de descargas.',
+        'done' => 'Este episodio ya está descargado.',
+        _ => 'Episodio añadido a Descargas.',
+      };
+    } else {
+      final already = all.length - queued;
+      text = [
+        if (queued > 0)
+          '$queued ${queued == 1 ? 'episodio añadido' : 'episodios añadidos'} a Descargas.',
+        if (already > 0)
+          '$already ya ${already == 1 ? 'estaba' : 'estaban'} en la cola o descargados.',
+      ].join(' ');
+    }
+    return paused && queued > 0
+        ? '$text Las descargas están en pausa; reanúdalas en Descargas.'
+        : text;
   }
 
   Future<void> downloadControl(

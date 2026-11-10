@@ -14,6 +14,19 @@ import 'package:yomashi/features/anime/models/anime_models.dart';
 class TestAnimeSource extends YomaTvSource {
   final requests = <Completer<Map<String, dynamic>>>[];
   bool deferred = false;
+
+  /// Sin índice público salvo que una prueba lo proporcione: así las
+  /// pruebas no dependen de la red.
+  Map<String, dynamic>? index;
+  int indexCalls = 0;
+  @override
+  Future<Map<String, dynamic>> publicIndex() async {
+    indexCalls++;
+    final value = index;
+    if (value == null) throw const AnimeSourceFailure('Sin índice de prueba.');
+    return value;
+  }
+
   @override
   Future<Map<String, dynamic>> catalog({
     int page = 1,

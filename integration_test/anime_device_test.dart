@@ -32,12 +32,13 @@ class OfflineTransferFixture extends LocalAnimeDownloads {
     ],
   };
   @override
-  Future<void> enqueue(
+  Future<String> enqueue(
     AnimeTitle anime,
     AnimeEpisode episode,
     String language,
   ) async {
     enqueues++;
+    return 'added';
   }
 }
 

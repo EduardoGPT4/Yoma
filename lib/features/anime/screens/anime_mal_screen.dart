@@ -115,8 +115,9 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
       var watched = 0;
       for (final progress in widget.controller.positions.values) {
         if (progress['slug'] != slug || progress['watched'] != true) continue;
-        final number =
-            int.tryParse('${animeMap(progress['episode'])['number']}') ?? 0;
+        final number = malEpisodeCount(
+          '${animeMap(progress['episode'])['number']}',
+        );
         if (number > watched) watched = number;
       }
       if (watched > 0) {
@@ -177,9 +178,9 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
           if (_busy) const LinearProgressIndicator(),
           if (_error != null)
             AnimeMessage(_error!, action: 'Reintentar', onAction: _load),
-          if (widget.controller.malError != null)
+          if (widget.controller.malStatus != null)
             AnimeMessage(
-              widget.controller.malError!,
+              widget.controller.malStatus!,
               action: 'Sincronizar ahora',
               onAction: () async {
                 await widget.controller.syncMal();
@@ -223,7 +224,9 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
                 title: Text('${row['title']}'),
                 subtitle: Text(
                   row['conflict'] == null
-                      ? 'Pendiente: ${row['episodes']} episodios locales'
+                      ? (row['decrease'] == true
+                            ? 'Pendiente: deshacer en MAL hasta el episodio ${row['episodes']}'
+                            : 'Pendiente: ${row['episodes']} episodios locales')
                       : 'Conflicto: ${row['conflict']}',
                 ),
                 trailing: TextButton(

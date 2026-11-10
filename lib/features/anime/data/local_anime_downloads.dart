@@ -45,14 +45,20 @@ class LocalAnimeDownloads {
     'number': episode.number,
     'language': language,
   };
-  Future<void> enqueue(
+
+  /// Pide la descarga y devuelve qué pasó: `added`, `requeued` (había
+  /// fallado, estaba en pausa o faltaba su archivo), `exists` (ya en la
+  /// cola) o `done` (ya descargado).
+  Future<String> enqueue(
     AnimeTitle anime,
     AnimeEpisode episode,
     String language,
-  ) => channel.invokeMethod<void>(
-    'enqueue',
-    jsonEncode(payload(anime, episode, language)),
-  );
+  ) async =>
+      await channel.invokeMethod<String>(
+        'enqueue',
+        jsonEncode(payload(anime, episode, language)),
+      ) ??
+      'added';
   Future<List<AnimeServer>> sources(
     AnimeTitle anime,
     AnimeEpisode episode,

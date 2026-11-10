@@ -54,14 +54,22 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
 
   Future<void> _queue(AnimeDetail detail, List<AnimeEpisode> episodes) async {
     try {
+      final outcomes = <String>[];
       for (final ep in episodes) {
-        await widget.controller.enqueue(detail.anime, ep, _language);
+        outcomes.add(
+          await widget.controller.enqueue(detail.anime, ep, _language),
+        );
       }
       if (mounted) {
         setState(_selected.clear);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${episodes.length} episodios añadidos a Descargas.'),
+            content: Text(
+              AnimeController.downloadNotice(
+                outcomes,
+                paused: widget.controller.paused,
+              ),
+            ),
           ),
         );
       }

@@ -1558,7 +1558,7 @@ class _AnimeMore extends StatelessWidget {
           leading: const Icon(Icons.sync),
           title: const Text('Mi lista de anime MAL'),
           // Un avance que no llegó a MAL no se queda en silencio.
-          subtitle: app.malError == null ? null : Text(app.malError!),
+          subtitle: app.malStatus == null ? null : Text(app.malStatus!),
           trailing: const Icon(Icons.chevron_right),
           onTap: mal,
         ),
