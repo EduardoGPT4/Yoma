@@ -239,6 +239,61 @@ class AnimeMalClient {
     });
   }
 
+  Future<void> _send(Map<String, dynamic> row, int owner) => client.request({
+    'action': 'anime_update',
+    'id': row['malId'],
+    'episodes_watched': row['episodes'],
+    'expected_episodes': row['expected_episodes'],
+  }, expectedOwner: owner);
+
+  /// Resuelve un conflicto con el número actual de MAL, sin bajarlo nunca.
+  /// Devuelve `{}` si MAL ya tenía ese avance (el pendiente se elimina), el
+  /// pendiente con el número esperado corregido si hay que reenviarlo, o
+  /// `null` si necesita revisión (otra obra en MAL o vínculo equivocado).
+  Future<Map<String, dynamic>?> _autoResolve(
+    String key,
+    Map<String, dynamic> row,
+    int owner,
+  ) async {
+    final data = await client.request({
+      'action': 'anime_detail',
+      'id': row['malId'],
+    }, expectedOwner: owner);
+    final remote = animeMap(data['anime']);
+    if (remote['id'] != row['malId']) return null;
+    final count = animeInt(remote['episodes_watched']);
+    final total = animeInt(remote['num_episodes']);
+    final wanted = animeInt(row['episodes']);
+    // Más episodios que los que tiene el anime en MAL: vínculo equivocado.
+    if (count < wanted && total > 0 && wanted > total) return null;
+    final store = await database();
+    Map<String, dynamic>? result;
+    await store.transaction(() async {
+      final link = animeMap(await store.getRecord('anime_mal_links', key));
+      final current = animeMap(await store.getRecord('anime_mal_pending', key));
+      if (link['owner'] != owner ||
+          link['version'] != row['version'] ||
+          current['version'] != row['version']) {
+        return;
+      }
+      await store.putRecord('anime_mal_links', key, {
+        ...link,
+        'remoteEpisodes': count,
+      });
+      if (animeInt(current['episodes']) <= count) {
+        await store.deleteRecord('anime_mal_pending', key);
+        result = {};
+        return;
+      }
+      final next = {...current, 'expected_episodes': count}
+        ..remove('conflict')
+        ..remove('retryAt');
+      await store.putRecord('anime_mal_pending', key, next);
+      result = next;
+    });
+    return result;
+  }
+
   Future<void> _flush() async {
     if (!await available()) return;
     final store = await database();
@@ -254,17 +309,29 @@ class AnimeMalClient {
       final link = animeMap(await store.getRecord('anime_mal_links', key));
       if (link['version'] != row['version'] || link['owner'] != owner) continue;
       try {
-        await client.request({
-          'action': 'anime_update',
-          'id': row['malId'],
-          'episodes_watched': row['episodes'],
-          'expected_episodes': row['expected_episodes'],
-        }, expectedOwner: owner);
+        await _send(row, owner);
       } on MalFailure catch (error) {
         // Un conflicto de un anime no bloquea la sincronización de los demás.
         if (error.status != 409 && error.status != 422) rethrow;
-        await _defer(key, row, error.message);
-        continue;
+        // Lo habitual es que MAL cambiara desde que se guardó el número
+        // esperado (web, otra app o una copia de la lista de hace horas): se
+        // consulta MAL y se resuelve si es seguro.
+        final resolved = error.status == 409
+            ? await _autoResolve(key, row, owner)
+            : null;
+        if (resolved == null) {
+          await _defer(key, row, error.message);
+          continue;
+        }
+        // MAL ya tenía ese avance: no hay nada que enviar.
+        if (resolved.isEmpty) continue;
+        try {
+          await _send(resolved, owner);
+        } on MalFailure catch (again) {
+          if (again.status != 409 && again.status != 422) rethrow;
+          await _defer(key, resolved, again.message);
+          continue;
+        }
       }
       if ((await client.credentials.load())?['device_token'] !=
           auth?['device_token']) {

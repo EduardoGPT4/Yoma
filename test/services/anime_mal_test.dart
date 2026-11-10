@@ -114,6 +114,9 @@ void main() {
     },
   );
   test('conflict retains the pending update for explicit resolution', () async {
+    // MAL va por detrás pero sigue rechazando el avance: no se puede
+    // resolver solo y queda para revisión.
+    client.remoteEpisodes = 1;
     client.onUpdate = () async {
       throw const MalFailure('Conflict', 409);
     };
@@ -125,25 +128,29 @@ void main() {
   test('a conflict is set aside and does not block other anime', () async {
     await mal.link('zzz', entry);
     await mal.queueWatched('zzz', 3);
+    client.remoteEpisodes = 1;
+    // El envío de «test» y su reintento fallan; «zzz» se envía igual.
     client.onUpdate = () async {
-      if (client.writes == 1) throw const MalFailure('Conflict', 409);
+      if (client.writes <= 2) throw const MalFailure('Conflict', 409);
     };
     await mal.flush();
     final rows = await db.readRecords('anime_mal_pending');
     expect(rows.map((row) => row['id']), ['test']);
-    expect(client.writes, 2);
+    expect(client.writes, 3);
   });
   test('a resolved conflict is sent again at once', () async {
+    client.remoteEpisodes = 1;
     client.onUpdate = () async {
       throw const MalFailure('Conflict', 409);
     };
     await mal.flush();
     await mal.flush();
-    expect(client.writes, 1);
+    // Envío y reintento automático; después espera a la revisión.
+    expect(client.writes, 2);
     client.onUpdate = null;
     client.remoteEpisodes = 2;
     await mal.resolve('test', keepRemote: false);
-    expect(client.writes, 2);
+    expect(client.writes, 3);
     expect(await db.readRecords('anime_mal_pending'), isEmpty);
   });
   test('network errors still stop the queue for a later retry', () async {
