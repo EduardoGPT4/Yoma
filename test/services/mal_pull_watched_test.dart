@@ -247,6 +247,97 @@ void main() {
     expect((await mal.linkOf('uno'))!['malId'], 99);
   });
 
+  group('animes vinculados a mano', () {
+    setUp(() {
+      // En MAL tiene otro nombre: no coincide con «Uno» de YomaTV.
+      server.watching
+        ..clear()
+        ..add({
+          'id': 3,
+          'title': 'Ichi no Monogatari',
+          'episodes_watched': 4,
+          'num_episodes': 12,
+          'status': 'watching',
+        });
+    });
+
+    test('se marcan sus episodios vistos en MAL', () async {
+      await mal.link(
+        'uno',
+        MalAnimeEntry.fromJson({
+          'id': 3,
+          'title': 'Ichi no Monogatari',
+          'episodes_watched': 1,
+        }),
+      );
+      final app = controller();
+      await load(app);
+      // No aparece en la sección de MAL (el nombre no coincide)…
+      expect(app.malWatching, isEmpty);
+      // …pero sus episodios vistos sí pasan a YomaTV.
+      expect(watched(app), [1, 2, 3, 4]);
+      expect((await mal.linkOf('uno'))!['remoteEpisodes'], 4);
+      expect(server.updates, isEmpty);
+    });
+
+    test('se guarda la lista completa para la próxima vez', () async {
+      await mal.link(
+        'uno',
+        MalAnimeEntry.fromJson({
+          'id': 3,
+          'title': 'Ichi',
+          'episodes_watched': 0,
+        }),
+      );
+      await controller().malShelf.refresh(7);
+      // Sin red, la copia guardada basta.
+      server.offline = true;
+      final app = controller();
+      await app.loadMalShelf();
+      for (var i = 0; i < 100 && watched(app).isEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(watched(app), [1, 2, 3, 4]);
+    });
+
+    test('un vínculo con algo que no está en «Viendo» no marca nada', () async {
+      await mal.link(
+        'uno',
+        MalAnimeEntry.fromJson({
+          'id': 50,
+          'title': 'Otro',
+          'episodes_watched': 0,
+        }),
+      );
+      final app = controller();
+      await load(app);
+      expect(watched(app), isEmpty);
+    });
+
+    test('al vincular desde la pantalla de MAL se marca enseguida', () async {
+      final app = controller();
+      final entry = MalAnimeEntry.fromJson({
+        'id': 8,
+        'title': 'Hachi',
+        'episodes_watched': 6,
+        'status': 'completed',
+      });
+      await mal.link('uno', entry);
+      expect(await app.applyMalProgress('uno', entry), 6);
+      expect(watched(app), [1, 2, 3, 4, 5, 6]);
+      // Repetirlo no vuelve a marcar nada.
+      expect(await app.applyMalProgress('uno', entry), 0);
+      // Con otra entrada de MAL vinculada no se toca.
+      expect(
+        await app.applyMalProgress(
+          'uno',
+          MalAnimeEntry.fromJson({'id': 9, 'episodes_watched': 8}),
+        ),
+        0,
+      );
+    });
+  });
+
   test('lo visto solo en el teléfono sigue subiendo a MAL', () async {
     final app = controller();
     for (var n = 1; n <= 7; n++) {

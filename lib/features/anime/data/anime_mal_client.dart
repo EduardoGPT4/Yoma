@@ -206,6 +206,17 @@ class AnimeMalClient {
     });
   }
 
+  /// Animes de YomaTV vinculados con la cuenta actual: slug → id de MAL.
+  Future<Map<String, int>> linkedIds() async {
+    final current = await owner();
+    if (current <= 0) return const {};
+    return {
+      for (final row in await (await database()).readRecords('anime_mal_links'))
+        if (row['owner'] == current && animeInt(row['malId']) > 0)
+          '${row['id']}': animeInt(row['malId']),
+    };
+  }
+
   /// Hay un envío a MAL pendiente para [slug] con la cuenta actual.
   Future<bool> hasPending(String slug) async {
     final current = await owner();

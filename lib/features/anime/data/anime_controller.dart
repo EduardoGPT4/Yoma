@@ -67,6 +67,7 @@ class AnimeController extends ChangeNotifier {
         if (updated == null || _disposed || owner != _malShelfOwner) return;
         malWatching = updated.watching;
         malPlanned = updated.planned;
+        _malWatchingAll = updated.watchingAll;
         changed();
       } catch (error) {
         debugPrint('Lista de MAL sin actualizar: $error');
@@ -83,6 +84,10 @@ class AnimeController extends ChangeNotifier {
   /// «Viendo» y «Plan to watch» de MAL que existen en YomaTV.
   late final AnimeMalShelf malShelf = AnimeMalShelf(mal: mal, source: source);
   List<MalShelfItem> malWatching = [], malPlanned = [];
+
+  /// Toda la lista «Viendo» de MAL por id (también lo que no coincide por
+  /// nombre con YomaTV).
+  Map<int, MalAnimeEntry> _malWatchingAll = const {};
   DateTime? malShelfSavedAt;
   bool malShelfPartial = false;
 
@@ -196,8 +201,12 @@ class AnimeController extends ChangeNotifier {
     malPlanned = value?.planned ?? [];
     malShelfSavedAt = value?.savedAt;
     malShelfPartial = value?.partial ?? false;
+    _malWatchingAll = value?.watchingAll ?? const {};
     _malShelfInterim = false;
-    if (value != null && !value.isEmpty) unawaited(_syncWatchedFromShelf());
+    // También sin coincidencias por nombre: puede haber vínculos a mano.
+    if (value != null && (!value.isEmpty || value.watchingAll.isNotEmpty)) {
+      unawaited(_syncWatchedFromShelf());
+    }
   }
 
   /// Entrada de MAL («Viendo» o «Plan to watch») que coincide por nombre
@@ -274,41 +283,61 @@ class AnimeController extends ChangeNotifier {
   /// no actúa si hay un envío a MAL pendiente (lo del teléfono es más nuevo).
   Future<void> _pullWatchedFromShelf() async {
     if (_malShelfInterim) return;
-    for (final item in [...malWatching]) {
+    // Coincidencias por nombre y, además, los animes vinculados a mano cuya
+    // entrada está en «Viendo» aunque el nombre no coincida.
+    final targets = <String, MalAnimeEntry>{
+      for (final item in malWatching) item.anime.slug: item.entry,
+    };
+    try {
+      for (final link in (await mal.linkedIds()).entries) {
+        final entry = _malWatchingAll[link.value];
+        if (entry != null) targets.putIfAbsent(link.key, () => entry);
+      }
+    } catch (error) {
+      debugPrint('Vínculos de MAL sin leer: $error');
+    }
+    for (final target in targets.entries) {
       if (_disposed) return;
-      final slug = item.anime.slug;
-      final count = item.entry.watched;
-      if (count <= 0) continue;
       try {
-        final link = await mal.linkOf(slug);
-        if (link != null && animeInt(link['malId']) != item.entry.id) continue;
-        if (await mal.hasPending(slug)) continue;
-        if (link == null) {
-          await mal.link(slug, item.entry);
-        } else {
-          await mal.observeRemote(slug, count);
-        }
-        final missing = _missingFromMal(slug, count);
-        if (!missing) continue;
-        final detail = await this.detail(slug);
-        final episodes = [
-          for (final episode in detail.episodes)
-            if (_countsAsWatched(episode.number, count) &&
-                positions[episode.key]?['watched'] != true &&
-                positions[episode.key]?['unmarked'] != true)
-              episode,
-        ];
-        if (episodes.isEmpty) continue;
-        final rows = await store.markWatchedFromMal(detail.anime, episodes);
-        for (final row in rows) {
-          positions[AnimeEpisode.fromJson(animeMap(row['episode'])).key] = row;
-        }
-        if (rows.isNotEmpty) changed();
+        await applyMalProgress(target.key, target.value);
       } catch (error) {
         // Sin red la ficha no se obtiene: se reintenta en la próxima carga.
-        debugPrint('MAL → YomaTV sin aplicar para $slug: $error');
+        debugPrint('MAL → YomaTV sin aplicar para ${target.key}: $error');
       }
     }
+  }
+
+  /// Marca como vistos en YomaTV los episodios de [slug] que [entry] (su
+  /// entrada de MAL) ya tiene vistos, y lo vincula si aún no lo está. No
+  /// hace nada si [slug] está vinculado con otra entrada o si hay un envío
+  /// pendiente. Devuelve cuántos episodios se marcaron.
+  Future<int> applyMalProgress(String slug, MalAnimeEntry entry) async {
+    final count = entry.watched;
+    if (count <= 0) return 0;
+    final link = await mal.linkOf(slug);
+    if (link != null && animeInt(link['malId']) != entry.id) return 0;
+    if (await mal.hasPending(slug)) return 0;
+    if (link == null) {
+      await mal.link(slug, entry);
+    } else {
+      await mal.observeRemote(slug, count);
+    }
+    if (!_missingFromMal(slug, count)) return 0;
+    final detail = await this.detail(slug);
+    final episodes = [
+      for (final episode in detail.episodes)
+        if (_countsAsWatched(episode.number, count) &&
+            positions[episode.key]?['watched'] != true &&
+            positions[episode.key]?['unmarked'] != true)
+          episode,
+    ];
+    if (episodes.isEmpty) return 0;
+    final rows = await store.markWatchedFromMal(detail.anime, episodes);
+    for (final row in rows) {
+      positions[AnimeEpisode.fromJson(animeMap(row['episode'])).key] = row;
+    }
+    if (rows.isNotEmpty) changed();
+    return rows.length;
   }
 
   /// El episodio [number] queda dentro de los [count] vistos en MAL.

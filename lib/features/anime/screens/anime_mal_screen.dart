@@ -112,6 +112,10 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
     if (slug == null) return;
     try {
       await _mal.link(slug, entry);
+      // Lo que MAL ya tiene visto pasa a YomaTV al vincular.
+      final pulled = await widget.controller
+          .applyMalProgress(slug, entry)
+          .catchError((Object _) => 0);
       var watched = 0;
       for (final progress in widget.controller.positions.values) {
         if (progress['slug'] != slug || progress['watched'] != true) continue;
@@ -127,8 +131,12 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
       await _load();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Vinculación guardada para esta cuenta MAL.'),
+          SnackBar(
+            content: Text(
+              pulled > 0
+                  ? 'Vinculado. $pulled ${pulled == 1 ? 'episodio visto' : 'episodios vistos'} en MyAnimeList ya ${pulled == 1 ? 'aparece' : 'aparecen'} como vistos.'
+                  : 'Vinculación guardada para esta cuenta MAL.',
+            ),
           ),
         );
       }

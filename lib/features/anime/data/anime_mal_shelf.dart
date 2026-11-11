@@ -25,12 +25,17 @@ class MalShelfSnapshot {
   /// Algún título no se pudo buscar en YomaTV: la copia sirve, pero se
   /// vuelve a intentar pronto en vez de esperar a que caduque.
   final bool partial;
+
+  /// Toda la lista «Viendo» de MAL por id, coincida o no con un nombre de
+  /// YomaTV: sirve para los animes vinculados a mano.
+  final Map<int, MalAnimeEntry> watchingAll;
   const MalShelfSnapshot({
     required this.owner,
     required this.savedAt,
     required this.watching,
     required this.planned,
     this.partial = false,
+    this.watchingAll = const {},
   });
   bool get isEmpty => watching.isEmpty && planned.isEmpty;
 }
@@ -105,8 +110,15 @@ class AnimeMalShelf {
       watching: items(row['watching']),
       planned: items(row['planned']),
       partial: row['partial'] == true,
+      watchingAll: _entries(row['watchingAll']),
     );
   }
+
+  static Map<int, MalAnimeEntry> _entries(Object? value) => {
+    for (final row in value as List? ?? const [])
+      if (animeInt(animeMap(row)['id']) > 0)
+        animeInt(animeMap(row)['id']): MalAnimeEntry.fromJson(animeMap(row)),
+  };
 
   Future<void> _save(LibraryStore store, MalShelfSnapshot value) =>
       store.putRecord(namespace, 'shelf:${value.owner}', {
@@ -115,6 +127,7 @@ class AnimeMalShelf {
         'partial': value.partial,
         'watching': value.watching.map((e) => e.toJson()).toList(),
         'planned': value.planned.map((e) => e.toJson()).toList(),
+        'watchingAll': value.watchingAll.values.map((e) => e.toJson()).toList(),
       });
 
   /// Refleja en la copia guardada el avance que MAL acaba de confirmar para
@@ -133,7 +146,34 @@ class AnimeMalShelf {
     for (final candidate in [...current.watching, ...current.planned]) {
       if (candidate.entry.id == malId) item = candidate;
     }
-    if (item == null) return null;
+    // Un anime vinculado a mano solo está en la lista completa.
+    final listed = current.watchingAll[malId];
+    final all = {...current.watchingAll};
+    if (listed != null) {
+      if (status.isEmpty || status == 'watching') {
+        all[malId] = MalAnimeEntry.fromJson({
+          ...listed.toJson(),
+          'episodes_watched': watched,
+        });
+      } else {
+        all.remove(malId);
+      }
+    }
+    if (item == null) {
+      if (listed == null || listed.watched == watched && status.isEmpty) {
+        return null;
+      }
+      final snapshot = MalShelfSnapshot(
+        owner: owner,
+        savedAt: current.savedAt,
+        partial: current.partial,
+        watching: current.watching,
+        planned: current.planned,
+        watchingAll: all,
+      );
+      await _save(await database(), snapshot);
+      return snapshot;
+    }
     final known = statuses.contains(status) || status.isEmpty;
     final entry = MalAnimeEntry.fromJson({
       ...item.entry.toJson(),
@@ -163,6 +203,7 @@ class AnimeMalShelf {
       partial: current.partial,
       watching: list(current.watching, 'watching'),
       planned: list(current.planned, 'plan_to_watch'),
+      watchingAll: all,
     );
     await _save(await database(), snapshot);
     return snapshot;
@@ -239,6 +280,7 @@ class AnimeMalShelf {
         watching: items('watching'),
         planned: items('plan_to_watch'),
         partial: partial,
+        watchingAll: {for (final entry in lists['watching']!) entry.id: entry},
       );
     }
 
