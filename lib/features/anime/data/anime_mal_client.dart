@@ -149,12 +149,17 @@ class AnimeMalClient {
     return link['owner'] == current ? link : null;
   }
 
+  /// Animes cuyo vínculo quitó el usuario: no se vuelven a vincular solos.
+  static const unlinkedNamespace = 'anime_mal_unlinked';
+
+  /// Vínculo elegido por el usuario: también deshace un «Quitar vínculo».
   Future<void> link(String slug, MalAnimeEntry value) async {
     final auth = await client.credentials.load();
     final owner = animeInt(animeMap(auth?['profile'])['id']);
     if (auth?['connected'] != true || owner <= 0) {
       throw const MalFailure('Conecta MyAnimeList desde el inicio de Yoma.');
     }
+    await (await database()).deleteRecord(unlinkedNamespace, slug);
     await (await database()).putRecord('anime_mal_links', slug, {
       'owner': owner,
       'malId': value.id,
@@ -164,6 +169,59 @@ class AnimeMalClient {
       'floor': value.watched,
       'status': value.status,
       'version': DateTime.now().microsecondsSinceEpoch,
+    });
+  }
+
+  /// Vincula [slug] por coincidencia, salvo que el usuario quitara su
+  /// vínculo. Devuelve `true` si quedó vinculado.
+  ///
+  /// Nunca sustituye un vínculo existente: dos vinculaciones automáticas a
+  /// la vez (la lista de MAL al abrir y un episodio recién visto) crearían
+  /// versiones distintas y el envío pendiente de la primera quedaría
+  /// huérfano.
+  Future<bool> autoLink(String slug, MalAnimeEntry value) async {
+    final current = await owner();
+    if (current <= 0) return false;
+    final store = await database();
+    var linked = false;
+    await store.transaction(() async {
+      final blocked = animeMap(await store.getRecord(unlinkedNamespace, slug));
+      if (blocked['owner'] == current) return;
+      final existing = animeMap(await store.getRecord('anime_mal_links', slug));
+      if (existing['owner'] == current) {
+        linked = animeInt(existing['malId']) == value.id;
+        return;
+      }
+      await store.putRecord('anime_mal_links', slug, {
+        'owner': current,
+        'malId': value.id,
+        'title': value.title,
+        'remoteEpisodes': value.watched,
+        'floor': value.watched,
+        'status': value.status,
+        'version': DateTime.now().microsecondsSinceEpoch,
+      });
+      linked = true;
+    });
+    return linked;
+  }
+
+  /// Quita el vínculo de [slug] y su envío pendiente. El progreso del
+  /// teléfono no cambia y no se vuelve a vincular solo.
+  Future<void> unlink(String slug) async {
+    final current = await owner();
+    final store = await database();
+    await store.transaction(() async {
+      final link = animeMap(await store.getRecord('anime_mal_links', slug));
+      await store.deleteRecord('anime_mal_links', slug);
+      await store.deleteRecord('anime_mal_pending', slug);
+      if (current > 0) {
+        await store.putRecord(unlinkedNamespace, slug, {
+          'owner': current,
+          'malId': link['malId'],
+          'at': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
     });
   }
 

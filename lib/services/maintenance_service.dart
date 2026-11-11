@@ -10,6 +10,7 @@ import 'online_catalog_service.dart';
 import 'rotating_backup_service.dart';
 import 'diagnostics.dart';
 import 'myanimelist_service.dart';
+import '../features/anime/data/anime_episode_watch.dart';
 
 class MaintenancePlatform {
   static const channel = MethodChannel('app.yomashi.reader/maintenance');
@@ -36,6 +37,16 @@ class MaintenancePlatform {
     if (Platform.isAndroid) await channel.invokeMethod('schedule', s.toMap());
   }
 
+  /// Aviso de episodios nuevos en YomaTV.
+  static Future<void> notifyEpisodes(String title, String text) async {
+    if (Platform.isAndroid) {
+      await channel.invokeMethod('notifyEpisodes', {
+        'title': title,
+        'text': text,
+      });
+    }
+  }
+
   static Future<void> notify(int count) async {
     if (Platform.isAndroid && count > 0) {
       await channel.invokeMethod('notify', {'count': count});
@@ -47,10 +58,14 @@ class MaintenanceService {
   final DownloadEngine engine;
   final Future<OnlineMangaDetail> Function(String) detail;
   final Future<Map<String, dynamic>> Function() conditions;
+
+  /// Revisión de episodios nuevos de YomaTV (sustituible en pruebas).
+  final AnimeEpisodeWatch? animeWatch;
   MaintenanceService(
     this.engine, {
     Future<OnlineMangaDetail> Function(String)? detail,
     Future<Map<String, dynamic>> Function()? conditions,
+    this.animeWatch,
   }) : detail =
            detail ??
            ((ref) => OnlineCatalogService.fetchMangaDetail(ref, refresh: true)),
@@ -114,10 +129,25 @@ class MaintenanceService {
           }
         }
       }
+      var episodes = 0;
+      if ((s.updates || manual) &&
+          (manual || MaintenancePlatform.allowed(s, await conditions()))) {
+        try {
+          final news = await (animeWatch ?? AnimeEpisodeWatch()).check();
+          episodes = news.fold(0, (n, e) => n + e.added);
+          if (news.isNotEmpty) {
+            final notice = AnimeEpisodeWatch.notice(news);
+            await MaintenancePlatform.notifyEpisodes(notice.title, notice.text);
+          }
+        } catch (e) {
+          await Diagnostics.record('anime_episodes', e);
+        }
+      }
       await store.putRecord('maintenance', 'last', {
         'id': 'last',
         'time': DateTime.now().millisecondsSinceEpoch,
         'new': count,
+        'episodes': episodes,
       });
       if (count > 0) await MaintenancePlatform.notify(count);
     } catch (e) {

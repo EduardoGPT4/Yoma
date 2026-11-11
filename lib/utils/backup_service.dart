@@ -97,10 +97,34 @@ class BackupService {
     ].every((key) => value[key] == null || value[key] is bool);
   }
 
+  /// Espacios de YomaTV que viajan en la copia. Los envíos pendientes a MAL
+  /// no: restaurados en otro teléfono podrían repetirse.
+  static const _animeSpaces = {
+    'progress': 'anime_progress',
+    'library': 'anime_library',
+    'settings': 'anime_settings',
+    'malLinks': 'anime_mal_links',
+    'malUnlinked': 'anime_mal_unlinked',
+  };
+
+  /// Marcas de la sincronización con MAL de YomaShi.
+  static const _malSpaces = {
+    'malUnread': 'mal_unread',
+    'malReadSource': 'mal_read_source',
+    'malUnlinked': 'mal_unlinked',
+  };
+
   static Future<Map<String, dynamic>> _snapshot() async {
     final prefs = await SharedPreferences.getInstance();
+    final store = await LibraryStore.ensureInitialized();
     return {
-      'version': 4,
+      'version': 5,
+      'yomaTv': {
+        for (final space in _animeSpaces.entries)
+          space.key: await store.readRecords(space.value),
+      },
+      for (final space in _malSpaces.entries)
+        space.key: await store.readRecords(space.value),
       'malLinks': await (await LibraryStore.ensureInitialized()).readRecords(
         'mal_links',
       ),
@@ -161,7 +185,7 @@ class BackupService {
     final decoded = jsonDecode(await file.readAsString());
     if (decoded is! Map) throw StateError('Archivo de backup inválido.');
     final map = Map<String, dynamic>.from(decoded);
-    if (![1, 2, 3, 4].contains(map['version'])) {
+    if (![1, 2, 3, 4, 5].contains(map['version'])) {
       throw StateError('Versión de backup no compatible.');
     }
     if (map['progress'] is! Map ||
@@ -289,6 +313,25 @@ class BackupService {
             ))) {
       throw StateError('Ajustes inválidos.');
     }
+    bool records(Object? value) =>
+        value == null ||
+        value is List &&
+            value.every(
+              (e) =>
+                  e is Map &&
+                  e['id'] is String &&
+                  (e['id'] as String).isNotEmpty,
+            );
+    final anime = map['yomaTv'];
+    if (anime != null &&
+        (anime is! Map ||
+            anime.keys.any((k) => !_animeSpaces.containsKey(k)) ||
+            !_animeSpaces.keys.every((k) => records(anime[k])))) {
+      throw StateError('Datos de YomaTV inválidos.');
+    }
+    if (!_malSpaces.keys.every((k) => records(map[k]))) {
+      throw StateError('Marcas de MyAnimeList inválidas.');
+    }
     if (map['sourceLinks'] != null &&
         (map['sourceLinks'] is! Map ||
             (map['sourceLinks'] as Map).entries.any(
@@ -327,6 +370,34 @@ class BackupService {
         await prefs.setStringList(entry.key, value.cast<String>());
       }
     }
+  }
+
+  /// Sustituye (o combina, con [merge]) los registros de [namespace] por
+  /// los de la copia. Con [newer], al combinar gana el de mayor valor.
+  static Future<void> _restoreRecords(
+    LibraryStore store,
+    String namespace,
+    List<dynamic> incoming, {
+    required bool merge,
+    String? newer,
+  }) async {
+    final byId = <String, Map<String, dynamic>>{
+      if (merge)
+        for (final row in await store.readRecords(namespace))
+          '${row['id']}': row,
+    };
+    for (final raw in incoming) {
+      final row = Map<String, dynamic>.from(raw as Map)..remove('_position');
+      final id = '${row['id']}';
+      final old = byId[id];
+      if (old != null &&
+          newer != null &&
+          ((old[newer] as num?) ?? 0) > ((row[newer] as num?) ?? 0)) {
+        continue;
+      }
+      byId[id] = row;
+    }
+    await store.replaceRecords(namespace, byId.values.toList());
   }
 
   static Future<String> importFromFile(
@@ -454,6 +525,28 @@ class BackupService {
             }
           }
           await store.replaceRecords('mal_links', malLinks.values.toList());
+          // YomaTV y las marcas de MAL (copias desde la versión 5).
+          final anime = map['yomaTv'] as Map?;
+          for (final space in _animeSpaces.entries) {
+            if (anime?[space.key] == null) continue;
+            await _restoreRecords(
+              store,
+              space.value,
+              anime![space.key] as List,
+              merge: merge,
+              // En el progreso gana lo más reciente; en lo demás, la copia.
+              newer: space.key == 'progress' ? 'updatedAt' : null,
+            );
+          }
+          for (final space in _malSpaces.entries) {
+            if (map[space.key] == null) continue;
+            await _restoreRecords(
+              store,
+              space.value,
+              map[space.key] as List,
+              merge: merge,
+            );
+          }
           if (map['automation'] is Map) {
             await store.putRecord(
               'automation',

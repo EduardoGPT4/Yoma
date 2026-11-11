@@ -239,6 +239,9 @@ class _AppLifecycleHostState extends State<_AppLifecycleHost>
         ),
         reads,
         force: force,
+        // Al abrir o volver a Yoma, lo leído en la web de MAL aparece en una
+        // hora como mucho.
+        age: const Duration(hours: 1),
       );
     } catch (error) {
       await Diagnostics.record('myanimelist', error);

@@ -13,8 +13,12 @@ class ChapterReadProvider extends ChangeNotifier implements ReadChapters {
   /// Capítulos que el usuario desmarcó: MyAnimeList no los vuelve a marcar.
   static const unmarkedNamespace = 'mal_unread';
 
+  /// Capítulos marcados como leídos porque MyAnimeList ya los tenía.
+  static const fromMalNamespace = 'mal_read_source';
+
   Set<String> _readKeys = <String>{};
   Set<String> _unmarked = <String>{};
+  Set<String> _fromMal = <String>{};
   bool _loaded = false;
   Future<void>? _loading;
 
@@ -32,6 +36,10 @@ class ChapterReadProvider extends ChangeNotifier implements ReadChapters {
         for (final row in await store.readRecords(unmarkedNamespace))
           '${row['id']}',
       };
+      _fromMal = {
+        for (final row in await store.readRecords(fromMalNamespace))
+          '${row['id']}',
+      };
     } catch (e) {
       await Diagnostics.record('myanimelist', e);
     }
@@ -44,6 +52,25 @@ class ChapterReadProvider extends ChangeNotifier implements ReadChapters {
 
   @override
   bool isUnmarked(String chapterPath) => _unmarked.contains(chapterPath);
+
+  /// Leído porque MyAnimeList ya lo tenía, no por leerlo en el teléfono.
+  bool isFromMal(String chapterPath) =>
+      _fromMal.contains(chapterPath) && _readKeys.contains(chapterPath);
+
+  /// Lo leído o marcado en el teléfono deja de contar como traído de MAL.
+  Future<void> _forgetFromMal(Iterable<String> paths) async {
+    final gone = paths.where(_fromMal.contains).toList();
+    if (gone.isEmpty) return;
+    _fromMal = Set<String>.from(_fromMal)..removeAll(gone);
+    try {
+      final store = await LibraryStore.ensureInitialized();
+      for (final path in gone) {
+        await store.deleteRecord(fromMalNamespace, path);
+      }
+    } catch (e) {
+      await Diagnostics.record('myanimelist', e);
+    }
+  }
 
   Future<void> _rememberUnmarked(String path, bool value) async {
     if (value ? !_unmarked.add(path) : !_unmarked.remove(path)) return;
@@ -75,10 +102,15 @@ class ChapterReadProvider extends ChangeNotifier implements ReadChapters {
           path,
     ];
     if (added.isEmpty) return;
+    final store = await LibraryStore.ensureInitialized();
     for (final path in added) {
       await PreferencesService.setChapterRead(path, true);
+      await store.putRecord(fromMalNamespace, path, {
+        'at': DateTime.now().millisecondsSinceEpoch,
+      });
     }
     _readKeys = Set<String>.from(_readKeys)..addAll(added);
+    _fromMal = Set<String>.from(_fromMal)..addAll(added);
     notifyListeners();
   }
 
@@ -111,6 +143,7 @@ class ChapterReadProvider extends ChangeNotifier implements ReadChapters {
     _readKeys = Set<String>.from(_readKeys)..remove(chapterPath);
     await PreferencesService.setChapterRead(chapterPath, false);
     await _rememberUnmarked(chapterPath, true);
+    await _forgetFromMal([chapterPath]);
     notifyListeners();
   }
 

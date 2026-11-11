@@ -268,7 +268,8 @@ void main() {
         final file = await BackupService.exportToFile(directory: root);
         final text = await file.readAsString();
         final map = jsonDecode(text) as Map;
-        expect(map['version'], 4);
+        // La 5 añade YomaTV; los vínculos de manga siguen igual.
+        expect(map['version'], 5);
         expect(map['malLinks'], hasLength(1));
         expect(text, isNot(contains('device_token')));
         expect(text, isNot(contains('a' * 64)));

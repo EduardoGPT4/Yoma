@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../data/anime_controller.dart';
 import '../data/local_anime_downloads.dart';
+import '../data/next_episode_countdown.dart';
 import '../models/anime_models.dart';
 
 class AnimePlayerScreen extends StatefulWidget {
@@ -38,6 +39,13 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
       _full = false;
   int _generation = 0;
   Timer? _persist;
+
+  /// Cuenta atrás hacia el siguiente episodio al terminar este.
+  final _next = NextEpisodeCountdown();
+  bool _endHandled = false;
+
+  /// Cambia cuando cambia el video: la pantalla completa se reconstruye.
+  final _stageVersion = ValueNotifier<int>(0);
   AnimeController get app => widget.controller;
   AnimeTitle get anime => widget.detail.anime;
   @override
@@ -70,6 +78,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
   Future<void> _release() async {
     final old = _video;
     _video = null;
+    _stageVersion.value++;
     if (old != null) {
       old.removeListener(_tick);
       await old.pause();
@@ -85,6 +94,8 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     _selected = null;
     _played = false;
     _marked = app.positions[_episode.key]?['watched'] == true;
+    _next.cancel();
+    _endHandled = false;
     if (!mounted) return;
     setState(() {
       _loading = true;
@@ -203,10 +214,14 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
         return;
       }
       _video = video;
+      _stageVersion.value++;
       video.addListener(_tick);
       final progress = app.positions[_episode.key];
       final position = animeInt(progress?['positionMs']);
-      if (position > 0 && position < video.value.duration.inMilliseconds) {
+      // Guardado en los últimos segundos: se vuelve a ver desde el principio
+      // en lugar de terminar (y saltar al siguiente) nada más abrirlo.
+      if (position > 0 &&
+          position < video.value.duration.inMilliseconds - 3000) {
         await video.seekTo(Duration(milliseconds: position));
       }
       final speed = (app.settings['speed'] as num?)?.toDouble() ?? 1;
@@ -243,7 +258,60 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
       _marked = true;
       unawaited(_save(watched: true));
     }
+    // Se volvió a reproducir (por ejemplo, retrocediendo): no se pasa al
+    // siguiente.
+    if (value.isPlaying && _next.running) _next.cancel();
+    final ended = NextEpisodeCountdown.ended(
+      playing: value.isPlaying,
+      positionMs: value.position.inMilliseconds,
+      durationMs: value.duration.inMilliseconds,
+    );
+    if (!ended) {
+      _endHandled = false;
+    } else if (!_endHandled) {
+      _endHandled = true;
+      final next = _adjacent(1);
+      if (next != null && app.settings['autonext'] != false) {
+        _next.start(() => unawaited(_change(next)));
+      }
+    }
   }
+
+  /// Aviso «Siguiente episodio en N s» con «Cancelar» y «Ver ahora».
+  Widget _nextBanner() => ValueListenableBuilder<int?>(
+    valueListenable: _next,
+    builder: (context, left, _) {
+      final next = _adjacent(1);
+      if (left == null || next == null) return const SizedBox.shrink();
+      return ColoredBox(
+        color: Colors.black,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 8, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Episodio ${next.number} en $left s',
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+              TextButton(
+                onPressed: _next.cancel,
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  _next.cancel();
+                  unawaited(_change(next));
+                },
+                child: const Text('Ver ahora'),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 
   Future<void> _writes = Future.value();
   String? _savedKey;
@@ -280,6 +348,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
   }
 
   Future<void> _change(AnimeEpisode episode) async {
+    _next.cancel();
     await _save();
     await _release();
     _episode = episode;
@@ -330,7 +399,12 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
           body: SafeArea(
             child: Stack(
               children: [
-                Center(child: _stage(full: true)),
+                Center(
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: _stageVersion,
+                    builder: (_, _, _) => _stage(full: true),
+                  ),
+                ),
                 Positioned(
                   top: 0,
                   right: 0,
@@ -435,6 +509,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
                       ),
                   ],
                 ),
+                if (full) _nextBanner(),
               ],
             ),
           ),
@@ -469,6 +544,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
             height: MediaQuery.sizeOf(context).width * 9 / 16 + 65,
             child: _stage(),
           ),
+          _nextBanner(),
           Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -646,6 +722,8 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     _closed = true;
     _generation++;
     _persist?.cancel();
+    _next.dispose();
+    _stageVersion.dispose();
     WidgetsBinding.instance.removeObserver(this);
     app.activity.removeListener(_activity);
     unawaited(_save());

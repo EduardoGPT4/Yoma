@@ -138,7 +138,11 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
       final next = all
           ? await OnlineCatalogService.completeDetail(detail)
           : await OnlineCatalogService.loadMoreChapters(detail);
-      if (mounted) setState(() => _detailFuture = Future.value(next));
+      if (mounted) {
+        setState(() {
+          _detailFuture = Future.value(next);
+        });
+      }
       _applyMalReading(next);
     } catch (error) {
       if (mounted) {
@@ -364,7 +368,9 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
     try {
       final next = await OnlineCatalogService.resolveChapter(detail, path);
       if (!mounted) return;
-      setState(() => _detailFuture = Future.value(next));
+      setState(() {
+        _detailFuture = Future.value(next);
+      });
       _applyMalReading(next);
       _openReader(
         next,
@@ -859,6 +865,8 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                         title: chapter.title,
                         isCurrent: isCurrent,
                         isRead: isRead,
+                        readFromMal:
+                            isRead && chapterRead.isFromMal(chapter.path),
                         selected: _selectMode ? selected : null,
                         pageLabel:
                             _downloadStates[chapter.path] ??
@@ -1283,6 +1291,9 @@ class _ChapterTile extends StatelessWidget {
   final String title;
   final bool isCurrent;
   final bool isRead;
+
+  /// Leído porque MyAnimeList ya lo tenía.
+  final bool readFromMal;
   final bool? selected;
   final String? pageLabel;
   final VoidCallback onTap;
@@ -1296,6 +1307,7 @@ class _ChapterTile extends StatelessWidget {
     required this.pageLabel,
     required this.onTap,
     this.isRead = false,
+    this.readFromMal = false,
     this.selected,
     this.onLongPress,
     this.onToggleRead,
@@ -1305,7 +1317,10 @@ class _ChapterTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    final meta = [if (isRead) 'Leído', ?pageLabel].join(' · ');
+    final meta = [
+      if (isRead) readFromMal ? 'Leído en MAL' : 'Leído',
+      ?pageLabel,
+    ].join(' · ');
 
     return Material(
       color: isCurrent

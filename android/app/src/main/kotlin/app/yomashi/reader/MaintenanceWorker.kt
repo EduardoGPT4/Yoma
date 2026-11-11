@@ -40,7 +40,7 @@ class MaintenanceWorker(context: Context, params: WorkerParameters) : CoroutineW
         val builder=if(Build.VERSION.SDK_INT>=26) Notification.Builder(applicationContext,"yomashi_maintenance") else Notification.Builder(applicationContext)
         val notification = builder
             .setSmallIcon(R.drawable.ic_notification).setContentTitle("YomaShi")
-            .setContentText("Comprobando favoritos y copias de seguridad")
+            .setContentText("Comprobando novedades y copias de seguridad")
             .addAction(R.drawable.ic_notification,"Cancelar",WorkManager.getInstance(applicationContext).createCancelPendingIntent(id))
             .setOngoing(true).build()
         return ForegroundInfo(19003002,notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
@@ -94,6 +94,18 @@ class MaintenanceWorker(context: Context, params: WorkerParameters) : CoroutineW
                         val builder=if(Build.VERSION.SDK_INT>=26) Notification.Builder(context,"yomashi_updates") else Notification.Builder(context)
                         manager.notify(19003003,builder.setSmallIcon(R.drawable.ic_notification)
                             .setContentTitle("Capítulos nuevos").setContentText("${args["count"]} capítulos en tus favoritos")
+                            .setContentIntent(open).setAutoCancel(true).build())
+                        result.success(null)
+                    }
+                    "notifyEpisodes" -> {
+                        val manager=context.getSystemService(NotificationManager::class.java)
+                        if(Build.VERSION.SDK_INT>=26) manager.createNotificationChannel(NotificationChannel("yoma_anime_episodes","Episodios nuevos",NotificationManager.IMPORTANCE_DEFAULT))
+                        val open=PendingIntent.getActivity(context,1,Intent(context,MainActivity::class.java),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+                        val builder=if(Build.VERSION.SDK_INT>=26) Notification.Builder(context,"yoma_anime_episodes") else Notification.Builder(context)
+                        val text=(args["text"] as? String).orEmpty().take(300)
+                        manager.notify(19003004,builder.setSmallIcon(R.drawable.ic_notification)
+                            .setContentTitle((args["title"] as? String).orEmpty().take(80).ifEmpty { "Episodios nuevos" })
+                            .setContentText(text).setStyle(Notification.BigTextStyle().bigText(text))
                             .setContentIntent(open).setAutoCancel(true).build())
                         result.success(null)
                     }

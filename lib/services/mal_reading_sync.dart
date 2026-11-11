@@ -49,7 +49,10 @@ class MalReadingSync {
 
   /// La lista «Reading» de la cuenta conectada. Sale del teléfono si tiene
   /// menos de [maxAge]; si MAL no responde se usa la copia aunque sea vieja.
-  Future<List<MalManga>> reading({bool force = false}) async {
+  Future<List<MalManga>> reading({
+    bool force = false,
+    Duration age = maxAge,
+  }) async {
     final owner = await _owner();
     if (owner <= 0) return const [];
     final store = await database();
@@ -64,10 +67,10 @@ class MalReadingSync {
       } catch (_) {
         cached = null;
       }
-      final age =
+      final elapsed =
           DateTime.now().millisecondsSinceEpoch -
           (saved['savedAt'] as int? ?? 0);
-      if (cached != null && !force && age < maxAge.inMilliseconds) {
+      if (cached != null && !force && elapsed < age.inMilliseconds) {
         return cached;
       }
     }
@@ -172,6 +175,7 @@ class MalReadingSync {
     }
     final mal = match(manga, reading);
     if (mal == null) return null;
+    if (await service.unlinkedByUser(manga)) return null;
     await service.link(manga, mal, automatic: true, expectedOwner: owner);
     return mal;
   }
@@ -226,10 +230,11 @@ class MalReadingSync {
     List<Manga> library,
     ReadChapters reads, {
     bool force = false,
+    Duration age = maxAge,
   }) {
     final pending = _running;
     if (pending != null) return pending;
-    final work = _run(library, reads, force: force);
+    final work = _run(library, reads, force: force, age: age);
     _running = work;
     return work.whenComplete(() => _running = null);
   }
@@ -238,10 +243,11 @@ class MalReadingSync {
     List<Manga> library,
     ReadChapters reads, {
     required bool force,
+    required Duration age,
   }) async {
     final owner = await _owner();
     if (owner <= 0) return;
-    final list = await reading(force: force);
+    final list = await reading(force: force, age: age);
     if (list.isEmpty) return;
     for (final manga in library) {
       if (await _owner() != owner) return;

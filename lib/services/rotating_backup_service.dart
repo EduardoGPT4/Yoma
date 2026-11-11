@@ -62,6 +62,32 @@ class RotatingBackupService {
     return future.whenComplete(() => _running = null);
   }
 
+  /// Un bloqueo más viejo que esto quedó de una copia interrumpida.
+  static const staleLock = Duration(minutes: 10);
+
+  /// Reserva la copia con un archivo creado en exclusiva. La app y el
+  /// mantenimiento en segundo plano son motores distintos y no comparten
+  /// [_running]: sin esto, los dos veían «no hay copia de hoy» a la vez y
+  /// cada uno hacía la suya.
+  static Future<bool> _acquire(File lock, DateTime now) async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        await lock.create(exclusive: true);
+        return true;
+      } on FileSystemException {
+        try {
+          if (now.difference(await lock.lastModified()) < staleLock) {
+            return false;
+          }
+          await lock.delete();
+        } on FileSystemException {
+          return false;
+        }
+      }
+    }
+    return false;
+  }
+
   static Future<File?> _run({
     required bool force,
     required int retain,
@@ -69,6 +95,27 @@ class RotatingBackupService {
     required DateTime now,
   }) async {
     final dir = directory ?? await RotatingBackupService.directory();
+    await dir.create(recursive: true);
+    final lock = File(p.join(dir.path, '.yomashi_backup.lock'));
+    if (!await _acquire(lock, now)) return null;
+    try {
+      return await _locked(force: force, retain: retain, dir: dir, now: now);
+    } finally {
+      try {
+        await lock.delete();
+      } on FileSystemException {
+        // Se libera solo pasado [staleLock].
+      }
+    }
+  }
+
+  static Future<File?> _locked({
+    required bool force,
+    required int retain,
+    required Directory dir,
+    required DateTime now,
+  }) async {
+    // Se comprueba dentro del bloqueo: otra copia pudo terminar justo antes.
     final existing = await files(directory: dir);
     if (!force &&
         existing.isNotEmpty &&

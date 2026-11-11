@@ -152,6 +152,8 @@ class MyAnimeListService {
     final store = await LibraryStore.ensureInitialized();
     final key = mangaKey(manga);
     await store.transaction(() async {
+      // Un vínculo elegido deshace un «Quitar vínculo».
+      await store.deleteRecord(unlinkedNamespace, key);
       await store.deleteRecord('mal_pending', key);
       await store.putRecord('mal_links', key, {
         'id': key,
@@ -184,15 +186,39 @@ class MyAnimeListService {
     }
   }
 
+  /// Mangas cuyo vínculo quitó el usuario: no se vuelven a vincular solos.
+  static const unlinkedNamespace = 'mal_unlinked';
+
   Future<void> unlink(Manga manga) async {
     final store = await LibraryStore.ensureInitialized();
     final key = mangaKey(manga);
+    final owner =
+        ((await client.credentials.load())?['profile'] as Map?)?['id'];
     await store.transaction(() async {
+      final link = await store.getRecord('mal_links', key);
       await store.deleteRecord('mal_links', key);
       await store.deleteRecord('mal_pending', key);
       await store.deleteRecord('mal_sync', key);
+      if (owner is int && owner > 0) {
+        await store.putRecord(unlinkedNamespace, key, {
+          'owner': owner,
+          'malId': link is Map ? link['malId'] : null,
+          'at': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
     });
     changes.value++;
+  }
+
+  /// El usuario quitó el vínculo de [manga] con la cuenta actual.
+  Future<bool> unlinkedByUser(Manga manga) async {
+    final owner =
+        ((await client.credentials.load())?['profile'] as Map?)?['id'];
+    final row = await (await LibraryStore.ensureInitialized()).getRecord(
+      unlinkedNamespace,
+      mangaKey(manga),
+    );
+    return row is Map && row['owner'] == owner;
   }
 
   Future<void> registerManga(Manga manga, {Iterable<Chapter>? chapters}) async {

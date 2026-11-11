@@ -112,6 +112,7 @@ class _AnimeMalScreenState extends State<AnimeMalScreen> {
     if (slug == null) return;
     try {
       await _mal.link(slug, entry);
+      widget.controller.malLinkChanges.value++;
       // Lo que MAL ya tiene visto pasa a YomaTV al vincular.
       final pulled = await widget.controller
           .applyMalProgress(slug, entry)

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../models/anime_models.dart';
+import 'anime_episode_watch.dart';
 import 'anime_local_store.dart';
 import 'anime_mal_client.dart';
 import 'anime_mal_shelf.dart';
@@ -232,8 +233,7 @@ class AnimeController extends ChangeNotifier {
     if (await mal.linkOf(slug) != null) return true;
     final entry = await malMatchFor(slug);
     if (entry == null) return false;
-    await mal.link(slug, entry);
-    return true;
+    return mal.autoLink(slug, entry);
   }
 
   /// Episodio vistos más alto guardado en el teléfono para [slug].
@@ -264,7 +264,10 @@ class AnimeController extends ChangeNotifier {
         final slug = item.anime.slug;
         final watched = _localWatched(slug);
         if (watched <= item.entry.watched) continue;
-        if (await mal.linkOf(slug) == null) await mal.link(slug, item.entry);
+        if (await mal.linkOf(slug) == null &&
+            !await mal.autoLink(slug, item.entry)) {
+          continue;
+        }
         await mal.queueWatched(slug, watched);
         queued = true;
       }
@@ -318,7 +321,7 @@ class AnimeController extends ChangeNotifier {
     if (link != null && animeInt(link['malId']) != entry.id) return 0;
     if (await mal.hasPending(slug)) return 0;
     if (link == null) {
-      await mal.link(slug, entry);
+      if (!await mal.autoLink(slug, entry)) return 0;
     } else {
       await mal.observeRemote(slug, count);
     }
@@ -364,8 +367,9 @@ class AnimeController extends ChangeNotifier {
   }
 
   /// Muestra al instante la copia guardada y solo consulta MAL si tiene más
-  /// de [AnimeMalShelf.maxAge] o si se pide con [force].
-  Future<void> loadMalShelf({bool force = false}) async {
+  /// de [maxAge] (por defecto [AnimeMalShelf.maxAge]) o si se pide con
+  /// [force].
+  Future<void> loadMalShelf({bool force = false, Duration? maxAge}) async {
     try {
       final owner = await mal.owner();
       if (_disposed) return;
@@ -390,7 +394,7 @@ class AnimeController extends ChangeNotifier {
           DateTime.now().difference(saved) <
               (malShelfPartial
                   ? AnimeMalShelf.retryPartial
-                  : AnimeMalShelf.maxAge);
+                  : maxAge ?? AnimeMalShelf.maxAge);
       if (fresh && !force) return;
       await (_malShelfTask ??= _refreshMalShelf(
         owner,
@@ -449,7 +453,7 @@ class AnimeController extends ChangeNotifier {
   /// `true` si se creó una vinculación nueva; nunca sustituye una existente.
   Future<bool> autoLinkMal(String slug, MalAnimeEntry entry) async {
     if (_malShelfInterim || await mal.linkOf(slug) != null) return false;
-    await mal.link(slug, entry);
+    if (!await mal.autoLink(slug, entry)) return false;
     final watched = _localWatched(slug);
     if (watched > 0) {
       await mal.queueWatched(slug, watched);
@@ -458,15 +462,30 @@ class AnimeController extends ChangeNotifier {
     return true;
   }
 
+  /// Avisa a la ficha de que cambió el vínculo con MAL.
+  final malLinkChanges = ValueNotifier<int>(0);
+
+  /// Quita el vínculo de [slug] con MyAnimeList (ver [AnimeMalClient.unlink]).
+  Future<void> unlinkMal(String slug) async {
+    await mal.unlink(slug);
+    malLinkChanges.value++;
+    changed();
+  }
+
   void setActive(bool active) {
     activity.value = active;
     _poll?.cancel();
     if (active && !_disposed) {
       unawaited(refreshDownloads());
       unawaited(syncMal());
-      unawaited(loadMalShelf());
+      // Al volver a YomaTV, lo visto en la web de MAL aparece en una hora
+      // como mucho.
+      unawaited(loadMalShelf(maxAge: resumeMaxAge));
     }
   }
+
+  /// Antigüedad máxima de la lista de MAL al volver a la app o a YomaTV.
+  static const resumeMaxAge = Duration(hours: 1);
 
   void _scheduleDownloads() {
     _poll?.cancel();
@@ -627,6 +646,13 @@ class AnimeController extends ChangeNotifier {
       details[slug] = detail;
       _detailChecked[slug] = DateTime.now();
       await store.putCache('detail:$slug', data);
+      // Lo que se ve en la ficha ya no se avisa como nuevo.
+      unawaited(
+        store
+            .database()
+            .then((db) => AnimeEpisodeWatch.remember(db, detail))
+            .catchError((Object _) {}),
+      );
       if (refresh) changed();
       return detail;
     } catch (e) {
@@ -930,6 +956,7 @@ class AnimeController extends ChangeNotifier {
     _poll?.cancel();
     source.close();
     activity.dispose();
+    malLinkChanges.dispose();
     super.dispose();
   }
 }

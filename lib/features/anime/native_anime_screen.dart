@@ -33,13 +33,23 @@ class NativeAnimeScreen extends StatefulWidget {
   State<NativeAnimeScreen> createState() => NativeAnimeScreenState();
 }
 
-class NativeAnimeScreenState extends State<NativeAnimeScreen> {
+class NativeAnimeScreenState extends State<NativeAnimeScreen>
+    with WidgetsBindingObserver {
   final _navigator = GlobalKey<NavigatorState>();
   late final AnimeController app = widget.controller ?? AnimeController();
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(app.initialize());
+  }
+
+  /// Al volver a Yoma con YomaTV abierto se actualiza lo que cambió fuera.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && widget.active) {
+      app.setActive(true);
+    }
   }
 
   @override
@@ -80,9 +90,16 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen> {
                   },
             openSeason: _detail,
             openWeb: () => _web(),
+            openMal: _openMal,
           ),
         ),
       );
+
+  void _openMal() => _navigator.currentState!.push(
+    MaterialPageRoute<void>(
+      builder: (_) => AnimeMalScreen(controller: app, home: widget.home),
+    ),
+  );
 
   Future<void> _autoLink(String slug, MalAnimeEntry mal) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -140,16 +157,13 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen> {
         play: _play,
         web: () => _web(),
         home: widget.home,
-        mal: () => _navigator.currentState!.push(
-          MaterialPageRoute<void>(
-            builder: (_) => AnimeMalScreen(controller: app, home: widget.home),
-          ),
-        ),
+        mal: _openMal,
       ),
     ),
   );
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     if (widget.controller == null) app.dispose();
     super.dispose();
   }
@@ -1618,6 +1632,13 @@ class _AnimeMore extends StatelessWidget {
           title: const Text('Reproducir al abrir un episodio'),
           value: app.settings['autoplay'] != false,
           onChanged: (v) => app.saveSetting('autoplay', v),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Pasar al siguiente episodio al terminar'),
+          subtitle: const Text('Con 5 segundos para cancelarlo.'),
+          value: app.settings['autonext'] != false,
+          onChanged: (v) => app.saveSetting('autonext', v),
         ),
         DropdownButtonFormField<String>(
           initialValue: '${app.settings['language'] ?? 'SUB'}',

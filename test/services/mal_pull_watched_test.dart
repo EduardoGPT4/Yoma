@@ -26,6 +26,7 @@ class WatchingMal extends MyAnimeListClient {
     },
   ];
   final updates = <int, int>{};
+  int libraryCalls = 0;
   bool offline = false;
 
   @override
@@ -39,6 +40,7 @@ class WatchingMal extends MyAnimeListClient {
       case 'anime_capabilities':
         return {'anime': true};
       case 'anime_library':
+        libraryCalls++;
         return {'items': input['status'] == 'watching' ? watching : const []};
       case 'anime_update':
         final id = input['id'] as int, wanted = input['episodes_watched'];

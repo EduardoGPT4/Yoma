@@ -11,6 +11,9 @@ class AnimeDetailScreen extends StatefulWidget {
   final void Function(AnimeDetail, AnimeEpisode) play;
   final void Function(String) openSeason;
   final VoidCallback openWeb;
+
+  /// Abre la pantalla de MyAnimeList para vincular a mano.
+  final VoidCallback? openMal;
   const AnimeDetailScreen({
     super.key,
     required this.controller,
@@ -18,6 +21,7 @@ class AnimeDetailScreen extends StatefulWidget {
     required this.play,
     required this.openSeason,
     required this.openWeb,
+    this.openMal,
   });
   @override
   State<AnimeDetailScreen> createState() => _AnimeDetailScreenState();
@@ -42,7 +46,10 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
     final latest = widget.controller.details[widget.slug];
     if (latest == null || identical(latest, _shown)) return;
     _shown = latest;
-    setState(() => _detail = Future.value(latest));
+    // Llaves: con `=>` el cierre devolvería el Future y setState lo rechaza.
+    setState(() {
+      _detail = Future.value(latest);
+    });
   }
 
   @override
@@ -223,6 +230,11 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
+                      _MalLinkTile(
+                        controller: app,
+                        slug: anime.slug,
+                        openMal: widget.openMal,
+                      ),
                       if (anime.synopsis.isNotEmpty)
                         SelectableText(
                           anime.synopsis,
@@ -374,7 +386,8 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                       title: Text('Episodio ${ep.number}'),
                       subtitle: Text(
                         [
-                          if (p?['watched'] == true) 'Visto',
+                          if (p?['watched'] == true)
+                            p?['source'] == 'mal' ? 'Visto en MAL' : 'Visto',
                           if (animeInt(p?['positionMs']) > 0)
                             '${animeInt(p?['positionMs']) ~/ 60000} min',
                           if (downloaded != null)
@@ -422,4 +435,117 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
       },
     ),
   );
+}
+
+/// Con qué entrada de MyAnimeList está vinculado el anime, y quitarlo.
+class _MalLinkTile extends StatefulWidget {
+  final AnimeController controller;
+  final String slug;
+  final VoidCallback? openMal;
+  const _MalLinkTile({
+    required this.controller,
+    required this.slug,
+    this.openMal,
+  });
+  @override
+  State<_MalLinkTile> createState() => _MalLinkTileState();
+}
+
+class _MalLinkTileState extends State<_MalLinkTile> {
+  Map<String, dynamic>? _link;
+  bool _connected = false, _loaded = false, _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.malLinkChanges.addListener(_load);
+    widget.controller.mal.client.sessionChanges.addListener(_load);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.malLinkChanges.removeListener(_load);
+    widget.controller.mal.client.sessionChanges.removeListener(_load);
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final mal = widget.controller.mal;
+    final connected = await mal.owner() > 0;
+    final link = connected ? await mal.linkOf(widget.slug) : null;
+    if (!mounted) return;
+    setState(() {
+      _connected = connected;
+      _link = link;
+      _loaded = true;
+    });
+  }
+
+  Future<void> _unlink() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Quitar vínculo con MyAnimeList'),
+        content: const Text(
+          'Lo que veas de este anime dejará de enviarse a MyAnimeList y no se '
+          'volverá a vincular solo. Tu progreso en el teléfono y en '
+          'MyAnimeList no cambia.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Quitar vínculo'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.controller.unlinkMal(widget.slug);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || !_connected) return const SizedBox.shrink();
+    final link = _link;
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.sync_alt),
+        title: Text(
+          link == null
+              ? 'Sin vincular con MyAnimeList'
+              : 'MyAnimeList: ${link['title']}',
+        ),
+        subtitle: Text(
+          link == null
+              ? 'Vincúlalo para sincronizar los episodios vistos.'
+              : '${animeInt(link['remoteEpisodes'])} episodios vistos en MyAnimeList',
+          style: theme.textTheme.bodySmall,
+        ),
+        trailing: link == null
+            ? (widget.openMal == null
+                  ? null
+                  : TextButton(
+                      onPressed: widget.openMal,
+                      child: const Text('Vincular'),
+                    ))
+            : TextButton(
+                onPressed: _busy ? null : _unlink,
+                child: const Text('Quitar vínculo'),
+              ),
+      ),
+    );
+  }
 }
