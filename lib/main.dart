@@ -19,6 +19,7 @@ import 'services/maintenance_service.dart';
 import 'services/rotating_backup_service.dart';
 import 'services/diagnostics.dart';
 import 'services/yoma_storage_migration.dart';
+import 'services/mal_reading_sync.dart';
 import 'services/myanimelist_service.dart';
 import 'home/yoma_shell.dart';
 import 'design/yoma_tokens.dart';
@@ -153,7 +154,11 @@ class _AppLifecycleHostState extends State<_AppLifecycleHost>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    MyAnimeListService.shared.client.sessionChanges.addListener(
+      _malSessionChanged,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduleMalReading();
       // Debe usarse el context del Navigator de MaterialApp, no el de este
       // State (que es ancestro de MaterialApp y no tiene Navigator).
       final navContext = MangaReaderApp.navigatorKey.currentContext;
@@ -166,8 +171,78 @@ class _AppLifecycleHostState extends State<_AppLifecycleHost>
 
   @override
   void dispose() {
+    MyAnimeListService.shared.client.sessionChanges.removeListener(
+      _malSessionChanged,
+    );
+    _stopWaitingForLibrary();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  // Una cuenta nueva no tiene copia de su lista: se descarga sola.
+  void _malSessionChanged() => _scheduleMalReading();
+
+  /// Escucha a la espera de la carga; guarda a quién escucha porque en
+  /// `dispose` ya no se puede consultar el contexto.
+  ({VoidCallback check, Listenable library, Listenable reads})?
+  _malReadingWaiter;
+
+  void _stopWaitingForLibrary() {
+    final waiter = _malReadingWaiter;
+    if (waiter == null) return;
+    _malReadingWaiter = null;
+    waiter.library.removeListener(waiter.check);
+    waiter.reads.removeListener(waiter.check);
+  }
+
+  /// Ejecuta [_syncMalReading] cuando la biblioteca y los capítulos leídos
+  /// ya se cargaron. Espera a sus avisos, sin temporizadores.
+  void _scheduleMalReading() {
+    if (!mounted || _malReadingWaiter != null) return;
+    final library = context.read<LibraryProvider>();
+    final reads = context.read<ChapterReadProvider>();
+    var sawLoading = library.isLoading;
+    bool ready() =>
+        reads.isLoaded &&
+        !library.isLoading &&
+        (sawLoading ||
+            library.mangas.isNotEmpty ||
+            library.progressMap.isNotEmpty);
+    if (ready()) {
+      unawaited(_syncMalReading());
+      return;
+    }
+    void check() {
+      if (library.isLoading) sawLoading = true;
+      if (!ready()) return;
+      _stopWaitingForLibrary();
+      unawaited(_syncMalReading());
+    }
+
+    _malReadingWaiter = (check: check, library: library, reads: reads);
+    library.addListener(check);
+    reads.addListener(check);
+  }
+
+  /// «Reading» de MyAnimeList → capítulos leídos de YomaShi.
+  Future<void> _syncMalReading({bool force = false}) async {
+    if (!mounted) return;
+    final library = context.read<LibraryProvider>();
+    final favorites = context.read<FavoritesProvider>();
+    final reads = context.read<ChapterReadProvider>();
+    try {
+      await MalReadingSync.shared.run(
+        MalReadingSync.candidates(
+          library: library.mangas,
+          favorites: favorites.entries,
+          progress: library.progressMap.values,
+        ),
+        reads,
+        force: force,
+      );
+    } catch (error) {
+      await Diagnostics.record('myanimelist', error);
+    }
   }
 
   Future<void> _startFirstLaunch(BuildContext navContext) async {
@@ -185,6 +260,7 @@ class _AppLifecycleHostState extends State<_AppLifecycleHost>
       case AppLifecycleState.resumed:
         unawaited(context.read<ProfileProvider>().refreshMyAnimeList());
         unawaited(MyAnimeListService.shared.flush().catchError((_) {}));
+        _scheduleMalReading();
         unawaited(StartupStorage.ensureFolderAndDefaults(context));
         unawaited(downloader.checkForRetryableJobs());
         unawaited(_prepareMaintenance());

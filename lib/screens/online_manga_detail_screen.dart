@@ -14,6 +14,7 @@ import '../providers/chapter_read_provider.dart';
 import '../providers/download_queue_provider.dart';
 import '../providers/library_provider.dart';
 import '../services/online_catalog_service.dart';
+import '../services/mal_reading_sync.dart';
 import '../services/myanimelist_service.dart';
 import '../utils/network_errors.dart';
 
@@ -54,6 +55,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
     );
     _detailFuture.then((detail) {
       if (mounted) unawaited(_refreshDownloadStates(detail));
+      _applyMalReading(detail);
     }, onError: (Object _) {});
     _downloadEvents = DownloadEvents.completedFolders.listen((_) {
       _detailFuture.then((detail) {
@@ -66,6 +68,20 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
   void dispose() {
     unawaited(_downloadEvents?.cancel());
     super.dispose();
+  }
+
+  /// Los capítulos que MyAnimeList ya tiene leídos se marcan como leídos.
+  void _applyMalReading(OnlineMangaDetail detail) {
+    if (!mounted) return;
+    final reads = context.read<ChapterReadProvider>();
+    unawaited(
+      MalReadingSync.shared
+          .apply(detail.toOfflineManga(), detail.chapters, reads)
+          .catchError((Object error) {
+            debugPrint('MAL → YomaShi: $error');
+            return 0;
+          }),
+    );
   }
 
   Future<void> _refreshDownloadStates(OnlineMangaDetail detail) async {
@@ -123,6 +139,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
           ? await OnlineCatalogService.completeDetail(detail)
           : await OnlineCatalogService.loadMoreChapters(detail);
       if (mounted) setState(() => _detailFuture = Future.value(next));
+      _applyMalReading(next);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -348,6 +365,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
       final next = await OnlineCatalogService.resolveChapter(detail, path);
       if (!mounted) return;
       setState(() => _detailFuture = Future.value(next));
+      _applyMalReading(next);
       _openReader(
         next,
         next.chapters.indexWhere((c) => c.path == path),

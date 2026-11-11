@@ -184,6 +184,40 @@ class AnimeMalClient {
         if (count != animeInt(link['remoteEpisodes'])) 'floor': count,
       };
 
+  /// La lista de MAL dice que [slug] va por [count]: se anota en la
+  /// vinculación para que el próximo envío espere ese número. Solo sube;
+  /// si hay un envío pendiente, manda lo del teléfono y no se toca.
+  Future<void> observeRemote(String slug, int count) async {
+    final auth = await client.credentials.load();
+    final owner = animeInt(animeMap(auth?['profile'])['id']);
+    if (auth?['connected'] != true || owner <= 0) return;
+    final store = await database();
+    await store.transaction(() async {
+      final link = animeMap(await store.getRecord('anime_mal_links', slug));
+      if (link['owner'] != owner) return;
+      if (count <= animeInt(link['remoteEpisodes'])) return;
+      final pending = animeMap(
+        await store.getRecord('anime_mal_pending', slug),
+      );
+      if (pending['owner'] == owner && pending['version'] == link['version']) {
+        return;
+      }
+      await store.putRecord('anime_mal_links', slug, _observed(link, count));
+    });
+  }
+
+  /// Hay un envío a MAL pendiente para [slug] con la cuenta actual.
+  Future<bool> hasPending(String slug) async {
+    final current = await owner();
+    if (current <= 0) return false;
+    final store = await database();
+    final link = animeMap(await store.getRecord('anime_mal_links', slug));
+    final row = animeMap(await store.getRecord('anime_mal_pending', slug));
+    return row['owner'] == current &&
+        link['owner'] == current &&
+        row['version'] == link['version'];
+  }
+
   Future<void> queueWatched(String slug, int episode) async {
     if (episode < 1) return;
     final auth = await client.credentials.load();

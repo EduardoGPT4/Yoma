@@ -109,6 +109,16 @@ class MalManga {
             .toList() ??
         const [],
   );
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'title': title,
+    'chapters_read': chaptersRead,
+    'num_chapters': totalChapters,
+    'status': status,
+    'publishing_status': publishingStatus,
+    'picture': picture,
+    'alternative_titles': alternativeTitles,
+  };
 }
 
 class MalMangaPage {

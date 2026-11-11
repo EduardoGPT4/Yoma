@@ -247,6 +247,9 @@ class AnimeController extends ChangeNotifier {
     if (_syncingShelf || _disposed) return;
     _syncingShelf = true;
     try {
+      // Primero lo que MAL ya tiene visto pasa al teléfono; después lo visto
+      // solo en el teléfono sube a MAL.
+      await _pullWatchedFromShelf();
       var queued = false;
       for (final item in [...malWatching, ...malPlanned]) {
         final slug = item.anime.slug;
@@ -263,6 +266,72 @@ class AnimeController extends ChangeNotifier {
     } finally {
       _syncingShelf = false;
     }
+  }
+
+  /// Los animes de «Viendo» en MAL quedan vinculados y sus episodios vistos
+  /// en MAL se marcan como vistos en YomaTV. Solo añade: nunca desmarca lo
+  /// visto en el teléfono, no toca los episodios que el usuario desmarcó y
+  /// no actúa si hay un envío a MAL pendiente (lo del teléfono es más nuevo).
+  Future<void> _pullWatchedFromShelf() async {
+    if (_malShelfInterim) return;
+    for (final item in [...malWatching]) {
+      if (_disposed) return;
+      final slug = item.anime.slug;
+      final count = item.entry.watched;
+      if (count <= 0) continue;
+      try {
+        final link = await mal.linkOf(slug);
+        if (link != null && animeInt(link['malId']) != item.entry.id) continue;
+        if (await mal.hasPending(slug)) continue;
+        if (link == null) {
+          await mal.link(slug, item.entry);
+        } else {
+          await mal.observeRemote(slug, count);
+        }
+        final missing = _missingFromMal(slug, count);
+        if (!missing) continue;
+        final detail = await this.detail(slug);
+        final episodes = [
+          for (final episode in detail.episodes)
+            if (_countsAsWatched(episode.number, count) &&
+                positions[episode.key]?['watched'] != true &&
+                positions[episode.key]?['unmarked'] != true)
+              episode,
+        ];
+        if (episodes.isEmpty) continue;
+        final rows = await store.markWatchedFromMal(detail.anime, episodes);
+        for (final row in rows) {
+          positions[AnimeEpisode.fromJson(animeMap(row['episode'])).key] = row;
+        }
+        if (rows.isNotEmpty) changed();
+      } catch (error) {
+        // Sin red la ficha no se obtiene: se reintenta en la próxima carga.
+        debugPrint('MAL → YomaTV sin aplicar para $slug: $error');
+      }
+    }
+  }
+
+  /// El episodio [number] queda dentro de los [count] vistos en MAL.
+  static bool _countsAsWatched(String number, int count) {
+    final value = double.tryParse(number);
+    return value != null && value >= 1 && value <= count;
+  }
+
+  /// Falta en el teléfono algún episodio que MAL ya tiene visto.
+  bool _missingFromMal(String slug, int count) {
+    final seen = <int>{};
+    for (final row in positions.values) {
+      if (row['slug'] != slug) continue;
+      final value = double.tryParse('${animeMap(row['episode'])['number']}');
+      if (value == null || value != value.floorToDouble()) continue;
+      if (row['watched'] == true || row['unmarked'] == true) {
+        seen.add(value.toInt());
+      }
+    }
+    for (var n = 1; n <= count; n++) {
+      if (!seen.contains(n)) return true;
+    }
+    return false;
   }
 
   /// Muestra al instante la copia guardada y solo consulta MAL si tiene más
@@ -543,9 +612,16 @@ class AnimeController extends ChangeNotifier {
 
   bool isSaved(String slug) => saved[slug]?['saved'] == true;
   bool isFavorite(String slug) => saved[slug]?['favorite'] == true;
+
+  /// Lo reproducido o marcado en el teléfono. Lo que solo vino de
+  /// MyAnimeList no se reprodujo aquí y no aparece.
   List<Map<String, dynamic>> get history =>
       positions.values
-          .where((e) => animeInt(e['positionMs']) > 0 || e['watched'] == true)
+          .where(
+            (e) =>
+                e['source'] != 'mal' &&
+                (animeInt(e['positionMs']) > 0 || e['watched'] == true),
+          )
           .toList()
         ..sort(
           (a, b) =>
@@ -585,6 +661,11 @@ class AnimeController extends ChangeNotifier {
         if (positions[next.key]?['watched'] != true) return next;
       }
       return episodes[index];
+    }
+    // Sin nada reproducido aquí: el primero sin ver (lo visto en MAL ya
+    // cuenta como visto).
+    for (final episode in episodes) {
+      if (positions[episode.key]?['watched'] != true) return episode;
     }
     return episodes.first;
   }
@@ -635,16 +716,14 @@ class AnimeController extends ChangeNotifier {
       watched: watched,
     );
     final previous = positions[episode.key] ?? {};
-    positions[episode.key] = {
-      ...previous,
-      'slug': anime.slug,
-      'anime': anime.toJson(),
-      'episode': episode.toJson(),
-      'positionMs': position,
-      'durationMs': duration,
-      'watched': watched ?? previous['watched'] == true,
-      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-    };
+    positions[episode.key] = AnimeLocalStore.progressRow(
+      previous,
+      anime,
+      episode,
+      positionMs: position,
+      durationMs: duration,
+      watched: watched,
+    );
     if (watched != null ||
         oldPosition == null ||
         animeInt(oldPosition['positionMs']) == 0) {

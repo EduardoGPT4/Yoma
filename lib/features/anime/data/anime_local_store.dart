@@ -62,20 +62,84 @@ class AnimeLocalStore {
       final previous = animeMap(
         await store.getRecord('anime_progress', episode.key),
       );
-      await store.putRecord('anime_progress', episode.key, {
-        ...previous,
-        'slug': anime.slug,
-        'anime': anime.toJson(),
-        'episode': episode.toJson(),
-        'positionMs': positionMs.clamp(
-          0,
-          durationMs > 0 ? durationMs : positionMs,
+      await store.putRecord(
+        'anime_progress',
+        episode.key,
+        progressRow(
+          previous,
+          anime,
+          episode,
+          positionMs: positionMs.clamp(
+            0,
+            durationMs > 0 ? durationMs : positionMs,
+          ),
+          durationMs: durationMs,
+          watched: watched,
         ),
-        'durationMs': durationMs,
-        'watched': watched ?? previous['watched'] == true,
-        'updatedAt': DateTime.now().millisecondsSinceEpoch,
-      });
+      );
     });
+  }
+
+  /// Fila de progreso tras una acción en el teléfono. Deja de contar como
+  /// traída de MyAnimeList (`source`) y recuerda si el usuario desmarcó el
+  /// episodio (`unmarked`), para que MAL no lo vuelva a marcar.
+  static Map<String, dynamic> progressRow(
+    Map<String, dynamic> previous,
+    AnimeTitle anime,
+    AnimeEpisode episode, {
+    required int positionMs,
+    required int durationMs,
+    bool? watched,
+  }) {
+    final row = {
+      ...previous,
+      'slug': anime.slug,
+      'anime': anime.toJson(),
+      'episode': episode.toJson(),
+      'positionMs': positionMs,
+      'durationMs': durationMs,
+      'watched': watched ?? previous['watched'] == true,
+      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+    }..remove('source');
+    if (watched == false) row['unmarked'] = true;
+    if (watched == true) row.remove('unmarked');
+    return row;
+  }
+
+  /// Marca como vistos [episodes] porque MyAnimeList ya los tiene vistos.
+  /// No cambia la posición ni la fecha de lo que ya hubiera, y omite los
+  /// que el usuario desmarcó. Devuelve las filas escritas.
+  Future<List<Map<String, dynamic>>> markWatchedFromMal(
+    AnimeTitle anime,
+    Iterable<AnimeEpisode> episodes,
+  ) async {
+    final store = await database();
+    final written = <Map<String, dynamic>>[];
+    await store.transaction(() async {
+      for (final episode in episodes) {
+        final previous = animeMap(
+          await store.getRecord('anime_progress', episode.key),
+        );
+        if (previous['watched'] == true || previous['unmarked'] == true) {
+          continue;
+        }
+        final row = {
+          ...previous,
+          'slug': anime.slug,
+          'anime': anime.toJson(),
+          'episode': episode.toJson(),
+          'positionMs': animeInt(previous['positionMs']),
+          'durationMs': animeInt(previous['durationMs']),
+          'watched': true,
+          'updatedAt': animeInt(previous['updatedAt']),
+          // Sin reproducir aquí: no entra en el historial de reproducción.
+          if (animeInt(previous['positionMs']) == 0) 'source': 'mal',
+        };
+        await store.putRecord('anime_progress', episode.key, row);
+        written.add(row);
+      }
+    });
+    return written;
   }
 
   Future<void> markWatched(
