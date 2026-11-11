@@ -99,7 +99,10 @@ void main() {
       await tester.tap(find.text('Explorar'));
       await tester.pumpAndSettle();
       expect(find.widgetWithText(TextButton, 'Ir a Manga'), findsOneWidget);
-      await tester.tap(find.byTooltip('MyAnimeList'));
+      // MyAnimeList se abre desde el perfil, arriba en «Más».
+      await tester.tap(find.text('Más'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tu espacio local'));
       await tester.pumpAndSettle();
       // Dentro de una ruta interna la barra de secciones no tapa el contenido.
       expect(find.widgetWithText(TextButton, 'Ir a Manga'), findsNothing);

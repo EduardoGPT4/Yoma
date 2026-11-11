@@ -199,11 +199,6 @@ class _AnimeMain extends StatelessWidget {
             onPressed: () => app.selectTab(1),
             icon: const Icon(Icons.search),
           ),
-          IconButton(
-            tooltip: 'MyAnimeList',
-            onPressed: mal,
-            icon: const Icon(Icons.account_circle_outlined),
-          ),
           PopupMenuButton<String>(
             onSelected: (v) {
               if (v == 'web') web();
@@ -1549,20 +1544,14 @@ class _AnimeMore extends StatelessWidget {
                 ? profile.displayName
                 : 'Tu espacio local',
           ),
+          // Único acceso a MyAnimeList; un avance que no llegó a MAL no se
+          // queda en silencio.
           subtitle: Text(
-            profile.usesMyAnimeListIdentity
-                ? 'MyAnimeList conectado en Yoma'
-                : 'Biblioteca, historial y descargas sin cuenta',
+            app.malStatus ??
+                (profile.usesMyAnimeListIdentity
+                    ? 'MyAnimeList conectado en Yoma'
+                    : 'Biblioteca, historial y descargas sin cuenta'),
           ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: mal,
-        ),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.sync),
-          title: const Text('Mi lista de MyAnimeList'),
-          // Un avance que no llegó a MAL no se queda en silencio.
-          subtitle: app.malStatus == null ? null : Text(app.malStatus!),
           trailing: const Icon(Icons.chevron_right),
           onTap: mal,
         ),

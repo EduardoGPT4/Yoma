@@ -7,6 +7,7 @@ import '../data/anime_controller.dart';
 import '../data/local_anime_downloads.dart';
 import '../data/next_episode_countdown.dart';
 import '../models/anime_models.dart';
+import '../widgets/anime_video_stage.dart';
 
 class AnimePlayerScreen extends StatefulWidget {
   final AnimeController controller;
@@ -361,26 +362,10 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     return index >= 0 && index < all.length ? all[index] : null;
   }
 
-  Future<void> _seek(int seconds) async {
-    final v = _video;
-    if (v == null) return;
-    await v.seekTo(
-      Duration(
-        milliseconds: (v.value.position.inMilliseconds + seconds * 1000).clamp(
-          0,
-          v.value.duration.inMilliseconds,
-        ),
-      ),
-    );
-  }
-
-  String _clock(Duration value) {
-    final s = value.inSeconds;
-    return s >= 3600
-        ? '${s ~/ 3600}:${((s % 3600) ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}'
-        : '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
-  }
-
+  /// Pantalla completa: una ruta opaca propia que ocupa toda la pantalla.
+  /// Antes era un diálogo, y Flutter mete los diálogos en el área segura: en
+  /// horizontal quedaba libre el hueco de la cámara y se veía la página de
+  /// detrás.
   Future<void> _fullscreen() async {
     if (_full) return;
     _full = true;
@@ -390,34 +375,17 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     ]);
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     if (mounted) {
-      await showDialog<void>(
-        context: context,
-        useRootNavigator: true,
-        barrierDismissible: false,
-        builder: (c) => Scaffold(
-          backgroundColor: Colors.black,
-          body: SafeArea(
-            child: Stack(
-              children: [
-                Center(
-                  child: ValueListenableBuilder<int>(
-                    valueListenable: _stageVersion,
-                    builder: (_, _, _) => _stage(full: true),
-                  ),
-                ),
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: IconButton(
-                    tooltip: 'Salir de pantalla completa',
-                    onPressed: () => Navigator.pop(c),
-                    icon: const Icon(
-                      Icons.fullscreen_exit,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
+      await Navigator.of(context, rootNavigator: true).push(
+        PageRouteBuilder<void>(
+          opaque: true,
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
+          pageBuilder: (c, _, _) => Scaffold(
+            backgroundColor: Colors.black,
+            body: ValueListenableBuilder<int>(
+              valueListenable: _stageVersion,
+              builder: (_, _, _) =>
+                  _stage(full: true, exit: () => Navigator.pop(c)),
             ),
           ),
         ),
@@ -428,95 +396,15 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
-  Widget _stage({bool full = false}) {
-    final video = _video;
-    if (video == null) {
-      return AspectRatio(
-        aspectRatio: 16 / 9,
-        child: ColoredBox(
-          color: Colors.black,
-          child: Center(
-            child: _loading
-                ? const CircularProgressIndicator()
-                : const Icon(
-                    Icons.ondemand_video,
-                    size: 56,
-                    color: Colors.white54,
-                  ),
-          ),
-        ),
-      );
-    }
-    return ValueListenableBuilder<VideoPlayerValue>(
-      valueListenable: video,
-      builder: (context, value, _) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            fit: FlexFit.loose,
-            child: AspectRatio(
-              aspectRatio: value.aspectRatio > 0 ? value.aspectRatio : 16 / 9,
-              child: VideoPlayer(video),
-            ),
-          ),
-          if (value.isBuffering) const LinearProgressIndicator(minHeight: 2),
-          ColoredBox(
-            color: Colors.black,
-            child: Column(
-              children: [
-                VideoProgressIndicator(
-                  video,
-                  allowScrubbing: true,
-                  colors: VideoProgressColors(
-                    playedColor: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Retroceder 10 segundos',
-                      onPressed: () => _seek(-10),
-                      icon: const Icon(Icons.replay_10, color: Colors.white),
-                    ),
-                    IconButton(
-                      tooltip: value.isPlaying ? 'Pausar' : 'Reproducir',
-                      onPressed: () =>
-                          value.isPlaying ? video.pause() : video.play(),
-                      icon: Icon(
-                        value.isPlaying ? Icons.pause : Icons.play_arrow,
-                        color: Colors.white,
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Avanzar 10 segundos',
-                      onPressed: () => _seek(10),
-                      icon: const Icon(Icons.forward_10, color: Colors.white),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '${_clock(value.position)} / ${_clock(value.duration)}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    if (!full)
-                      IconButton(
-                        tooltip: 'Pantalla completa',
-                        onPressed: _fullscreen,
-                        icon: const Icon(Icons.fullscreen, color: Colors.white),
-                      ),
-                  ],
-                ),
-                if (full) _nextBanner(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _stage({bool full = false, VoidCallback? exit}) => AnimeVideoStage(
+    // Un escenario por video: al cambiar de episodio empieza de cero.
+    key: ValueKey(_video),
+    video: _video,
+    loading: _loading,
+    full: full,
+    onToggleFullscreen: full ? (exit ?? () {}) : _fullscreen,
+    overlay: full ? _nextBanner() : null,
+  );
 
   @override
   Widget build(BuildContext context) => PopScope(
@@ -540,8 +428,9 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
       ),
       body: ListView(
         children: [
+          // Los controles van encima del video: la caja es solo el video.
           SizedBox(
-            height: MediaQuery.sizeOf(context).width * 9 / 16 + 65,
+            height: MediaQuery.sizeOf(context).width * 9 / 16,
             child: _stage(),
           ),
           _nextBanner(),
