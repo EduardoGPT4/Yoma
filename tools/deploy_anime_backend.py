@@ -37,7 +37,7 @@ def main():
         source=(ROOT/'server'/name).read_text(encoding='utf-8')
         if source.count("require __DIR__.'/private/app.php';")!=1:raise RuntimeError('Unexpected bootstrap in '+name)
         return source.replace("require __DIR__.'/private/app.php';", "require YOMA_WEB_BOOTSTRAP;").encode()
-    files={'yomashi-api.php':entry('yomashi-api.php'),'yomashi-connect.php':entry('yomashi-connect.php'),'private/yomashi-mal.php':(ROOT/'server/private/yomashi-mal.php').read_bytes(),'private/yoma-anime-mal.php':(ROOT/'server/private/yoma-anime-mal.php').read_bytes()}
+    files={'yomashi-api.php':entry('yomashi-api.php'),'yomashi-connect.php':entry('yomashi-connect.php'),'private/yomashi-mal.php':(ROOT/'server/private/yomashi-mal.php').read_bytes(),'private/yoma-anime-mal.php':(ROOT/'server/private/yoma-anime-mal.php').read_bytes(),'private/yoma-sync.php':(ROOT/'server/private/yoma-sync.php').read_bytes()}
     digest=hashlib.sha256(b''.join(files[k] for k in sorted(files))).hexdigest();release='yoma-native-mal-'+digest[:16]
     # Add an immutable extension, not a new active web release.
     base='releases/'+release

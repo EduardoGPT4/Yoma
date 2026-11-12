@@ -47,6 +47,31 @@ class _AnimeMore extends StatelessWidget {
           trailing: const Icon(Icons.chevron_right),
           onTap: mal,
         ),
+        if (profile.usesMyAnimeListIdentity)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: app.accountSyncing
+                ? const SizedBox.square(
+                    dimension: 24,
+                    child: Padding(
+                      padding: EdgeInsets.all(2),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : const Icon(Icons.sync),
+            title: const Text('Sincronizar con tu cuenta'),
+            subtitle: Text(
+              app.accountSyncError ??
+                  (app.accountSync.unsupported
+                      ? 'El servidor aún no tiene la sincronización.'
+                      : app.accountSyncedAt == null
+                      ? 'Biblioteca, favoritos e historial en tus dispositivos y en la web.'
+                      : 'Al día · ${formatTimeAgo(app.accountSyncedAt!.millisecondsSinceEpoch)}'),
+            ),
+            onTap: app.accountSyncing
+                ? null
+                : () => unawaited(app.syncAccount()),
+          ),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.history),

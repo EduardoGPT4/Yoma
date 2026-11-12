@@ -30,10 +30,22 @@ require_once __DIR__ . '/public-cache.php';
 require __DIR__ . '/system-health.php';
 require __DIR__ . '/personal.php';
 require __DIR__ . '/mobile.php';
+// Sincronización de Yoma con la app (misma cuenta de MyAnimeList).
+require_once __DIR__ . '/yoma-sync.php';
+require_once __DIR__ . '/yoma-sync-web.php';
 
 function dispatch(PDO $db, string $action, array $input): array
 {
   validate_session($db);
+  // Biblioteca y progreso compartidos con la app de la misma cuenta de MAL.
+  // Como mucho cada 30 segundos; un fallo nunca impide cargar la web.
+  if (($action === 'state' || $action === 'home') && uid()) {
+    try {
+      yoma_sync_web($db, uid());
+    } catch (Throwable $e) {
+      error_log('yoma_sync_web: ' . $e->getMessage());
+    }
+  }
   if ($action === 'state') {
     return ['data' => state($db)];
   }

@@ -4,6 +4,7 @@ if (!defined('SEASON_BOOTSTRAPPED')) { http_response_code(404); exit(); }
 
 // Uses the host's existing private MAL configuration. No app secret is sent to Android.
 require_once __DIR__.'/yoma-anime-mal.php';
+require_once __DIR__.'/yoma-sync.php';
 const YS_ORIGIN = 'https://tv.yoma.site/';
 const YS_STATUSES = ['reading','completed','on_hold','dropped','plan_to_read'];
 // Sliding device session: renewed at most once a day while the app keeps using it.
@@ -153,7 +154,9 @@ function ys_dispatch(PDO $db,array $input,string $bearer): array {
   if($action==='start') return ys_start($db);
   if(!preg_match('/^[a-f0-9]{64}$/D',$bearer)) throw new WebError('Conecta tu cuenta de MyAnimeList.',401);
   // Reject bad inputs before a possible OAuth refresh with rotating credentials.
-  if(!in_array($action,['status','disconnect','search','detail','update','library','anime_capabilities','anime_library','anime_detail','anime_update'],true)) throw new WebError('Operación no disponible.',404);
+  if(!in_array($action,['status','disconnect','search','detail','update','library','anime_capabilities','anime_library','anime_detail','anime_update','sync_capabilities','sync_pull','sync_push'],true)) throw new WebError('Operación no disponible.',404);
+  // Tablas antes de la transacción: en MySQL, CREATE TABLE confirma la transacción en curso.
+  if(str_starts_with($action,'sync_')){yoma_sync_validate($input);yoma_sync_schema($db);}
   if(str_starts_with($action,'anime_'))ys_anime_validate($input);
   if($action==='library' && (!in_array($input['status']??null,['reading','plan_to_read'],true) || !is_int($input['offset']??0) || ($input['offset']??0)<0 || ($input['offset']??0)>1000000 || !is_int($input['limit']??50) || ($input['limit']??50)<1 || ($input['limit']??50)>100)) throw new WebError('Filtro o página de la lista MAL inválidos.');
   if($action==='search' && (!is_string($input['query']??null) || strlen(trim($input['query']))<3 || strlen(trim($input['query']))>192)) throw new WebError('Escribe al menos tres caracteres o usa el ID.');
@@ -170,6 +173,8 @@ function ys_dispatch(PDO $db,array $input,string $bearer): array {
     if($action==='status') { $result=ys_status($db,$row,$refreshed);$db->commit();return $result; }
     if($row['tokens']===null) throw new WebError('Termina la autorización en el navegador.',409);
     if(isset($input['owner_id']) && $input['owner_id']!==(int)$row['mal_user_id']) throw new WebError('La cuenta cambió. Vuelve a seleccionar el manga.',409);
+    // Sincronización de Yoma: solo usa la identidad de MAL del dispositivo, sin llamar a MAL.
+    if(str_starts_with($action,'sync_')) { $result=yoma_sync_dispatch($db,(int)$row['mal_user_id'],$input);$db->commit();return $result; }
     $tokens=json_decode(ys_crypt($row['tokens'],$row['id'],true),true,16,JSON_THROW_ON_ERROR);
     $tokens=ys_access_tokens($db,$row,$tokens,$refreshed);
     $token=$tokens['access_token'];

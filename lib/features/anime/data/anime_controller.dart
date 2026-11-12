@@ -7,6 +7,7 @@ import 'anime_local_store.dart';
 import 'anime_mal_client.dart';
 import 'anime_mal_shelf.dart';
 import 'local_anime_downloads.dart';
+import 'anime_sync.dart';
 import 'yomatv_source.dart';
 
 class AnimeController extends ChangeNotifier {
@@ -42,8 +43,10 @@ class AnimeController extends ChangeNotifier {
     AnimeLocalStore? store,
     LocalAnimeDownloads? transfers,
     Stream<bool> Function()? connectivity,
+    AnimeSync? accountSync,
     this.detailMaxAge = const Duration(minutes: 10),
-  }) : connectivity = connectivity ?? _deviceConnectivity,
+  }) : _accountSync = accountSync,
+       connectivity = connectivity ?? _deviceConnectivity,
        mal = mal ?? AnimeMalClient(),
        source = source ?? YomaTvSource(),
        store = store ?? AnimeLocalStore(),
@@ -51,6 +54,65 @@ class AnimeController extends ChangeNotifier {
     this.mal.onRemoteProgress = _malProgressConfirmed;
   }
   bool _disposed = false;
+
+  /// Biblioteca y progreso compartidos con los otros dispositivos y la web
+  /// de la misma cuenta de MyAnimeList (ver [AnimeSync]).
+  late final AnimeSync accountSync =
+      _accountSync ?? AnimeSync(client: mal.client, database: store.database);
+  final AnimeSync? _accountSync;
+  String? accountSyncError;
+  DateTime? accountSyncedAt;
+  bool accountSyncing = false;
+  Timer? _accountSyncTimer;
+
+  /// Espera tras un cambio antes de subirlo: durante la reproducción el
+  /// progreso se guarda cada pocos segundos.
+  static const accountSyncDelay = Duration(seconds: 20);
+
+  /// Sube lo cambiado aquí y aplica lo cambiado en otros sitios.
+  Future<void> syncAccount() async {
+    if (_disposed) return;
+    _accountSyncTimer?.cancel();
+    accountSyncing = true;
+    try {
+      final result = await accountSync.sync();
+      if (_disposed) return;
+      if (result.received > 0) await _reloadLocal();
+      if (result.ran) accountSyncedAt = DateTime.now();
+      accountSyncError = null;
+    } catch (e) {
+      accountSyncError = 'No se pudo sincronizar con tu cuenta: $e';
+    } finally {
+      accountSyncing = false;
+      if (!_disposed) changed();
+    }
+  }
+
+  void _scheduleAccountSync() {
+    if (_disposed) return;
+    _accountSyncTimer?.cancel();
+    _accountSyncTimer = Timer(accountSyncDelay, () => unawaited(syncAccount()));
+  }
+
+  /// Vuelve a leer biblioteca y progreso tras recibir cambios.
+  Future<void> _reloadLocal() async {
+    final rows = await store.library();
+    final history = await store.progress();
+    if (_disposed) return;
+    saved
+      ..clear()
+      ..addEntries(rows.map((row) => MapEntry('${row['slug']}', row)));
+    positions
+      ..clear()
+      ..addEntries(
+        history.map(
+          (row) => MapEntry(
+            AnimeEpisode.fromJson(animeMap(row['episode'])).key,
+            row,
+          ),
+        ),
+      );
+  }
 
   /// MAL confirmó un avance: la sección de MyAnimeList lo refleja al
   /// instante en vez de esperar a la próxima descarga de las listas.
@@ -164,6 +226,7 @@ class AnimeController extends ChangeNotifier {
     mal.client.sessionChanges.addListener(_sessionChanged);
     _listenForNetwork();
     unawaited(syncMal());
+    unawaited(syncAccount());
     unawaited(loadMalShelf());
     changed();
     unawaited(loadFront());
@@ -211,7 +274,10 @@ class AnimeController extends ChangeNotifier {
   void _listenForNetwork() {
     try {
       _network = connectivity().listen((online) {
-        if (online && !_disposed) unawaited(syncMal());
+        if (online && !_disposed) {
+          unawaited(syncMal());
+          unawaited(syncAccount());
+        }
       }, onError: (Object error) => debugPrint('Conectividad: $error'));
     } catch (error) {
       debugPrint('Conectividad opcional: $error');
@@ -221,6 +287,7 @@ class AnimeController extends ChangeNotifier {
   void _sessionChanged() {
     if (_disposed) return;
     unawaited(syncMal());
+    unawaited(syncAccount());
     unawaited(loadMalShelf());
   }
 
@@ -505,6 +572,7 @@ class AnimeController extends ChangeNotifier {
     if (active && !_disposed) {
       unawaited(refreshDownloads());
       unawaited(syncMal());
+      unawaited(syncAccount());
       // Al volver a YomaTV, lo visto en la web de MAL aparece en una hora
       // como mucho.
       unawaited(loadMalShelf(maxAge: resumeMaxAge));
@@ -841,6 +909,7 @@ class AnimeController extends ChangeNotifier {
     );
     saved[anime.slug] = item;
     changed();
+    _scheduleAccountSync();
   }
 
   Future<void> progress(
@@ -851,6 +920,7 @@ class AnimeController extends ChangeNotifier {
     bool? watched,
   }) async {
     final oldPosition = positions[episode.key];
+    _scheduleAccountSync();
     await store.saveProgress(
       anime,
       episode,
@@ -1036,6 +1106,7 @@ class AnimeController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _accountSyncTimer?.cancel();
     unawaited(_network?.cancel());
     if (mal.onRemoteProgress == _malProgressConfirmed) {
       mal.onRemoteProgress = null;

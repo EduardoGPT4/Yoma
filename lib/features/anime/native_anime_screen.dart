@@ -7,6 +7,7 @@ import '../../design/yoma_components.dart';
 import '../../design/yoma_tokens.dart';
 import '../../widgets/app_metrics.dart';
 import '../../widgets/section_header.dart';
+import '../../utils/time_format.dart';
 import 'anime_screen.dart';
 import 'data/anime_controller.dart';
 import 'data/anime_mal_client.dart';
@@ -63,6 +64,7 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen>
       // Aunque YomaTV no esté a la vista, lo visto sin conexión se envía a
       // MAL al volver a la app (sin pendientes no hace ninguna petición).
       unawaited(app.syncMal());
+      unawaited(app.syncAccount());
     }
   }
 

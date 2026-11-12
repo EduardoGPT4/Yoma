@@ -12,6 +12,7 @@ import 'diagnostics.dart';
 import 'myanimelist_service.dart';
 import '../features/anime/data/anime_episode_watch.dart';
 import '../features/anime/data/anime_mal_client.dart';
+import '../features/anime/data/anime_sync.dart';
 
 class MaintenancePlatform {
   static const channel = MethodChannel('app.yomashi.reader/maintenance');
@@ -65,13 +66,18 @@ class MaintenanceService {
 
   /// Envía a MAL los episodios de YomaTV pendientes (sustituible en pruebas).
   final Future<void> Function() animeMalFlush;
+
+  /// Sincroniza YomaTV con la cuenta (sustituible en pruebas).
+  final Future<void> Function() accountSync;
   MaintenanceService(
     this.engine, {
     Future<OnlineMangaDetail> Function(String)? detail,
     Future<Map<String, dynamic>> Function()? conditions,
     this.animeWatch,
     Future<void> Function()? animeMalFlush,
+    Future<void> Function()? accountSync,
   }) : animeMalFlush = animeMalFlush ?? (() => AnimeMalClient().flush()),
+       accountSync = accountSync ?? (() => AnimeSync().sync()),
        detail =
            detail ??
            ((ref) => OnlineCatalogService.fetchMangaDetail(ref, refresh: true)),
@@ -91,6 +97,12 @@ class MaintenanceService {
         await animeMalFlush();
       } catch (e) {
         await Diagnostics.record('anime_mal', e);
+      }
+      // Biblioteca y progreso de YomaTV con los otros dispositivos y la web.
+      try {
+        await accountSync();
+      } catch (e) {
+        await Diagnostics.record('yoma_sync', e);
       }
       if (s.backups) await RotatingBackupService.run(retain: s.backupRetention);
       final c = await conditions();

@@ -56,4 +56,36 @@ void main() {
     }
     expect(checked, greaterThan(100));
   });
+
+  test('la web usa la misma sincronización que el puente de MAL', () {
+    final release = 'web/tv.yoma.site/releases/yoma-design-20261111-1/private';
+    for (final name in ['yoma-sync.php', 'yoma-sync-web.php']) {
+      expect(
+        File('$release/$name').readAsStringSync(),
+        File('server/private/$name').readAsStringSync(),
+        reason: '$name: la copia de la web debe ser la de server/',
+      );
+    }
+    final app = File('$release/app.php').readAsStringSync();
+    expect(app, contains("require_once __DIR__ . '/yoma-sync-web.php';"));
+    // Un fallo de la sincronización nunca impide cargar la web.
+    expect(
+      RegExp(
+        r'try \{\s*yoma_sync_web\(\$db, uid\(\)\);\s*\} catch \(Throwable',
+      ).hasMatch(app),
+      isTrue,
+    );
+    // MySQL confirma la transacción en curso con CREATE TABLE: las tablas
+    // se crean antes de abrirla, nunca dentro de yoma_sync_dispatch.
+    final bridge = File('server/private/yomashi-mal.php').readAsStringSync();
+    expect(
+      bridge.indexOf('yoma_sync_schema(\$db)'),
+      lessThan(bridge.indexOf('\$db->beginTransaction();')),
+    );
+    final sync = File('server/private/yoma-sync.php').readAsStringSync();
+    final dispatch = sync.substring(
+      sync.indexOf('function yoma_sync_dispatch'),
+    );
+    expect(dispatch, isNot(contains(r'yoma_sync_schema($db)')));
+  });
 }
