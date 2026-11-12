@@ -20,6 +20,12 @@ class _MalSyncStatusState extends State<MalSyncStatus> {
   bool _busy = false;
   String? _error;
   int _generation = 0;
+
+  /// Vínculo ya consultado solo al abrir la ficha (uno por vínculo).
+  String? _checked;
+
+  /// Una consulta más reciente que esto no se repite al abrir la ficha.
+  static const fresh = Duration(minutes: 2);
   @override
   void initState() {
     super.initState();
@@ -34,6 +40,7 @@ class _MalSyncStatusState extends State<MalSyncStatus> {
     if (MyAnimeListService.mangaKey(old.manga) !=
         MyAnimeListService.mangaKey(widget.manga)) {
       _state = null;
+      _checked = null;
       _reload();
     }
   }
@@ -51,6 +58,7 @@ class _MalSyncStatusState extends State<MalSyncStatus> {
       setState(() {
         _state = null;
         _error = null;
+        _checked = null;
       });
     }
     _reload();
@@ -67,6 +75,7 @@ class _MalSyncStatusState extends State<MalSyncStatus> {
                 _state = state;
                 _error = null;
               });
+              _autoRefresh(state);
             }
           })
           .catchError((Object error) {
@@ -75,6 +84,22 @@ class _MalSyncStatusState extends State<MalSyncStatus> {
             }
           }),
     );
+  }
+
+  /// Consulta MAL sola al abrir la ficha, en lugar de esperar a un botón.
+  void _autoRefresh(Map<String, dynamic> state) {
+    final link = state['link'];
+    if (_busy || link is! Map) return;
+    final id = '${link['id']}:${link['version']}';
+    if (_checked == id) return;
+    _checked = id;
+    final checkedAt = (state['snapshot'] as Map?)?['checkedAt'];
+    if (checkedAt is int &&
+        DateTime.now().millisecondsSinceEpoch - checkedAt <
+            fresh.inMilliseconds) {
+      return;
+    }
+    unawaited(_refresh());
   }
 
   Future<void> _refresh() async {
@@ -106,6 +131,8 @@ class _MalSyncStatusState extends State<MalSyncStatus> {
         ? 'Sincronizado: capítulo ${snapshot!['chapters']}'
         : snapshot != null
         ? 'En MyAnimeList: capítulo ${snapshot['chapters']}'
+        : link != null && _busy
+        ? 'Obra vinculada · Consultando MyAnimeList…'
         : link != null
         ? 'Obra vinculada · Progreso aún sin consultar'
         : 'Vincular con MyAnimeList';
@@ -115,9 +142,19 @@ class _MalSyncStatusState extends State<MalSyncStatus> {
       children: [
         ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(
-            pending != null ? Icons.cloud_upload_outlined : Icons.sync_alt,
-          ),
+          leading: _busy
+              ? const SizedBox.square(
+                  dimension: 24,
+                  child: Padding(
+                    padding: EdgeInsets.all(2),
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : Icon(
+                  pending != null
+                      ? Icons.cloud_upload_outlined
+                      : Icons.sync_alt,
+                ),
           title: Text(label),
           subtitle: Text(
             [
@@ -143,15 +180,6 @@ class _MalSyncStatusState extends State<MalSyncStatus> {
             if (mounted) _reload();
           },
         ),
-        if (link != null)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _busy ? null : _refresh,
-              icon: const Icon(Icons.refresh),
-              label: Text(_busy ? 'Consultando…' : 'Consultar estado en MAL'),
-            ),
-          ),
         if (_error != null) Text(_error!),
       ],
     );

@@ -5,6 +5,7 @@ import '../models/chapter.dart';
 import '../models/content_identity.dart';
 import '../models/manga.dart';
 import '../utils/preferences.dart';
+import 'mal_source_matcher.dart';
 import 'myanimelist_client.dart';
 
 /// The local reading state is authoritative locally; MAL failures never undo it.
@@ -36,10 +37,80 @@ class MyAnimeListService {
         : null;
   }
 
+  /// Claves con las que puede estar guardada la misma obra: la propia y la de
+  /// su otra copia (la URL online de una carpeta descargada, o las carpetas
+  /// descargadas de una URL online).
+  static Future<List<String>> _candidates(Manga manga) async {
+    final own = mangaKey(manga);
+    final keys = <String>[own];
+    final links = await PreferencesService.getMangaSourceLinks();
+    if (ContentIdentity.isRemote(own)) {
+      for (final entry in links.entries) {
+        if (ContentIdentity.canonical(entry.value) == own) {
+          keys.add(ContentIdentity.canonical(entry.key));
+        }
+      }
+    } else {
+      final online = links[manga.path] ?? links[manga.title];
+      if (online != null && ContentIdentity.isRemote(online)) {
+        // Primero la URL: los vínculos nuevos se guardan con ella.
+        keys.insert(0, ContentIdentity.canonical(online));
+      }
+    }
+    return keys.toSet().toList();
+  }
+
+  /// Clave del vínculo de MAL de [manga], compartida por su copia offline y
+  /// su ficha online. Una carpeta sin URL de origen y una ficha online se
+  /// reconocen como la misma obra si solo una de ellas tiene ese nombre.
+  static Future<String> keyFor(Manga manga) async {
+    final store = await LibraryStore.ensureInitialized();
+    final keys = await _candidates(manga);
+    for (final key in keys) {
+      if (await store.getRecord('mal_links', key) is Map) return key;
+    }
+    final own = mangaKey(manga);
+    final remote = ContentIdentity.isRemote(own);
+    final title = MalSourceMatcher.titleKey(manga.title);
+    // Una carpeta con URL online ya se reconoce por ella, no por su nombre;
+    // y una obra cuyo vínculo quitó el usuario no se vuelve a unir.
+    if (title.isEmpty || (!remote && keys.length > 1)) return keys.first;
+    for (final key in keys) {
+      if (await store.getRecord(unlinkedNamespace, key) is Map) {
+        return keys.first;
+      }
+    }
+    final sources = {
+      for (final entry
+          in (await PreferencesService.getMangaSourceLinks()).entries)
+        ContentIdentity.canonical(entry.key): ContentIdentity.canonical(
+          entry.value,
+        ),
+    };
+    String? found;
+    for (final row in await store.readRecords('mal_links')) {
+      final id = row['id'];
+      final name = row['title'] as String? ?? '';
+      if (id is! String ||
+          ContentIdentity.isRemote(id) == remote ||
+          MalSourceMatcher.titleKey(name) != title) {
+        continue;
+      }
+      // Una carpeta descargada de otra URL online no es esta obra.
+      final source = sources[id] ?? sources[name];
+      if (remote && source != null && source != own) continue;
+      // Dos obras con ese nombre: no se elige una al azar.
+      if (found != null) return keys.first;
+      found = id;
+    }
+    if (found != null) return found;
+    return keys.first;
+  }
+
   Future<Map<String, dynamic>?> linkFor(Manga manga) async {
     final value = await (await LibraryStore.ensureInitialized()).getRecord(
       'mal_links',
-      mangaKey(manga),
+      await keyFor(manga),
     );
     return value is Map ? Map<String, dynamic>.from(value) : null;
   }
@@ -47,6 +118,7 @@ class MyAnimeListService {
   Future<Map<String, dynamic>> statusFor(Manga manga) async {
     final auth = await client.credentials.load();
     final owner = (auth?['profile'] as Map?)?['id'];
+    final key = await keyFor(manga);
     final mapping = await linkFor(manga);
     if (auth?['connected'] != true ||
         mapping == null ||
@@ -54,8 +126,8 @@ class MyAnimeListService {
       return {'connected': auth?['connected'] == true};
     }
     final store = await LibraryStore.ensureInitialized();
-    final snapshot = await store.getRecord('mal_sync', mangaKey(manga));
-    final pending = await store.getRecord('mal_pending', mangaKey(manga));
+    final snapshot = await store.getRecord('mal_sync', key);
+    final pending = await store.getRecord('mal_pending', key);
     bool current(dynamic row) =>
         row is Map &&
         row['owner'] == owner &&
@@ -85,7 +157,7 @@ class MyAnimeListService {
       return;
     }
     final store = await LibraryStore.ensureInitialized();
-    final key = mangaKey(manga);
+    final key = await keyFor(manga);
     await store.transaction(() async {
       final link = await store.getRecord('mal_links', key);
       if (link is! Map ||
@@ -150,10 +222,13 @@ class MyAnimeListService {
       );
     }
     final store = await LibraryStore.ensureInitialized();
-    final key = mangaKey(manga);
+    final key = await keyFor(manga);
+    final copies = await _candidates(manga);
     await store.transaction(() async {
-      // Un vínculo elegido deshace un «Quitar vínculo».
-      await store.deleteRecord(unlinkedNamespace, key);
+      // Un vínculo elegido deshace un «Quitar vínculo», en las dos copias.
+      for (final copy in {key, ...copies}) {
+        await store.deleteRecord(unlinkedNamespace, copy);
+      }
       await store.deleteRecord('mal_pending', key);
       await store.putRecord('mal_links', key, {
         'id': key,
@@ -191,7 +266,7 @@ class MyAnimeListService {
 
   Future<void> unlink(Manga manga) async {
     final store = await LibraryStore.ensureInitialized();
-    final key = mangaKey(manga);
+    final key = await keyFor(manga);
     final owner =
         ((await client.credentials.load())?['profile'] as Map?)?['id'];
     await store.transaction(() async {
@@ -214,14 +289,17 @@ class MyAnimeListService {
   Future<bool> unlinkedByUser(Manga manga) async {
     final owner =
         ((await client.credentials.load())?['profile'] as Map?)?['id'];
-    final row = await (await LibraryStore.ensureInitialized()).getRecord(
-      unlinkedNamespace,
-      mangaKey(manga),
-    );
-    return row is Map && row['owner'] == owner;
+    final store = await LibraryStore.ensureInitialized();
+    // Vale para las dos copias de la obra: quitarlo en una lo quita en ambas.
+    for (final key in {await keyFor(manga), ...await _candidates(manga)}) {
+      final row = await store.getRecord(unlinkedNamespace, key);
+      if (row is Map && row['owner'] == owner) return true;
+    }
+    return false;
   }
 
   Future<void> registerManga(Manga manga, {Iterable<Chapter>? chapters}) async {
+    final key = await keyFor(manga);
     final link = await linkFor(manga);
     if (link == null) return;
     final store = await LibraryStore.ensureInitialized();
@@ -231,7 +309,7 @@ class MyAnimeListService {
         for (final chapter in list.skip(start).take(100)) {
           final number = chapterNumber(chapter);
           if (number == null) continue;
-          final record = {'manga': mangaKey(manga), 'chapter': number};
+          final record = {'manga': key, 'chapter': number};
           await store.putRecord(
             'mal_chapters',
             ContentIdentity.canonical(chapter.path),
