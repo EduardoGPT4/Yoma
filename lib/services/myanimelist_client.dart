@@ -14,6 +14,11 @@ class MalFailure implements Exception {
   String toString() => message;
 }
 
+/// No se llegó al servidor (red, TLS o tiempo de espera).
+class _TransportFailure extends MalFailure {
+  const _TransportFailure(super.message);
+}
+
 abstract class MalCredentialStore {
   Future<Map<String, dynamic>?> load();
   Future<void> save(Map<String, dynamic> value);
@@ -134,17 +139,33 @@ class MyAnimeListClient {
   final sessionChanges = ValueNotifier<int>(0);
   static final endpoint = YomaServices.malApi;
   final Uri api;
+
+  /// Servidor de respaldo con el mismo puente y la misma base de datos
+  /// (tv.yoma.site). Sin él, siempre se usa [api].
+  final Uri? fallback;
+
+  /// Cada cuánto se vuelve a probar [api] mientras se usa [fallback].
+  static const recheck = Duration(minutes: 30);
+  Uri? _active;
+  DateTime? _checkedAt;
+  Future<Uri>? _choosing;
   final HttpClient http;
   final MalCredentialStore credentials;
   final Future<String> Function(List<String>) solveHostCookie;
-  String? _cookie;
+
+  /// Cookie de verificación del alojamiento, por servidor.
+  final Map<String, String> _cookies = {};
   Future<Map<String, dynamic>?>? _accountRequest;
   MyAnimeListClient({
     Uri? api,
+    Uri? fallback,
     HttpClient? http,
     MalCredentialStore? credentials,
     Future<String> Function(List<String>)? solveHostCookie,
   }) : api = api ?? endpoint,
+       fallback = api == null
+           ? (fallback ?? YomaServices.legacyMalApi)
+           : fallback,
        http = http ?? yomaHttpClient(),
        credentials = credentials ?? MalPlatform(),
        solveHostCookie = solveHostCookie ?? MalPlatform.hostCookie {
@@ -200,6 +221,58 @@ class MyAnimeListClient {
         409,
       );
     }
+    final target = await _target();
+    try {
+      return await _exchange(
+        target,
+        input,
+        auth,
+        anonymous: anonymous,
+        expectedOwner: expectedOwner,
+      );
+    } on _TransportFailure {
+      // api.yoma.site dejó de responder: la próxima vez se vuelve a elegir.
+      if (identical(target, api) && fallback != null) _active = null;
+      rethrow;
+    }
+  }
+
+  /// Servidor para esta petición: [api] si responde a `ping` (lo que prueba
+  /// que su base de datos funciona); si no, [fallback].
+  Future<Uri> _target() async {
+    final fallback = this.fallback;
+    if (fallback == null) return api;
+    final active = _active, checkedAt = _checkedAt;
+    if (active != null &&
+        (identical(active, api) ||
+            (checkedAt != null &&
+                DateTime.now().difference(checkedAt) < recheck))) {
+      return active;
+    }
+    return _choosing ??= () async {
+      try {
+        final data = await _exchange(
+          api,
+          {'action': 'ping'},
+          null,
+          anonymous: true,
+        );
+        _active = data['service'] == 'yoma-api' ? api : fallback;
+      } catch (_) {
+        _active = fallback;
+      }
+      _checkedAt = DateTime.now();
+      return _active!;
+    }().whenComplete(() => _choosing = null);
+  }
+
+  Future<Map<String, dynamic>> _exchange(
+    Uri target,
+    Map<String, dynamic> input,
+    Map<String, dynamic>? auth, {
+    bool anonymous = false,
+    int? expectedOwner,
+  }) async {
     try {
       for (var attempt = 0; attempt < 2; attempt++) {
         if (!anonymous &&
@@ -210,7 +283,7 @@ class MyAnimeListClient {
             409,
           );
         }
-        final req = await http.postUrl(api);
+        final req = await http.postUrl(target);
         req.followRedirects = false;
         // The host may answer its cookie challenge before reading a chunked
         // request. Send a fixed-size body and avoid reusing that connection.
@@ -224,8 +297,9 @@ class MyAnimeListClient {
           // The shared hosting proxy strips Authorization before PHP.
           req.headers.set('X-YomaShi-Token', auth['device_token']);
         }
-        if (_cookie != null) {
-          req.headers.set(HttpHeaders.cookieHeader, '__test=$_cookie');
+        final cookie = _cookies[target.host];
+        if (cookie != null) {
+          req.headers.set(HttpHeaders.cookieHeader, '__test=$cookie');
         }
         final body = utf8.encode(
           jsonEncode({...input, 'owner_id': ?expectedOwner}),
@@ -254,10 +328,11 @@ class MyAnimeListClient {
           if (values.length != 3 || values.any((v) => v.length != 32)) {
             throw const MalFailure('No se pudo verificar el alojamiento.');
           }
-          _cookie = await solveHostCookie(values);
-          if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(_cookie!)) {
+          final solved = await solveHostCookie(values);
+          if (!RegExp(r'^[a-f0-9]{32}$').hasMatch(solved)) {
             throw const MalFailure('No se pudo verificar el alojamiento.');
           }
+          _cookies[target.host] = solved;
           continue;
         }
         final data = jsonDecode(text);
@@ -294,15 +369,19 @@ class MyAnimeListClient {
     } on MalFailure {
       rethrow;
     } on TimeoutException {
-      throw const MalFailure(
+      throw const _TransportFailure(
         'MyAnimeList tardó demasiado. El progreso pendiente se conserva.',
       );
     } on SocketException {
-      throw const MalFailure(
+      throw const _TransportFailure(
         'Sin conexión con MyAnimeList. El progreso pendiente se conserva.',
       );
+    } on TlsException {
+      throw const _TransportFailure(
+        'No se pudo establecer una conexión segura. Vuelve a intentarlo.',
+      );
     } on HttpException {
-      throw const MalFailure(
+      throw const _TransportFailure(
         'La conexión se interrumpió. Vuelve a intentarlo.',
       );
     } on FormatException {

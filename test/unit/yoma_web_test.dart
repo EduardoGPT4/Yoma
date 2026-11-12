@@ -13,7 +13,8 @@ void main() {
     expect(AnimeScreenState.site, YomaWeb.base);
     expect(
       MyAnimeListClient.endpoint.toString(),
-      'https://tv.yoma.site/yomashi-api.php',
+      // El puente de MAL ya no es de YomaTV (ver «servicios compartidos»).
+      'https://api.yoma.site/yomashi-api.php',
     );
     expect(
       YomaWeb.resolve('#watch/12').toString(),
@@ -60,14 +61,23 @@ void main() {
     );
   });
 
-  test('los servicios compartidos tienen su propia dirección', () {
-    // YomaShi no depende de la dirección de YomaTV: el puente de MAL tiene
-    // la suya (hoy, el mismo hosting).
+  test('los servicios compartidos viven en api.yoma.site', () {
+    // YomaShi no depende de la dirección de YomaTV: el puente de MAL está en
+    // api.yoma.site, con tv.yoma.site como respaldo mientras api no responda.
     expect(MyAnimeListClient.endpoint, YomaServices.malApi);
     expect(
       YomaServices.malApi.toString(),
-      'https://${YomaServices.host}${YomaServices.path}yomashi-api.php',
+      'https://api.yoma.site/yomashi-api.php',
     );
+    expect(
+      YomaServices.legacyMalApi.toString(),
+      'https://tv.yoma.site/yomashi-api.php',
+    );
+    final client = MyAnimeListClient();
+    expect(client.api, YomaServices.malApi);
+    expect(client.fallback, YomaServices.legacyMalApi);
+    client.http.close(force: true);
+    // La autorización sigue en tv.yoma.site (dirección de retorno de MAL).
     for (final ok in [
       'https://tv.yoma.site/yomashi-connect.php?device=1',
       'https://tv.yoma.site:443/yomashi-connect.php',
@@ -76,6 +86,7 @@ void main() {
     }
     for (final bad in [
       'http://tv.yoma.site/yomashi-connect.php',
+      'https://api.yoma.site/yomashi-connect.php',
       'https://tv.yoma.site/otra.php',
       'https://tv.yoma.site.evil.com/yomashi-connect.php',
       'https://user@tv.yoma.site/yomashi-connect.php',
@@ -91,5 +102,9 @@ void main() {
     final services = kotlin.substring(kotlin.indexOf('object YomaServices'));
     expect(services, contains('const val HOST = "${YomaServices.host}"'));
     expect(services, contains('const val PATH = "${YomaServices.path}"'));
+    expect(
+      services,
+      contains('const val CONNECT_HOST = "${YomaServices.connectHost}"'),
+    );
   });
 }

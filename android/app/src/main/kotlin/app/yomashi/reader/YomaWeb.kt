@@ -24,14 +24,16 @@ object YomaWeb {
     }
 }
 
-/** Servicios compartidos por YomaShi y YomaTV (puente de MyAnimeList). Hoy en el
- *  hosting de YomaTV; moverlos es cambiar [HOST] y [PATH]. Debe coincidir con
+/** Servicios compartidos por YomaShi y YomaTV (puente de MyAnimeList y
+ *  sincronización), en api.yoma.site. La autorización en el navegador sigue en
+ *  [CONNECT_HOST], la dirección de retorno registrada en MAL. Debe coincidir con
  *  YomaServices de lib/config/yoma_web.dart. */
 object YomaServices {
-    const val HOST = "tv.yoma.site"
+    const val HOST = "api.yoma.site"
     const val PATH = "/"
+    const val CONNECT_HOST = "tv.yoma.site"
 
-    /** Página para conectar MyAnimeList: HTTPS de [HOST], puerto 443, sin usuario. */
-    fun isConnectPage(uri: Uri?): Boolean = uri != null && uri.scheme == "https" && uri.host == HOST &&
-        uri.port in setOf(-1, 443) && uri.userInfo == null && uri.path == PATH + "yomashi-connect.php"
+    /** Página para conectar MyAnimeList: HTTPS de [CONNECT_HOST], puerto 443, sin usuario. */
+    fun isConnectPage(uri: Uri?): Boolean = uri != null && uri.scheme == "https" && uri.host == CONNECT_HOST &&
+        uri.port in setOf(-1, 443) && uri.userInfo == null && uri.path == "/yomashi-connect.php"
 }

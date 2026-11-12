@@ -6,7 +6,8 @@ Cada carpeta es lo que se sube a la carpeta `htdocs` de su dominio en el hosting
 |---|---|---|
 | `yoma.site/` | yoma.site | Página principal: presentación y descarga de la app |
 | `shi.yoma.site/` | shi.yoma.site | Presentación de YomaShi |
-| `tv.yoma.site/` | tv.yoma.site | YomaTV web (PHP y JS) y, por ahora, los servicios compartidos (puente de MyAnimeList) |
+| `tv.yoma.site/` | tv.yoma.site | YomaTV web (PHP y JS) y la autorización de MyAnimeList (dirección de retorno registrada) |
+| `api.yoma.site/` | api.yoma.site | Servicios compartidos: puente de MyAnimeList y sincronización (copias de `server/`; necesita el `config.local.php` de tv) |
 
 ## No está en el repositorio
 

@@ -63,27 +63,33 @@ YomaShi funciona igual con la lista de manga de MAL (lectura y «Reading»).
 
 ## 3. Dependencia de YomaShi respecto a tv.yoma.site
 
-**Situación.** El puente de MyAnimeList (`yomashi-api.php` y `yomashi-connect.php`) es de toda Yoma, pero vive en el hosting de YomaTV. Si tv.yoma.site falla (certificado, verificación del hosting, cuota), YomaShi también pierde MAL.
+**Hecho en la 3.2.21: los servicios compartidos están en `api.yoma.site`.**
 
-**Hecho en la 3.2.19.** La app ya no localiza ese puente con la dirección de YomaTV:
+| Pieza | Dónde | Por qué |
+|---|---|---|
+| API del puente de MAL y sincronización (`yomashi-api.php`) | **api.yoma.site** | Ya no depende del hosting web de YomaTV |
+| Autorización en el navegador (`yomashi-connect.php` → MAL → `mal-callback.php`) | tv.yoma.site | Es la dirección de retorno registrada en la aplicación de MAL, y la web la usa para su propia conexión |
+| Base de datos y configuración de MAL | Compartidas | api.yoma.site usa el mismo `private/config.local.php` |
 
-- tiene su propia configuración, `YomaServices` (Dart) y `YomaServices` (Kotlin), que hoy apunta a tv.yoma.site;
-- una prueba comprueba que Dart y Android coinciden.
+**El sitio (`web/api.yoma.site`):**
 
-Mudarlo es cambiar un valor en cada uno.
+- **Arranque propio y mínimo** (`private/app.php`): base de datos, límite de peticiones y errores, sin sesiones web ni migraciones; el esquema lo mantiene la web en la base compartida.
+- **Copias exactas** del puente (`server/`) y de `mal-http.php` de la web. `test/backend/test_api_site.py` comprueba que no se separen y prueba el sitio de punta a punta con PHP y un MAL simulado, incluida la renovación de tokens.
+- **`ping`:** solo responde bien si la base de datos funciona.
 
-**Pasos para mudarlo a `api.yoma.site`** (cuando se decida):
+**La app** (`YomaServices`, en Dart y Kotlin):
 
-1. Crear el subdominio `api.yoma.site` en InfinityFree, con SSL. El certificado intermedio ya va en la app para todo `*.yoma.site`.
-2. Subir con `tools/deploy_anime_backend.py --remote-dir /api.yoma.site/htdocs --connect`:
-   - los archivos de `server/`;
-   - `private/config.local.php`, que usa la misma base de datos, así que las sesiones siguen valiendo.
-3. En `server/private/yomashi-mal.php`, cambiar `YS_ORIGIN` y la dirección de retorno.
-4. Añadir `https://api.yoma.site/mal-callback.php` en la aplicación de MyAnimeList.
-5. Cambiar `YomaServices.host` en `lib/config/yoma_web.dart` y en `YomaWeb.kt`, y publicar la app.
-6. Mantener el puente en tv.yoma.site hasta que no quede ninguna versión antigua de la app en uso.
+- Usa api.yoma.site si responde a `ping`; si no, el mismo puente en tv.yoma.site.
+- Vuelve a probar api cada 30 minutos o tras un fallo de red.
+- Un api sin SSL o sin configuración nunca desconecta la cuenta: la app sigue con tv.
 
-**Riesgo a vigilar.** MyAnimeList permite una sola dirección de retorno por aplicación. Si no admite dos, el cambio debe hacerse a la vez que se publica la app.
+**Para activarlo:**
+
+1. Activa el SSL gratuito de `api.yoma.site` en el panel de InfinityFree y espera a que se emita. Hoy sirve un certificado provisional autofirmado.
+2. Sube `dist/sitios/api.yoma.site.zip` a `api.yoma.site/htdocs`.
+3. Copia `tv.yoma.site/htdocs/private/config.local.php` a `api.yoma.site/htdocs/private/config.local.php`, con el gestor de archivos.
+4. Abre `https://api.yoma.site/`: debe mostrar `{"service":"yoma-api","ok":true}`.
+5. La app pasará sola a api.yoma.site en la siguiente comprobación: al abrirla o, como mucho, en 30 minutos.
 
 ## 4. Estructura propuesta
 

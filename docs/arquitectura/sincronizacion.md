@@ -53,12 +53,13 @@ Entre los teléfonos y la web de **una misma cuenta de MyAnimeList**:
    - `yoma-sync.php`;
    - `yoma-sync-web.php`;
    - `ready.json`.
-2. **Puente de MAL.** Ejecuta en el equipo, con tus credenciales de FTP (se piden en la consola y no se guardan):
+2. **Servicios en api.yoma.site** (desde Yoma 3.2.21; pasos en `fase-3.md`, sección 3). El paquete `dist/sitios/api.yoma.site.zip` ya lleva la sincronización.
+3. **Opcional: puente en tv.yoma.site**, para las versiones de la app anteriores a la 3.2.21 y como respaldo. Ejecuta en el equipo, con tus credenciales de FTP (se piden en la consola y no se guardan):
    ```
    python -I tools/deploy_anime_backend.py --remote-dir /tv.yoma.site/htdocs --publish
    ```
    Publica una extensión nueva con `yoma-sync.php` y cambia la entrada `yomashi-api.php` a ella, guardando copia de la anterior.
-3. **App.** Instala Yoma 3.2.20. Al abrir YomaTV, «Más › Sincronizar con tu cuenta» debe mostrar «Al día».
+4. **App.** Instala Yoma 3.2.21 o posterior. Al abrir YomaTV, «Más › Sincronizar con tu cuenta» debe mostrar «Al día».
 
 Las tablas se crean solas la primera vez.
 

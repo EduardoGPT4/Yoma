@@ -151,6 +151,8 @@ function ys_status(PDO $db,array $row,bool &$refreshed): array {
 }
 function ys_dispatch(PDO $db,array $input,string $bearer): array {
   ys_schema($db);$action=$input['action']??'';
+  // Comprobación de la app antes de usar este servidor: responde solo si su base de datos funciona.
+  if($action==='ping') return ['service'=>'yoma-api','sync'=>function_exists('yoma_sync_dispatch')];
   if($action==='start') return ys_start($db);
   if(!preg_match('/^[a-f0-9]{64}$/D',$bearer)) throw new WebError('Conecta tu cuenta de MyAnimeList.',401);
   // Reject bad inputs before a possible OAuth refresh with rotating credentials.
