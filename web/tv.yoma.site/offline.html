@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#101114" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://cdn.animeav1.com; connect-src 'self'; base-uri 'self'; object-src 'none'"
+    />
+    <title>Catálogo sin conexión · SeasonAV1</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png?v=20261015-human-v3" />
+    <link rel="stylesheet" href="assets/app.css" />
+    <link rel="stylesheet" href="assets/features.css" />
+    <script src="assets/theme.js"></script>
+    <script src="assets/offline.js" defer></script>
+  </head>
+  <body>
+    <main class="offline-main">
+      <div class="page-title">
+        <div>
+          <p class="eyebrow">SEASONAV1 · CATÁLOGO SIN CONEXIÓN</p>
+          <h1>Tus historias siguen aquí.</h1>
+          <p>
+            Puedes buscar en el catálogo público guardado. La reproducción, MAL
+            y las descargas requieren conexión.
+          </p>
+        </div>
+        <a class="button primary" href="./">Volver a la web</a>
+      </div>
+      <input
+        id="offline-search"
+        class="form-input"
+        type="search"
+        placeholder="Buscar anime…"
+        aria-label="Buscar en el catálogo sin conexión"
+      />
+      <p id="offline-count" class="muted"></p>
+      <div id="offline-results"></div>
+      <div class="toolbar">
+        <button id="offline-prev" class="button ghost">Anterior</button
+        ><span id="offline-page"></span
+        ><button id="offline-next" class="button ghost">Siguiente</button>
+      </div>
+    </main>
+  </body>
+</html>

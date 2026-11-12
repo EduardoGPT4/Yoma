@@ -1,0 +1,26 @@
+'use strict';
+let healthSnapshot = null, healthOwner = 0, healthBusy = false;
+function systemHealthPanel() {
+  if (!state.user?.is_admin) return '';
+  const h = healthOwner === Number(state.user.id) ? healthSnapshot : null;
+  const metric = (value) => Number(value || 0).toLocaleString('es', { maximumFractionDigits: 1 });
+  return `<section class="panel maintenance-panel" id="system-health"><div class="section-heading"><h2>Salud y mantenimiento</h2>${button('health_refresh',healthBusy?'Comprobando…':'Actualizar diagnóstico','refresh','','ghost')}</div><p>Duración y consultas de las últimas 24 horas. Se registran contadores, sin contraseñas, tokens ni contenido de las listas.</p>${h ? `<p>Versión ${e(h.release)} · esquema ${e(h.schema)} · ${e(h.database)} · limpieza ${e(dateText(h.retention?.at))}</p><div class="health-table-wrap"><table class="health-table"><thead><tr><th>Operación</th><th>Peticiones</th><th>Errores</th><th>Media / máximo</th><th>Consultas / petición</th></tr></thead><tbody>${h.metrics.map(m=>`<tr><td>${e(m.action)}</td><td>${metric(m.requests)}</td><td>${metric(m.failures)}</td><td>${metric(m.average_ms)} / ${metric(m.max_ms)} ms</td><td>${metric(m.queries_per_request)}</td></tr>`).join('')}</tbody></table></div><p>${h.pending.map(p=>`${e(p.state)}: ${metric(p.total)} · más antiguo ${e(dateText(p.oldest))}`).join(' · ') || 'Sin trabajos de catálogo pendientes.'}</p><div class="health-data-age"><h3>Antigüedad de los datos</h3>${Object.entries(h.freshness||{}).filter(([,v])=>v&&typeof v==='object').map(([name,v])=>`<p><strong>${e(({directory:'Directorio',episodes:'Capítulos',genres:'Géneros',airing:'Emisión',servers:'Servidores'})[name]||name)}</strong> · ${metric(v.checked)} / ${metric(v.total??h.freshness.total)} comprobados · más antiguo ${e(dateText(v.oldest))} · más reciente ${e(dateText(v.newest))}</p>`).join('')}</div><details><summary>Errores repetidos y planes de consulta</summary><ul>${h.errors.map(r=>`<li>${e(r.action)} · ${e(r.kind)} · ${metric(r.occurrences)} veces · ${e(dateText(r.last_at))}</li>`).join('')||'<li>No hay errores registrados.</li>'}</ul><pre class="health-plans">${e(JSON.stringify(h.plans,null,2))}</pre></details>` : '<p class="muted">Pulsa «Actualizar diagnóstico» para consultar el estado del servidor.</p>'}<h3>Respaldo cifrado de la base de datos</h3><p class="${!h?.backup?.at||Date.now()/1000-Number(h.backup.at)>604800?'form-error':'muted'}">${!h?.backup?.at||Date.now()/1000-Number(h.backup.at)>604800?'Copia semanal pendiente: descarga un respaldo cifrado y verifica su restauración en una base aislada.':'Hay una copia registrada durante los últimos siete días. Conserva también una copia fuera de este equipo.'}</p><p>Solo administradores. Conserva la clave junto a tus respaldos; no se guarda en el servidor. La restauración se hace desde la herramienta de mantenimiento sobre una base vacía.</p><form id="backup-form"><div class="field"><label for="backup-password">Clave de cifrado (mínimo 16 caracteres)</label><input class="form-input" id="backup-password" name="password" type="password" autocomplete="new-password" minlength="16" maxlength="256" required></div><button type="submit" class="button ghost">Descargar respaldo cifrado</button><p class="form-error" aria-live="polite"></p></form><p class="muted">Último respaldo: ${e(dateText(h?.backup?.at))}. Los archivos de configuración y sus claves de cifrado deben guardarse aparte.</p></section>`;
+}
+document.addEventListener('click', async event => {
+  const b=event.target.closest('[data-action="health_refresh"]');if(!b||healthBusy)return;
+  event.preventDefault();const owner=Number(state.user?.id);healthBusy=true;b.disabled=true;
+  try{const result=await api('system_health',{},true);if(owner!==Number(state.user?.id))return;healthOwner=owner;healthSnapshot=result.system_health;}
+  catch(error){if(!error.cancelled)toast(error.message,true);}finally{healthBusy=false;b.disabled=false;if(owner===Number(state.user?.id)&&view==='settings')render();}
+});
+document.addEventListener('submit', async event => {
+  if(event.target.id!=='backup-form')return;event.preventDefault();
+  const form=event.target,submit=form.querySelector('button'),error=form.querySelector('.form-error');submit.disabled=true;error.textContent='';
+  const owner=Number(state.user?.id),epoch=SeasonTransport.epoch;
+  try{
+    const {response,result}=await SeasonTransport.request('backup.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({password:form.elements.password.value})},{timeout:120000,format:'blob'});
+    if(owner!==Number(state.user?.id)||epoch!==SeasonTransport.epoch)return;
+    if(!response.ok)throw new Error(result.message||'No se pudo crear el respaldo.');
+    const blob=result,url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`YomaTV-${new Date().toISOString().slice(0,10)}.sa1backup`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);form.reset();toast('Respaldo cifrado descargado. Guarda también su clave.');
+  }catch(e){if(e.cancelled)return;error.textContent=e.name==='AbortError'?'El respaldo tardó demasiado. Inténtalo más tarde.':e.message;}
+  finally{submit.disabled=false;}
+});

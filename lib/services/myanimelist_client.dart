@@ -132,7 +132,7 @@ class MalMangaPage {
 class MyAnimeListClient {
   /// Signals committed credential changes without exposing the device token.
   final sessionChanges = ValueNotifier<int>(0);
-  static final endpoint = YomaWeb.resolve('yomashi-api.php');
+  static final endpoint = YomaServices.malApi;
   final Uri api;
   final HttpClient http;
   final MalCredentialStore credentials;
@@ -318,11 +318,7 @@ class MyAnimeListClient {
     final value = await request({'action': 'start'}, anonymous: true);
     final uri = Uri.tryParse(value['connect_url'] as String? ?? '');
     if (uri == null ||
-        uri.scheme != 'https' ||
-        !YomaWeb.hosts.contains(uri.host) ||
-        uri.port != 443 ||
-        uri.path != YomaWeb.pathOf(uri, 'yomashi-connect.php') ||
-        uri.userInfo.isNotEmpty ||
+        !YomaServices.isConnectPage(uri) ||
         uri.fragment.isNotEmpty ||
         !RegExp(
           r'^[a-f0-9]{32}$',

@@ -81,3 +81,12 @@ __pycache__/
 /docs/yoma/source-audit/*
 !/docs/yoma/source-audit/catalog.json
 !/docs/yoma/source-audit/detail.json
+
+# Web de Yoma: nunca credenciales ni datos generados por el servidor.
+web/**/private/*.local.php
+web/tv.yoma.site/data/
+web/tv.yoma.site/feeds/
+web/tv.yoma.site/downloads/
+web/tv.yoma.site/releases/*/data/
+web/tv.yoma.site/releases/*/feeds/
+web/tv.yoma.site/releases/*/downloads/

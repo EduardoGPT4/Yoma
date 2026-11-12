@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 const sheets = [
   'web/yoma.site/style.css',
   'web/shi.yoma.site/style.css',
-  'web/tv.yoma.site/yoma.css',
+  'web/tv.yoma.site/releases/yoma-design-20261111-1/assets/yoma.css',
 ];
 
 String kebab(String name) => name
@@ -104,7 +104,9 @@ void main() {
 
       // YomaTV conserva sus nombres de la web; su superficie es la baja de la app.
       final tv = declarations(
-        File('web/tv.yoma.site/yoma.css').readAsStringSync(),
+        File(
+          'web/tv.yoma.site/releases/yoma-design-20261111-1/assets/yoma.css',
+        ).readAsStringSync(),
         ':root, :root[data-theme]',
       );
       expect(resolve(tv, '--surface'), tokens['--yoma-surface-low']);

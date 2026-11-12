@@ -19,7 +19,7 @@ TOKENS = ROOT / 'lib/design/yoma_tokens.dart'
 SHEETS = [
     ROOT / 'web/yoma.site/style.css',
     ROOT / 'web/shi.yoma.site/style.css',
-    ROOT / 'web/tv.yoma.site/yoma.css',
+    ROOT / 'web/tv.yoma.site/releases/yoma-design-20261111-1/assets/yoma.css',
 ]
 START = '/* yoma-tokens:start · generado por tools/generate_web_tokens.py desde lib/design/yoma_tokens.dart; no editar a mano */'
 END = '/* yoma-tokens:end */'

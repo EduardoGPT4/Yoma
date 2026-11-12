@@ -1,0 +1,22 @@
+{
+  "repositories": {
+    "android": "EduardoGPT4/Yoma",
+    "windows": "EduardoGPT4/YomaTV"
+  },
+  "apps": [
+    {
+      "platform": "android",
+      "version": "3.2.18",
+      "bytes": 66634761,
+      "sha256": "8179ce9e6c45afca1c680cf00dbe9a42afd6d72c70d50c37136bca9962ca145c",
+      "url": "https://github.com/EduardoGPT4/Yoma/releases/download/v3.2.18/Yoma-3.2.18-arm64.apk"
+    },
+    {
+      "platform": "windows",
+      "version": "2026.10.25.2",
+      "bytes": 63762295,
+      "sha256": "d409ae99907321f7c86936b707d346cc6051e9a87b09286ba4c00e5a733a1be2",
+      "url": "https://github.com/EduardoGPT4/YomaTV/releases/download/v1.4.0/YomaTV-Windows-2026.10.25.2.exe"
+    }
+  ]
+}

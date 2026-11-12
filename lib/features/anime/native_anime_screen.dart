@@ -17,6 +17,7 @@ import 'models/anime_models.dart';
 import 'screens/anime_detail_screen.dart';
 import 'screens/anime_mal_screen.dart';
 import 'screens/anime_player_screen.dart';
+import 'screens/anime_schedule_screen.dart';
 import 'widgets/anime_widgets.dart';
 
 part 'tabs/anime_home_tab.dart';
@@ -156,6 +157,13 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen>
         ),
       );
 
+  /// Horario de emisión de la temporada (datos públicos, sin cuenta).
+  void _schedule() => _navigator.currentState!.push(
+    MaterialPageRoute<void>(
+      builder: (_) => AnimeScheduleScreen(controller: app, detail: _detail),
+    ),
+  );
+
   void _openMal() => _navigator.currentState!.push(
     MaterialPageRoute<void>(
       builder: (_) => AnimeMalScreen(controller: app, home: widget.home),
@@ -219,6 +227,7 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen>
         web: () => _web(),
         home: widget.home,
         mal: _openMal,
+        schedule: _schedule,
       ),
     ),
   );
@@ -235,7 +244,7 @@ class _AnimeMain extends StatelessWidget {
   final ValueChanged<String> detail;
   final void Function(String slug, MalAnimeEntry entry) openMal;
   final void Function(AnimeDetail, AnimeEpisode) play;
-  final VoidCallback web, home, mal;
+  final VoidCallback web, home, mal, schedule;
   const _AnimeMain({
     required this.app,
     required this.detail,
@@ -244,6 +253,7 @@ class _AnimeMain extends StatelessWidget {
     required this.web,
     required this.home,
     required this.mal,
+    required this.schedule,
   });
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -255,6 +265,11 @@ class _AnimeMain extends StatelessWidget {
           label: Text('YomaTV'),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Horario de emisión',
+            onPressed: schedule,
+            icon: const Icon(Icons.calendar_month_outlined),
+          ),
           IconButton(
             tooltip: 'Buscar anime',
             onPressed: () => app.selectTab(1),

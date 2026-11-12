@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#101014" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://cdn.animeav1.com; connect-src 'self'; base-uri 'self'; object-src 'none'"
+    />
+    <title>Catálogo sin conexión · YomaTV</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/releases/yoma-design-20261111-1/assets/icon-32.png?v=20261112-anime" />
+    <link rel="stylesheet" href="/releases/yoma-design-20261111-1/assets/fonts.css" />
+    <link rel="stylesheet" href="/releases/yoma-design-20261111-1/assets/app.css" />
+    <link rel="stylesheet" href="/releases/yoma-design-20261111-1/assets/features.css" />
+    <link rel="stylesheet" href="/releases/yoma-design-20261111-1/assets/medianoche.css" />
+    <link rel="stylesheet" href="/releases/yoma-design-20261111-1/assets/yoma.css" />
+    <script src="/releases/yoma-design-20261111-1/assets/theme.js"></script>
+    <script src="/releases/yoma-design-20261111-1/assets/offline.js" defer></script>
+  </head>
+  <body>
+    <main class="offline-main">
+      <div class="page-title">
+        <div>
+          <p class="eyebrow">YOMATV · CATÁLOGO SIN CONEXIÓN</p>
+          <h1>Tus historias siguen aquí.</h1>
+          <p>
+            Puedes buscar en el catálogo público guardado. La reproducción, MAL
+            y las descargas requieren conexión.
+          </p>
+        </div>
+        <a class="button primary" href="/">Volver a la web</a>
+      </div>
+      <input
+        id="offline-search"
+        class="form-input"
+        type="search"
+        placeholder="Buscar anime…"
+        aria-label="Buscar en el catálogo sin conexión"
+      />
+      <p id="offline-count" class="muted"></p>
+      <div id="offline-results"></div>
+      <div class="toolbar">
+        <button id="offline-prev" class="button ghost">Anterior</button
+        ><span id="offline-page"></span
+        ><button id="offline-next" class="button ghost">Siguiente</button>
+      </div>
+    </main>
+  </body>
+</html>

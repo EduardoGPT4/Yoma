@@ -118,6 +118,15 @@ class AnimeController extends ChangeNotifier {
       order = 'recent';
   bool seasonal = false;
   int tab = 0, _generation = 0;
+
+  /// Horario de la temporada: anime en emisión con su día (1 = lunes …
+  /// 7 = domingo), como el apartado Temporada de la web.
+  List<AnimeTitle> schedule = [];
+  bool scheduleLoading = false;
+  String? scheduleError;
+  DateTime? scheduleSavedAt;
+  static const _schedulePages = 10;
+  static const scheduleMaxAge = Duration(hours: 6);
   Timer? _poll;
   bool _snapshotBusy = false;
   void changed() {
@@ -593,6 +602,67 @@ class AnimeController extends ChangeNotifier {
       }
     }
     unawaited(remember());
+  }
+
+  /// Anime en emisión del día [weekday] (1 = lunes), ordenados por nombre.
+  List<AnimeTitle> scheduleFor(int weekday) =>
+      schedule.where((a) => a.weekday == weekday).toList()..sort(
+        (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      );
+
+  /// Carga el horario: primero el guardado (también sin conexión) y después
+  /// el catálogo público de temporada completo, que no necesita cuenta.
+  Future<void> loadSchedule({bool refresh = false}) async {
+    if (scheduleLoading) return;
+    scheduleLoading = true;
+    scheduleError = null;
+    changed();
+    try {
+      final cached = await store.cache('schedule');
+      if (cached != null && schedule.isEmpty) {
+        schedule = _scheduleItems(animeMap(cached['data'])['items']);
+        scheduleSavedAt = DateTime.fromMillisecondsSinceEpoch(
+          animeInt(cached['savedAt']),
+        );
+        changed();
+      }
+      final fresh =
+          scheduleSavedAt != null &&
+          DateTime.now().difference(scheduleSavedAt!) < scheduleMaxAge;
+      if (!refresh && fresh && schedule.isNotEmpty) return;
+      final items = <dynamic>[];
+      var page = 1, pages = 1;
+      do {
+        final data = await source.catalog(page: page, seasonal: true);
+        items.addAll(data['items'] as List? ?? const []);
+        pages = animeInt(data['pages'], 1);
+        page++;
+      } while (page <= pages && page <= _schedulePages && !_disposed);
+      if (_disposed) return;
+      schedule = _scheduleItems(items);
+      scheduleSavedAt = DateTime.now();
+      await store.putCache('schedule', {'items': items});
+    } catch (e) {
+      scheduleError = schedule.isEmpty
+          ? 'No se pudo cargar el horario. $e'
+          : 'Horario guardado; no se pudo actualizar.';
+    } finally {
+      scheduleLoading = false;
+      if (!_disposed) changed();
+    }
+  }
+
+  static List<AnimeTitle> _scheduleItems(Object? items) {
+    final seen = <String>{};
+    return [
+      for (final raw in items is List ? items : const [])
+        if (AnimeTitle.fromJson(animeMap(raw)) case final anime
+            when anime.active &&
+                anime.weekday >= 1 &&
+                anime.weekday <= 7 &&
+                seen.add(anime.slug))
+          anime,
+    ];
   }
 
   Future<void> more() async {

@@ -1,0 +1,43 @@
+/* Self-hosted Latin subset. SIL Open Font License; see fonts/OFL-*.txt. */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/dm-sans-400-latin.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/dm-sans-500-latin.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/dm-sans-600-latin.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/dm-sans-700-latin.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Shippori Mincho B1';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(fonts/shippori-mincho-b1-700-latin.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Shippori Mincho B1';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url(fonts/shippori-mincho-b1-800-latin.woff2) format('woff2');
+}

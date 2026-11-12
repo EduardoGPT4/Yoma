@@ -1,7 +1,7 @@
 name: yomashi
 description: "lector de manga"
 publish_to: 'none'
-version: 3.2.18+43
+version: 3.2.19+44
 
 environment:
   sdk: ^3.10.7
@@ -40,6 +40,8 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.1
   drift_dev: ^2.28.2
   build_runner: ^2.4.15
+  # Huellas SHA-256 en la prueba de la web (ya incluido en pubspec.lock).
+  crypto: ^3.0.7
 
 flutter:
   uses-material-design: true

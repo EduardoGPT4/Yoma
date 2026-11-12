@@ -33,3 +33,27 @@ class YomaWeb {
         uri.path.startsWith(root);
   }
 }
+
+/// Servicios compartidos por YomaShi y YomaTV: hoy, el puente de MyAnimeList
+/// (`yomashi-api.php` y `yomashi-connect.php`). Están en el hosting de YomaTV,
+/// pero son de toda Yoma: moverlos a otro dominio (por ejemplo api.yoma.site)
+/// es cambiar [host] y [path] aquí y en YomaWeb.kt, sin tocar YomaTV.
+/// Pasos en docs/arquitectura/fase-3.md.
+class YomaServices {
+  static const host = 'tv.yoma.site';
+  static const path = '/';
+  static final base = Uri.parse('https://$host$path');
+  static Uri resolve(String file) => base.resolve(file);
+
+  /// API del puente de MyAnimeList.
+  static final malApi = resolve('yomashi-api.php');
+
+  /// Página para conectar MyAnimeList: HTTPS de [host] en el puerto 443, sin
+  /// usuario y en su ruta exacta.
+  static bool isConnectPage(Uri uri) =>
+      uri.scheme == 'https' &&
+      uri.host == host &&
+      (uri.port == 443 || !uri.hasPort) &&
+      uri.userInfo.isEmpty &&
+      uri.path == '${path}yomashi-connect.php';
+}

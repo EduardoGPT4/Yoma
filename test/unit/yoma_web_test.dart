@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yomashi/config/yoma_web.dart';
 import 'package:yomashi/features/anime/anime_screen.dart';
@@ -56,5 +58,38 @@ void main() {
       ),
       isNull,
     );
+  });
+
+  test('los servicios compartidos tienen su propia dirección', () {
+    // YomaShi no depende de la dirección de YomaTV: el puente de MAL tiene
+    // la suya (hoy, el mismo hosting).
+    expect(MyAnimeListClient.endpoint, YomaServices.malApi);
+    expect(
+      YomaServices.malApi.toString(),
+      'https://${YomaServices.host}${YomaServices.path}yomashi-api.php',
+    );
+    for (final ok in [
+      'https://tv.yoma.site/yomashi-connect.php?device=1',
+      'https://tv.yoma.site:443/yomashi-connect.php',
+    ]) {
+      expect(YomaServices.isConnectPage(Uri.parse(ok)), isTrue, reason: ok);
+    }
+    for (final bad in [
+      'http://tv.yoma.site/yomashi-connect.php',
+      'https://tv.yoma.site/otra.php',
+      'https://tv.yoma.site.evil.com/yomashi-connect.php',
+      'https://user@tv.yoma.site/yomashi-connect.php',
+      'https://tv.yoma.site:8443/yomashi-connect.php',
+      'https://yoma.site/yomashi-connect.php',
+    ]) {
+      expect(YomaServices.isConnectPage(Uri.parse(bad)), isFalse, reason: bad);
+    }
+    // Android usa los mismos valores.
+    final kotlin = File(
+      'android/app/src/main/kotlin/app/yomashi/reader/YomaWeb.kt',
+    ).readAsStringSync();
+    final services = kotlin.substring(kotlin.indexOf('object YomaServices'));
+    expect(services, contains('const val HOST = "${YomaServices.host}"'));
+    expect(services, contains('const val PATH = "${YomaServices.path}"'));
   });
 }
