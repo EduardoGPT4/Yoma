@@ -19,8 +19,10 @@ function detail(PDO $db, string $slug): array
   $a = find_anime($db, $slug);
   $warning = '';
   if (!$a['catalog_complete']) {
-    $warning =
-      'El listado completo está pendiente de actualización por el administrador.';
+    $task = catalog_task_status($db, 'detail', $slug);
+    $warning = ($task['state'] ?? '') === 'failed'
+      ? 'El listado completo está pendiente de actualización por el administrador.'
+      : 'Buscando el listado completo de capítulos. Vuelve a abrir la ficha en unos minutos.';
   }
   $episodes = sql(
     $db,
@@ -48,6 +50,33 @@ function detail(PDO $db, string $slug): array
     'seasons' => series_seasons($db,$slug),
     'watch_mode' => $mode,
   ];
+}
+
+// Una ficha que nunca tuvo su listado de capítulos lo lee de la fuente al
+// abrirla, sin esperar a que alguien con sesión lo pida en la web: la app de
+// YomaTV entra sin cuenta y no puede pedirlo. Una vez por ficha cada 10 minutos
+// y con el mismo presupuesto de peticiones que la cola central; si no se puede,
+// queda en esa cola. Nunca impide abrir la ficha.
+function detail_fill(PDO $db, string $slug): bool
+{
+  $a = sql($db, 'SELECT catalog_complete FROM sa1_anime WHERE slug=?', [$slug])->fetch();
+  if (!$a || $a['catalog_complete']) return false;
+  $task = catalog_task_status($db, 'detail', $slug);
+  // En curso, o retenida para que la revise el administrador.
+  if ($task && in_array($task['state'], ['running', 'failed'], true)) return false;
+  if (!consume_limit($db, 'detail-fill:' . $slug, 1, 600) || !consume_limit($db, 'detail-fill-global', 30, 3600)) return false;
+  $GLOBALS['season_scrape_task'] = ['path' => '/media/' . $slug, 'interactive' => true];
+  try {
+    sync_anime($db, $slug);
+    if ($task) sql($db, "UPDATE sa1_catalog_tasks SET state='done',error='',lock_until=0,updated_at=? WHERE task_key=? AND state='pending'", [time(), catalog_task_key('detail', $slug)]);
+    return true;
+  } catch (Throwable $error) {
+    error_log('detail_fill: ' . get_class($error));
+    try { catalog_enqueue($db, 'detail', $slug, [], 10); } catch (Throwable $ignored) {}
+    return false;
+  } finally {
+    unset($GLOBALS['season_scrape_task']);
+  }
 }
 
 function decorate_anime(PDO $db, array $anime): array

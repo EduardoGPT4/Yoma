@@ -64,7 +64,9 @@ function dispatch(PDO $db, string $action, array $input): array
     ];
   }
   if ($action === 'detail') {
-    return ['detail' => detail($db, (string) ($input['slug'] ?? ''))];
+    $slug = (string) ($input['slug'] ?? '');
+    detail_fill($db, $slug);
+    return ['detail' => detail($db, $slug)];
   }
   if ($action === 'home') {
     return ['home' => home_data($db)];
