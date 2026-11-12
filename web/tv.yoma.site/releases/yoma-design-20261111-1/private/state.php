@@ -8,7 +8,7 @@ if (!defined('SEASON_BOOTSTRAPPED')) {
 function state(PDO $db, bool $legacy = false): array
 {
   $user = uid()
-    ? sql($db, 'SELECT id,name,email FROM sa1_users WHERE id=?', [
+    ? sql($db, "SELECT id,name,email,CASE WHEN password_hash='' THEN 1 ELSE 0 END AS mal_only FROM sa1_users WHERE id=?", [
       uid(),
     ])->fetch()
     : null;
@@ -17,6 +17,8 @@ function state(PDO $db, bool $legacy = false): array
     $user = null;
   } else {
     $user['id'] = (int) $user['id'];
+    // Entra con MyAnimeList: sin contraseña ni correo propio.
+    $user['mal_only'] = (bool) $user['mal_only'];
     $user['is_admin'] = administrator($db);
   }
   $anime = decorate_anime(
@@ -43,6 +45,7 @@ function state(PDO $db, bool $legacy = false): array
     'revision' => microtime(true),
     'csrf' => $_SESSION['csrf'],
     'user' => $user,
+    'mal_login' => mal_ready(),
     'anime' => $anime,
     'jobs' => $jobs,
     'queue_summary' => queue_summary($db),

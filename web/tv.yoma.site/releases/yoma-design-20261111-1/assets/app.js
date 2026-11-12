@@ -816,6 +816,7 @@ async function init() {
     await api('state', {}, true);
     render();
     if (typeof showMalCallbackNotice === 'function') showMalCallbackNotice();
+    if (typeof maybeAskMalLogin === 'function') maybeAskMalLogin();
     const animeRoute = /^#anime-([A-Za-z0-9_-]{1,240})$/.exec(location.hash);
     if (animeRoute) showDetail(animeRoute[1]);
     if (watchRouteId()) openPlayer(watchRouteId(), {fromRoute:true});

@@ -7,6 +7,7 @@ import '../features/anime/native_anime_screen.dart';
 import '../features/anime/data/anime_controller.dart';
 import '../design/yoma_components.dart';
 import '../design/yoma_tokens.dart';
+import '../widgets/mal_login_prompt.dart';
 import 'selector_intro.dart';
 
 /// Each experience owns a Navigator so a reader route survives section changes.
@@ -254,6 +255,32 @@ class _SelectorState extends State<_Selector>
   );
   bool _started = false;
 
+  /// Si la persona abre una sección antes de que termine la entrada, no se le
+  /// interrumpe: se le propondrá entrar con MAL en el siguiente inicio.
+  bool _skipLogin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _intro.addStatusListener(_introStatus);
+  }
+
+  void _introStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || _skipLogin) return;
+    _intro.removeStatusListener(_introStatus);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      MalLoginPrompt.maybeShow(
+        context,
+        onLogin: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => const MyAnimeListScreen(autoConnect: true),
+          ),
+        ),
+      );
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -280,6 +307,7 @@ class _SelectorState extends State<_Selector>
   }
 
   void _open(int section) {
+    _skipLogin = true;
     _finish();
     widget.onSelect(section);
   }
@@ -344,6 +372,7 @@ class _SelectorState extends State<_Selector>
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
+          _skipLogin = true;
           _finish();
           Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const MyAnimeListScreen()),

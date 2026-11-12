@@ -48,3 +48,4 @@ button:focus:not(:focus-visible),a:focus:not(:focus-visible),main:focus:not(:foc
   .sidebar.open{visibility:visible;transition:transform .2s,visibility 0s}
 }
 @media(prefers-reduced-motion:reduce){.sidebar,.workspace{transition:none!important}}
+.auth-divider{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:14px;margin:18px 0 4px}.auth-divider:before,.auth-divider:after{content:"";flex:1;border-top:1px solid var(--line)}.auth-mal-note{margin:10px 0 0;font-size:14px}.auth-form>.button.ghost.wide{margin-top:16px}

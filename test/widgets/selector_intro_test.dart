@@ -22,6 +22,7 @@ import 'package:yomashi/widgets/app_metrics.dart';
 
 import '../unit/native_anime_test.dart' show TestAnimeSource;
 import 'myanimelist_test.dart' show FakeMal, MemoryCredential;
+import 'package:yomashi/widgets/mal_login_prompt.dart';
 
 void main() {
   late ProfileProvider profile;
@@ -30,7 +31,8 @@ void main() {
   final boundary = GlobalKey();
 
   setUpAll(() async {
-    SharedPreferences.setMockInitialValues({});
+    // La propuesta de entrar con MAL tiene su propia prueba.
+    SharedPreferences.setMockInitialValues({MalLoginPrompt.askedKey: true});
     await LibraryStore.initialize(
       database: AppDatabase.forTesting(NativeDatabase.memory()),
     );
@@ -178,6 +180,49 @@ void main() {
     expect(find.byType(IntroScreenOverlay), findsNothing);
     expect(find.byType(CardBuildOverlay), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  group('primer inicio sin cuenta', () {
+    setUp(() => SharedPreferences.setMockInitialValues({}));
+    tearDown(
+      () => SharedPreferences.setMockInitialValues({
+        MalLoginPrompt.askedKey: true,
+      }),
+    );
+
+    testWidgets('al terminar la entrada propone entrar con MyAnimeList', (
+      tester,
+    ) async {
+      await open(tester);
+      await tester.pump(const Duration(milliseconds: 600));
+      // Durante la entrada no interrumpe.
+      expect(find.text('Entra con tu MyAnimeList'), findsNothing);
+      await tester.pump(SelectorIntro.duration);
+      await tester.pump();
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+      expect(find.text('Entra con tu MyAnimeList'), findsOneWidget);
+      await capture(tester, 'mal_login_prompt');
+      await tester.tap(find.text('Continuar sin cuenta'));
+      await tester.pumpAndSettle();
+      expect(find.text('Entra con tu MyAnimeList'), findsNothing);
+      expect(find.text('Manga'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('si se abre una sección antes, no la tapa', (tester) async {
+      await open(tester);
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.text('Anime'), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.text('Entra con tu MyAnimeList'), findsNothing);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(MalLoginPrompt.askedKey), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 1));
+    });
   });
 
   test('timeline ends with every annotation hidden', () {

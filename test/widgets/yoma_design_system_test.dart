@@ -36,6 +36,7 @@ import 'package:yomashi/services/online_catalog_service.dart';
 import 'package:yomashi/widgets/app_metrics.dart';
 
 import '../unit/native_anime_test.dart' show TestAnimeSource;
+import 'package:yomashi/widgets/mal_login_prompt.dart';
 
 /// Catálogo auditado de YomaTV (docs/yoma/source-audit) sin red.
 class _AuditedAnimeSource extends TestAnimeSource {
@@ -104,6 +105,8 @@ void main() {
       MockStreamHandler.inline(onListen: (_, sink) => sink.success(['wifi'])),
     );
     SharedPreferences.setMockInitialValues({
+      // La propuesta de entrar con MAL tiene su propia prueba.
+      MalLoginPrompt.askedKey: true,
       'welcome_notice_seen_v1': true,
       'onboarding_completed_v1': true,
       'active_manga_source_v1': 'mangadex',

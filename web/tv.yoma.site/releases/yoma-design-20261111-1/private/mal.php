@@ -104,6 +104,11 @@ function mal_begin(PDO $db): string
     'session_hash' => hash('sha256', session_id()),
     'issued_at' => time(),
   ];
+  return mal_authorize_url($config, $state, $verifier);
+}
+
+function mal_authorize_url(array $config, string $state, string $verifier): string
+{
   // MAL's authorization flow supports the plain PKCE challenge method.
   return 'https://myanimelist.net/v1/oauth2/authorize?' .
     http_build_query(
@@ -227,47 +232,7 @@ function mal_complete(PDO $db, array $query): string
     $attempt=sql($db,'SELECT state_hash FROM sa1_oauth_attempts WHERE user_id=?'.($db->getAttribute(PDO::ATTR_DRIVER_NAME)==='mysql'?' FOR UPDATE':''),[uid()])->fetchColumn();
     if(!is_string($attempt)||!hash_equals($attempt,hash('sha256',$state)))throw new WebError('Hay una autorización más reciente. Completa esa conexión.',409);
     // Keep the last hash until expiry so an older callback cannot replace its notice.
-    $identityChanged = mal_bind_identity($db, $profile['id']);
-    upsert(
-      $db,
-      'sa1_mal_connections',
-      [
-        'user_id',
-        'mal_user_id',
-        'mal_name',
-        'token_cipher',
-        'expires_at',
-        'connected_at',
-        'checked_at',
-        'needs_auth',
-        'refresh_lock_until',
-      ],
-      [
-        [
-          'user_id' => uid(),
-          'mal_user_id' => $profile['id'],
-          'mal_name' => $profile['name'],
-          'token_cipher' => mal_encrypt($tokens, uid()),
-          'expires_at' => $tokens['expires_at'],
-          'connected_at' => time(),
-          'checked_at' => time(),
-          'needs_auth' => 0,
-          'refresh_lock_until' => 0,
-        ],
-      ],
-      ['user_id'],
-      [
-        'mal_user_id',
-        'mal_name',
-        'token_cipher',
-        'expires_at',
-        'connected_at',
-        'checked_at',
-        'needs_auth',
-        'refresh_lock_until',
-      ],
-    );
-    mal_save_avatar($db,$profile['id'],$profile['picture']);
+    $identityChanged = mal_store_connection($db, $profile, $tokens);
     log_event(
       $db,
       uid(),
@@ -280,6 +245,170 @@ function mal_complete(PDO $db, array $query): string
     throw $error;
   }
   return $identityChanged ? 'account_changed' : 'connected';
+}
+
+// Entrar con MyAnimeList: la cuenta de Yoma se encuentra por el ID numérico de
+// MAL o se crea la primera vez. Las cuentas creadas así no tienen contraseña
+// (password_hash vacío) y su correo es interno, en un dominio que nadie puede
+// registrar. La sesión es de la web; el token de MAL solo identifica y sirve
+// para leer y escribir la lista, como al conectar desde Mi cuenta.
+const MAL_LOGIN_DOMAIN = 'mal.yoma.site';
+const MAL_LOGIN_PREFIX = 'yl_';
+
+function mal_login_email(int $account): string
+{
+  return 'mal-' . $account . '@' . MAL_LOGIN_DOMAIN;
+}
+
+function mal_login_reserved_email(string $email): bool
+{
+  return str_ends_with(mb_strtolower($email), '@' . MAL_LOGIN_DOMAIN);
+}
+
+function mal_login_begin(PDO $db): string
+{
+  $config = mal_require_config();
+  rate($db, 'mal-login:' . hash('sha256', $_SERVER['REMOTE_ADDR'] ?? 'local'), 10, 600);
+  $state = MAL_LOGIN_PREFIX . bin2hex(random_bytes(24));
+  $verifier = bin2hex(random_bytes(48));
+  $_SESSION['mal_login'] = [
+    'state' => $state,
+    'verifier' => $verifier,
+    'session_hash' => hash('sha256', session_id()),
+    'issued_at' => time(),
+  ];
+  return mal_authorize_url($config, $state, $verifier);
+}
+
+// Devuelve [cuenta, creada] o null si la cuenta debe entrar con contraseña.
+function mal_login_account(PDO $db, array $profile): ?array
+{
+  $lock = $db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
+  // Una cuenta que ya conectó este MAL (la conectada más recientemente).
+  $row = sql($db,
+    'SELECT u.id,u.email,u.auth_version FROM sa1_mal_connections c JOIN sa1_users u ON u.id=c.user_id WHERE c.mal_user_id=? ORDER BY c.connected_at DESC,c.user_id DESC LIMIT 1' . $lock,
+    [$profile['id']])->fetch();
+  // La cuenta creada con este MAL, aunque después se desvinculara.
+  if (!$row) $row = sql($db,
+    "SELECT u.id,u.email,u.auth_version FROM sa1_users u JOIN sa1_mal_identity i ON i.user_id=u.id WHERE u.email=? AND u.password_hash='' AND i.mal_user_id=?" . $lock,
+    [mal_login_email($profile['id']), $profile['id']])->fetch();
+  if ($row) {
+    // Una cuenta administradora siempre entra con su contraseña.
+    if (in_array(mb_strtolower((string) $row['email']), admin_emails(), true)) return null;
+    return [$row, false];
+  }
+  $name = mb_strlen($profile['name']) >= 2 ? $profile['name'] : 'MAL ' . $profile['name'];
+  sql($db, 'INSERT INTO sa1_users(name,email,password_hash,created_at) VALUES(?,?,?,?)',
+    [$name, mal_login_email($profile['id']), '', time()]);
+  return [['id' => (int) $db->lastInsertId(), 'email' => mal_login_email($profile['id']), 'auth_version' => 0], true];
+}
+
+function mal_login_complete(PDO $db, array $query): string
+{
+  $flow = $_SESSION['mal_login'] ?? null;
+  $state = $query['state'] ?? '';
+  if (!is_array($flow) || !is_string($state) || !hash_equals($flow['state'], $state)) {
+    throw new WebError('La autorización no es válida. Inicia sesión de nuevo.', 403);
+  }
+  unset($_SESSION['mal_login']);
+  if (
+    !hash_equals($flow['session_hash'], hash('sha256', session_id())) ||
+    $flow['issued_at'] < time() - 600 ||
+    $flow['issued_at'] > time()
+  ) {
+    throw new WebError('La autorización caducó. Inicia sesión de nuevo.', 403);
+  }
+  if (isset($query['error'])) return 'denied';
+  $code = $query['code'] ?? '';
+  if (!is_string($code) || $code === '' || strlen($code) > 4096 || preg_match('/[\x00-\x20\x7f]/', $code)) {
+    throw new WebError('No se recibió un código de autorización válido.', 422);
+  }
+  $config = mal_require_config();
+  $tokens = mal_tokens(mal_http('token', [
+    'client_id' => $config['client_id'],
+    'client_secret' => $config['client_secret'],
+    'grant_type' => 'authorization_code',
+    'code' => $code,
+    'redirect_uri' => $config['redirect_uri'],
+    'code_verifier' => $flow['verifier'],
+  ]));
+  $profile = mal_profile_data(mal_http('profile', [], $tokens['access_token']));
+  // mal_http cierra la sesión durante las llamadas a MAL; aquí se vuelve a abrir
+  // para entrar en la cuenta (la autorización ya se consumió antes).
+  if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+  $db->beginTransaction();
+  try {
+    $found = mal_login_account($db, $profile);
+    if ($found === null) {
+      $db->rollBack();
+      return 'use_password';
+    }
+    [$account, $created] = $found;
+    // La sesión anterior (otra cuenta o invitado) no continúa en la nueva.
+    $_SESSION = ['user_id' => (int) $account['id'], 'auth_version' => (int) $account['auth_version']];
+    $identityChanged = mal_store_connection($db, $profile, $tokens);
+    log_event($db, uid(), $created
+      ? 'Cuenta creada con MyAnimeList: ' . $profile['name'] . '. Entra igual desde la app o desde otro navegador.'
+      : 'Sesión iniciada con MyAnimeList: ' . $profile['name'] . '.' .
+        ($identityChanged ? ' Se detuvieron los envíos anteriores y se renovará la lista de esta cuenta.' : ''));
+    $db->commit();
+  } catch (Throwable $error) {
+    if ($db->inTransaction()) $db->rollBack();
+    $_SESSION = [];
+    throw $error;
+  }
+  session_regenerate_id(true);
+  $_SESSION['csrf'] = bin2hex(random_bytes(24));
+  $result = $created ? 'welcome' : 'signed_in';
+  $_SESSION['mal_notice'] = $result;
+  return $result;
+}
+
+// Caller holds its transaction and the session of the account (uid()).
+function mal_store_connection(PDO $db, array $profile, array $tokens): bool
+{
+  $identityChanged = mal_bind_identity($db, $profile['id']);
+  upsert(
+    $db,
+    'sa1_mal_connections',
+    [
+      'user_id',
+      'mal_user_id',
+      'mal_name',
+      'token_cipher',
+      'expires_at',
+      'connected_at',
+      'checked_at',
+      'needs_auth',
+      'refresh_lock_until',
+    ],
+    [
+      [
+        'user_id' => uid(),
+        'mal_user_id' => $profile['id'],
+        'mal_name' => $profile['name'],
+        'token_cipher' => mal_encrypt($tokens, uid()),
+        'expires_at' => $tokens['expires_at'],
+        'connected_at' => time(),
+        'checked_at' => time(),
+        'needs_auth' => 0,
+        'refresh_lock_until' => 0,
+      ],
+    ],
+    ['user_id'],
+    [
+      'mal_user_id',
+      'mal_name',
+      'token_cipher',
+      'expires_at',
+      'connected_at',
+      'checked_at',
+      'needs_auth',
+      'refresh_lock_until',
+    ],
+  );
+  mal_save_avatar($db,$profile['id'],$profile['picture']);
+  return $identityChanged;
 }
 
 function mal_mark_expired(PDO $db, array $row): void

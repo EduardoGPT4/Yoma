@@ -100,15 +100,46 @@ document.addEventListener('click', async (event) => {
   }
 });
 
+// Iniciar sesión con MyAnimeList: no necesita una sesión previa.
+document.addEventListener('click', async (event) => {
+  const control = event.target.closest('[data-action="mal_login"]');
+  if (!control) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (control.disabled) return;
+  control.disabled = true;
+  try {
+    const result = await api('mal_login');
+    const url = new URL(result.authorization_url);
+    if (
+      url.origin !== 'https://myanimelist.net' ||
+      url.pathname !== '/v1/oauth2/authorize'
+    )
+      throw new Error('No se recibió un enlace de autorización válido.');
+    location.assign(url.href);
+  } catch (error) {
+    control.disabled = false;
+    toast(error.message, true);
+  }
+});
+
 function showMalCallbackNotice() {
   const url = new URL(location.href);
   if (!url.searchParams.has('mal')) return;
+  const result = url.searchParams.get('mal');
   url.searchParams.delete('mal');
   history.replaceState(null, '', url.pathname + url.search + url.hash);
+  // Sin sesión, el aviso de Mi cuenta no llega: un inicio con MAL que no terminó.
+  if (!state?.user) showMalServerNotice(result);
 }
 
 function showMalServerNotice(result) {
   const notices = {
+    welcome:
+      'Tu cuenta de Yoma se creó con tu MyAnimeList. Entra igual desde la app y desde cualquier navegador.',
+    signed_in: 'Sesión iniciada con MyAnimeList.',
+    use_password:
+      'Esta cuenta administra el sitio: entra con tu correo y tu contraseña.',
     connected:
       'MyAnimeList conectado. Ya puedes consultar tu lista desde Mi cuenta.',
     account_changed:

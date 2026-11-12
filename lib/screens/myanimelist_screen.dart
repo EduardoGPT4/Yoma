@@ -9,7 +9,16 @@ import '../services/myanimelist_service.dart';
 class MyAnimeListScreen extends StatefulWidget {
   final Manga? manga;
   final MyAnimeListService? service;
-  const MyAnimeListScreen({super.key, this.manga, this.service});
+
+  /// Abre directamente la autorización si aún no hay cuenta conectada (desde
+  /// «Iniciar sesión con MyAnimeList» al abrir la app).
+  final bool autoConnect;
+  const MyAnimeListScreen({
+    super.key,
+    this.manga,
+    this.service,
+    this.autoConnect = false,
+  });
   static String statesLabel(String? value) => switch (value) {
     'reading' => 'Leyendo',
     'completed' => 'Completado',
@@ -49,7 +58,13 @@ class _MyAnimeListScreenState extends State<MyAnimeListScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_refresh());
+    unawaited(
+      _refresh().then((_) {
+        if (widget.autoConnect && mounted && !connected && !busy) {
+          unawaited(_connect());
+        }
+      }),
+    );
     timer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (mounted &&
           !busy &&

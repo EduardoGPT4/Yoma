@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'package:yomashi/home/yoma_shell.dart';
 import 'package:yomashi/providers/profile_provider.dart';
 import 'myanimelist_test.dart' show FakeMal, MemoryCredential;
+import 'package:yomashi/widgets/mal_login_prompt.dart';
 
 void main() {
   testWidgets(
@@ -30,7 +31,8 @@ void main() {
       final store = MemoryCredential();
       final client = FakeMal(store);
       final profile = ProfileProvider(malClient: client);
-      SharedPreferences.setMockInitialValues({});
+      // La propuesta de entrar con MAL tiene su propia prueba.
+      SharedPreferences.setMockInitialValues({MalLoginPrompt.askedKey: true});
       await tester.runAsync(
         () => LibraryStore.initialize(
           database: AppDatabase.forTesting(NativeDatabase.memory()),

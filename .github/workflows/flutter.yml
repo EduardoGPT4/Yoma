@@ -26,6 +26,7 @@ jobs:
       - run: python3 test/backend/test_yoma_sync.py
       - run: python3 test/backend/test_yoma_sync_web.py
       - run: python3 test/backend/test_api_site.py
+      - run: python3 test/backend/test_web_mal_login.py
       - run: flutter build apk --debug
       - run: flutter build apk --release --target-platform android-arm64 --split-per-abi --dart-define=YOMASHI_PERSONAL_RELEASE=true
       - name: Verify native plugin registration in release

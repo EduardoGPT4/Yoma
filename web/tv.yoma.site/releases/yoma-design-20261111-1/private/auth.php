@@ -82,6 +82,9 @@ function account_info(PDO $db): array
 
 function dispatch_auth(PDO $db, string $action, array $input): ?array
 {
+  if ($action === 'mal_login') {
+    return ['authorization_url' => mal_login_begin($db)];
+  }
   if ($action === 'register' || $action === 'login') {
     rate(
       $db,
@@ -106,8 +109,9 @@ function dispatch_auth(PDO $db, string $action, array $input): ?array
         throw new WebError('Usa un nombre de 2–60 caracteres.');
       }
       $password = new_password($input);
-      // A reserved owner address cannot be claimed by a new registration.
-      if (in_array($email, admin_emails(), true)) {
+      // A reserved owner address cannot be claimed by a new registration,
+      // nor the internal addresses of accounts created with MyAnimeList.
+      if (in_array($email, admin_emails(), true) || mal_login_reserved_email($email)) {
         throw new WebError('No se pudo crear la cuenta con ese correo.');
       }
       try {
@@ -240,7 +244,9 @@ function dispatch_auth(PDO $db, string $action, array $input): ?array
     ];
   }
   if ($action === 'account_delete') {
-    $row = verify_current_password($db, $input);
+    // Una cuenta creada con MyAnimeList no tiene contraseña que confirmar.
+    $row = sql($db, "SELECT * FROM sa1_users WHERE id=? AND password_hash=''", [member()])->fetch()
+      ?: verify_current_password($db, $input);
     if (($input['confirmation'] ?? '') !== 'ELIMINAR') {
       throw new WebError('Escribe ELIMINAR para confirmar.');
     }
