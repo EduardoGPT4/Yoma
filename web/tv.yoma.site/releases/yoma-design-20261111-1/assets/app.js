@@ -463,7 +463,11 @@ document.addEventListener('click', async (event) => {
     return;
   }
   if (action === 'auth_register') {
-    showAuth('register');
+    showAuth('login');
+    return;
+  }
+  if (action === 'auth_link') {
+    showAuth('link');
     return;
   }
   if (action === 'help') {
@@ -691,6 +695,11 @@ document.addEventListener('submit', async (event) => {
     let r;
     if (form.id === 'auth-form') {
       r = await api(form.dataset.mode, input);
+      // Cuenta antigua con correo: se vincula conectando MyAnimeList ahora.
+      if (r.link_mal && typeof startMalLink === 'function') {
+        await startMalLink();
+        return;
+      }
       $('#dialog').close();
       render();
       toast(r.message);

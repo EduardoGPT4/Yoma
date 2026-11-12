@@ -17,8 +17,10 @@ function state(PDO $db, bool $legacy = false): array
     $user = null;
   } else {
     $user['id'] = (int) $user['id'];
-    // Entra con MyAnimeList: sin contraseña ni correo propio.
+    // Creada con MyAnimeList: sin contraseña ni correo propio.
     $user['mal_only'] = (bool) $user['mal_only'];
+    // Entra con MyAnimeList (creada así o vinculada después).
+    $user['mal_linked'] = mal_login_linked($db, $user['id']);
     $user['is_admin'] = administrator($db);
   }
   $anime = decorate_anime(

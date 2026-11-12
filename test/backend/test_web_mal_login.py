@@ -142,7 +142,7 @@ class TestWebMalLogin(unittest.TestCase):
         Fixture.token_status = 200
         Fixture.token_calls = 0
         # Todas las pruebas llegan desde 127.0.0.1: cada una empieza sin intentos.
-        self.sql("DELETE FROM sa1_limits WHERE name LIKE 'mal-login:%'")
+        self.sql("DELETE FROM sa1_limits WHERE name LIKE 'mal-login:%' OR name LIKE 'auth%'")
 
     def sql(self, query, values=()):
         conn = sqlite3.connect(self.db_file, timeout=10)
@@ -178,27 +178,46 @@ class TestWebMalLogin(unittest.TestCase):
         self.assertEqual(second.state()['user']['id'], user['id'])
         self.assertEqual(self.sql('SELECT COUNT(*) FROM sa1_users WHERE email=?', ('mal-7101@mal.yoma.site',))[0][0], 1)
 
-    def test_an_email_account_that_connected_mal_is_found_by_its_mal_id(self):
-        self.profile(7102, 'Correo')
-        owner = Browser(self.base)
-        status, data = owner.action('register', name='Con correo', email='correo@test.example', password='contraseña-segura')
+    def legacy_account(self, name, email, password):
+        """Una cuenta antigua con correo y contraseña (ya no se pueden crear)."""
+        digest = subprocess.run(['php', '-r', 'echo password_hash($argv[1], PASSWORD_DEFAULT);', password],
+                                capture_output=True, text=True, timeout=20, check=True).stdout
+        self.sql('INSERT INTO sa1_users(name,email,password_hash,created_at) VALUES(?,?,?,?)', (name, email, digest, 0))
+        return self.sql('SELECT id FROM sa1_users WHERE email=?', (email,))[0][0]
+
+    def link(self, browser, email, password):
+        """Entra una vez con el correo y conecta MAL, como hace la web."""
+        status, data = browser.action('login', email=email, password=password)
         self.assertEqual(status, 200, data)
-        status, data = owner.action('mal_connect')
+        self.assertTrue(data['link_mal'])
+        status, data = browser.action('mal_connect')
         self.assertEqual(status, 200, data)
         query = urllib.parse.parse_qs(urllib.parse.urlparse(data['authorization_url']).query)
-        status, headers, _ = owner.open('mal-callback.php?' + urllib.parse.urlencode({'code': 'c', 'state': query['state'][0]}))
+        status, headers, _ = browser.open('mal-callback.php?' + urllib.parse.urlencode({'code': 'c', 'state': query['state'][0]}))
         self.assertIn('mal=connected', headers['Location'])
-        account = owner.state()['user']
-        self.assertFalse(account['mal_only'])
+        browser.csrf = ''
 
+    def test_only_mal_creates_accounts(self):
+        status, data = Browser(self.base).action('register', name='Nueva', email='nueva@test.example', password='contraseña-segura')
+        self.assertEqual(status, 403, data)
+        self.assertEqual(self.sql('SELECT COUNT(*) FROM sa1_users WHERE email=?', ('nueva@test.example',))[0][0], 0)
+
+    def test_an_email_account_is_linked_once_and_then_only_enters_with_mal(self):
+        self.profile(7102, 'Correo')
+        account = self.legacy_account('Con correo', 'correo@test.example', 'contraseña-segura')
+        owner = Browser(self.base)
+        self.link(owner, 'correo@test.example', 'contraseña-segura')
+        user = owner.state()['user']
+        self.assertEqual((user['id'], user['mal_only'], user['mal_linked']), (account, False, True))
+        # Desde ahora entra con MAL, en la misma cuenta.
         other = Browser(self.base)
         self.assertEqual(other.mal_login()[0], 'signed_in')
-        self.assertEqual(other.state()['user']['id'], account['id'])
-        # El correo y la contraseña siguen funcionando.
-        third = Browser(self.base)
-        status, data = third.action('login', email='correo@test.example', password='contraseña-segura')
-        self.assertEqual(status, 200, data)
-        self.assertEqual(data['data']['user']['id'], account['id'])
+        self.assertEqual(other.state()['user']['id'], account)
+        # Y ya no con el correo.
+        status, data = Browser(self.base).action('login', email='correo@test.example', password='contraseña-segura')
+        self.assertEqual(status, 403, data)
+        # La sesión que ya estaba iniciada sigue igual.
+        self.assertEqual(owner.state()['user']['id'], account)
 
     def test_a_mal_account_comes_back_after_unlinking_mal(self):
         self.profile(7103, 'Vuelve')
@@ -213,11 +232,8 @@ class TestWebMalLogin(unittest.TestCase):
         again.mal_login()
         self.assertEqual(again.state()['user']['id'], user)
 
-    def test_mal_accounts_have_no_password_and_their_address_cannot_be_taken(self):
+    def test_mal_accounts_have_no_password(self):
         self.profile(7104, 'Reservada')
-        # Nadie puede registrar antes la dirección interna de otra persona.
-        status, data = Browser(self.base).action('register', name='Intruso', email='mal-7104@mal.yoma.site', password='contraseña-segura')
-        self.assertEqual(status, 422, data)
         browser = Browser(self.base)
         browser.mal_login()
         # Ni la dirección interna ni una contraseña vacía sirven para entrar.
@@ -229,15 +245,28 @@ class TestWebMalLogin(unittest.TestCase):
         self.assertEqual(status, 200, data)
         self.assertIsNone(browser.state()['user'])
 
-    def test_an_administrator_account_keeps_entering_with_its_password(self):
-        self.sql('INSERT INTO sa1_users(name,email,password_hash,created_at) VALUES(?,?,?,?)', ('Admin', ADMIN, 'x', 0))
-        admin = self.sql('SELECT id FROM sa1_users WHERE email=?', (ADMIN,))[0][0]
-        self.sql('INSERT INTO sa1_mal_connections (user_id,mal_user_id,mal_name,token_cipher,expires_at,connected_at,checked_at) VALUES (?,?,?,?,?,?,?)',
-                 (admin, 7105, 'Admin', '', 0, 0, 0))
-        self.profile(7105, 'Admin')
+    def test_the_administrator_enters_with_mal_and_keeps_the_administration(self):
+        admin = self.legacy_account('Admin', ADMIN, 'contraseña-admin')
+        # La cuenta administradora, con su sesión ya iniciada y MAL conectado.
+        self.profile(7105, 'Hk-Br035')
+        before = Browser(self.base)
+        self.link(before, ADMIN, 'contraseña-admin')
         browser = Browser(self.base)
-        self.assertEqual(browser.mal_login()[0], 'use_password')
-        self.assertIsNone(browser.state()['user'])
+        self.assertEqual(browser.mal_login()[0], 'signed_in')
+        user = browser.state()['user']
+        self.assertEqual((user['id'], user['is_admin'], user['mal_linked']), (admin, True, True))
+        self.assertEqual(user['email'], ADMIN)
+        status, data = browser.action('account')
+        self.assertEqual((status, data['account']['is_admin']), (200, True), data)
+        self.assertEqual(before.state()['user']['id'], admin)
+        # Con correo ya no entra; tampoco tras desvincular MAL, con MAL sí.
+        status, _ = Browser(self.base).action('login', email=ADMIN, password='contraseña-admin')
+        self.assertEqual(status, 403)
+        status, data = browser.action('mal_disconnect')
+        self.assertEqual(status, 200, data)
+        again = Browser(self.base)
+        self.assertEqual(again.mal_login()[0], 'signed_in')
+        self.assertEqual((again.state()['user']['id'], again.state()['user']['is_admin']), (admin, True))
 
     def test_cancelled_forged_or_expired_authorizations_do_not_sign_in(self):
         self.profile(7106, 'Cancela')

@@ -100,6 +100,19 @@ document.addEventListener('click', async (event) => {
   }
 });
 
+function malAuthorizationUrl(result) {
+  const url = new URL(result.authorization_url);
+  if (
+    url.origin !== 'https://myanimelist.net' ||
+    url.pathname !== '/v1/oauth2/authorize'
+  )
+    throw new Error('No se recibió un enlace de autorización válido.');
+  return url.href;
+}
+// Tras entrar con el correo de una cuenta antigua: conectar MAL la vincula.
+async function startMalLink() {
+  location.assign(malAuthorizationUrl(await api('mal_connect')));
+}
 // Iniciar sesión con MyAnimeList: no necesita una sesión previa.
 document.addEventListener('click', async (event) => {
   const control = event.target.closest('[data-action="mal_login"]');
@@ -109,14 +122,7 @@ document.addEventListener('click', async (event) => {
   if (control.disabled) return;
   control.disabled = true;
   try {
-    const result = await api('mal_login');
-    const url = new URL(result.authorization_url);
-    if (
-      url.origin !== 'https://myanimelist.net' ||
-      url.pathname !== '/v1/oauth2/authorize'
-    )
-      throw new Error('No se recibió un enlace de autorización válido.');
-    location.assign(url.href);
+    location.assign(malAuthorizationUrl(await api('mal_login')));
   } catch (error) {
     control.disabled = false;
     toast(error.message, true);
@@ -138,8 +144,6 @@ function showMalServerNotice(result) {
     welcome:
       'Tu cuenta de Yoma se creó con tu MyAnimeList. Entra igual desde la app y desde cualquier navegador.',
     signed_in: 'Sesión iniciada con MyAnimeList.',
-    use_password:
-      'Esta cuenta administra el sitio: entra con tu correo y tu contraseña.',
     connected:
       'MyAnimeList conectado. Ya puedes consultar tu lista desde Mi cuenta.',
     account_changed:

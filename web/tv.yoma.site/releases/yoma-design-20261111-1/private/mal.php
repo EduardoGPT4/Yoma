@@ -247,22 +247,19 @@ function mal_complete(PDO $db, array $query): string
   return $identityChanged ? 'account_changed' : 'connected';
 }
 
-// Entrar con MyAnimeList: la cuenta de Yoma se encuentra por el ID numérico de
-// MAL o se crea la primera vez. Las cuentas creadas así no tienen contraseña
-// (password_hash vacío) y su correo es interno, en un dominio que nadie puede
-// registrar. La sesión es de la web; el token de MAL solo identifica y sirve
-// para leer y escribir la lista, como al conectar desde Mi cuenta.
+// Entrar con MyAnimeList, la única forma de iniciar sesión: la cuenta de Yoma se
+// encuentra por el ID numérico de MAL o se crea la primera vez. Las cuentas
+// creadas así no tienen contraseña (password_hash vacío) y su correo es
+// interno, en un dominio que nadie puede registrar. Una cuenta antigua con
+// correo entra una vez con su contraseña para conectar MAL; desde entonces
+// solo entra con MAL. La sesión es de la web; el token de MAL solo identifica
+// y sirve para leer y escribir la lista, como al conectar desde Mi cuenta.
 const MAL_LOGIN_DOMAIN = 'mal.yoma.site';
 const MAL_LOGIN_PREFIX = 'yl_';
 
 function mal_login_email(int $account): string
 {
   return 'mal-' . $account . '@' . MAL_LOGIN_DOMAIN;
-}
-
-function mal_login_reserved_email(string $email): bool
-{
-  return str_ends_with(mb_strtolower($email), '@' . MAL_LOGIN_DOMAIN);
 }
 
 function mal_login_begin(PDO $db): string
@@ -280,27 +277,32 @@ function mal_login_begin(PDO $db): string
   return mal_authorize_url($config, $state, $verifier);
 }
 
-// Devuelve [cuenta, creada] o null si la cuenta debe entrar con contraseña.
-function mal_login_account(PDO $db, array $profile): ?array
+// La cuenta de este MAL: [cuenta, creada]. Las administradoras también entran
+// así; su administración depende del correo de la cuenta, que no cambia.
+function mal_login_account(PDO $db, array $profile): array
 {
   $lock = $db->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
-  // Una cuenta que ya conectó este MAL (la conectada más recientemente).
+  // Una cuenta que tiene conectado este MAL (la conectada más recientemente).
   $row = sql($db,
     'SELECT u.id,u.email,u.auth_version FROM sa1_mal_connections c JOIN sa1_users u ON u.id=c.user_id WHERE c.mal_user_id=? ORDER BY c.connected_at DESC,c.user_id DESC LIMIT 1' . $lock,
     [$profile['id']])->fetch();
-  // La cuenta creada con este MAL, aunque después se desvinculara.
+  // La que lo tuvo conectado, aunque después lo desvinculara (la más antigua).
   if (!$row) $row = sql($db,
-    "SELECT u.id,u.email,u.auth_version FROM sa1_users u JOIN sa1_mal_identity i ON i.user_id=u.id WHERE u.email=? AND u.password_hash='' AND i.mal_user_id=?" . $lock,
-    [mal_login_email($profile['id']), $profile['id']])->fetch();
-  if ($row) {
-    // Una cuenta administradora siempre entra con su contraseña.
-    if (in_array(mb_strtolower((string) $row['email']), admin_emails(), true)) return null;
-    return [$row, false];
-  }
+    'SELECT u.id,u.email,u.auth_version FROM sa1_mal_identity i JOIN sa1_users u ON u.id=i.user_id WHERE i.mal_user_id=? ORDER BY u.id LIMIT 1' . $lock,
+    [$profile['id']])->fetch();
+  if ($row) return [$row, false];
   $name = mb_strlen($profile['name']) >= 2 ? $profile['name'] : 'MAL ' . $profile['name'];
   sql($db, 'INSERT INTO sa1_users(name,email,password_hash,created_at) VALUES(?,?,?,?)',
     [$name, mal_login_email($profile['id']), '', time()]);
   return [['id' => (int) $db->lastInsertId(), 'email' => mal_login_email($profile['id']), 'auth_version' => 0], true];
+}
+
+// La cuenta ya entra con MyAnimeList (lo conectó alguna vez).
+function mal_login_linked(PDO $db, int $user): bool
+{
+  return (bool) sql($db,
+    'SELECT 1 FROM sa1_users u WHERE u.id=? AND (EXISTS(SELECT 1 FROM sa1_mal_connections c WHERE c.user_id=u.id) OR EXISTS(SELECT 1 FROM sa1_mal_identity i WHERE i.user_id=u.id AND i.mal_user_id>0))',
+    [$user])->fetchColumn();
 }
 
 function mal_login_complete(PDO $db, array $query): string
@@ -338,12 +340,7 @@ function mal_login_complete(PDO $db, array $query): string
   if (session_status() !== PHP_SESSION_ACTIVE) session_start();
   $db->beginTransaction();
   try {
-    $found = mal_login_account($db, $profile);
-    if ($found === null) {
-      $db->rollBack();
-      return 'use_password';
-    }
-    [$account, $created] = $found;
+    [$account, $created] = mal_login_account($db, $profile);
     // La sesión anterior (otra cuenta o invitado) no continúa en la nueva.
     $_SESSION = ['user_id' => (int) $account['id'], 'auth_version' => (int) $account['auth_version']];
     $identityChanged = mal_store_connection($db, $profile, $tokens);

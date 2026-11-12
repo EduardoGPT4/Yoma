@@ -85,7 +85,12 @@ function dispatch_auth(PDO $db, string $action, array $input): ?array
   if ($action === 'mal_login') {
     return ['authorization_url' => mal_login_begin($db)];
   }
-  if ($action === 'register' || $action === 'login') {
+  // Las cuentas nuevas se crean al iniciar sesión con MyAnimeList.
+  if ($action === 'register') {
+    throw new WebError('Para crear tu cuenta, inicia sesión con MyAnimeList.', 403);
+  }
+  // Con correo solo entra una cuenta antigua, una vez, para conectar MAL.
+  if ($action === 'login') {
     rate(
       $db,
       'auth:' . hash('sha256', $_SERVER['REMOTE_ADDR'] ?? 'local'),
@@ -103,52 +108,25 @@ function dispatch_auth(PDO $db, string $action, array $input): ?array
       throw new WebError('Escribe un correo y una contraseña válidos.');
     }
     $initialCodes=null;
-    if ($action === 'register') {
-      $name = trim((string) ($input['name'] ?? ''));
-      if (mb_strlen($name) < 2 || mb_strlen($name) > 60) {
-        throw new WebError('Usa un nombre de 2–60 caracteres.');
-      }
-      $password = new_password($input);
-      // A reserved owner address cannot be claimed by a new registration,
-      // nor the internal addresses of accounts created with MyAnimeList.
-      if (in_array($email, admin_emails(), true) || mal_login_reserved_email($email)) {
-        throw new WebError('No se pudo crear la cuenta con ese correo.');
-      }
-      try {
-        $db->beginTransaction();
-        sql(
-          $db,
-          'INSERT INTO sa1_users(name,email,password_hash,created_at) VALUES(?,?,?,?)',
-          [$name, $email, password_hash($password, PASSWORD_DEFAULT), time()],
-        );
-        $newUser=(int)$db->lastInsertId();
-        $initialCodes=create_recovery_codes($db,$newUser);
-        log_event($db,$newUser,'Tu biblioteca está lista. Guarda los códigos de recuperación que se muestran al crearla.');
-        $db->commit();
-      } catch (PDOException $error) {
-        if($db->inTransaction())$db->rollBack();
-        if (in_array($error->getCode(), ['23000', '19'], true)) {
-          throw new WebError('No se pudo crear la cuenta con ese correo.');
-        }
-        throw $error;
-      } catch(Throwable $error){if($db->inTransaction())$db->rollBack();throw $error;}
-      $_SESSION['user_id'] = $newUser;
-      $_SESSION['auth_version'] = 0;
-    } else {
-      $row = sql($db, 'SELECT * FROM sa1_users WHERE email=?', [
-        $email,
-      ])->fetch();
-      if (!$row || !password_verify($password, $row['password_hash'])) {
-        throw new WebError('Correo o contraseña incorrectos.', 401);
-      }
-      $_SESSION['user_id'] = (int) $row['id'];
-      $_SESSION['auth_version'] = (int) $row['auth_version'];
+    $row = sql($db, 'SELECT * FROM sa1_users WHERE email=?', [
+      $email,
+    ])->fetch();
+    if (!$row || !password_verify($password, $row['password_hash'])) {
+      throw new WebError('Correo o contraseña incorrectos.', 401);
     }
+    // Ya vinculada: solo entra con MyAnimeList. El correo sirve una vez,
+    // para vincular una cuenta antigua.
+    if (mal_login_linked($db, (int) $row['id'])) {
+      throw new WebError('Esta cuenta ya entra con MyAnimeList. Usa «Iniciar sesión con MyAnimeList».', 403);
+    }
+    $_SESSION['user_id'] = (int) $row['id'];
+    $_SESSION['auth_version'] = (int) $row['auth_version'];
     session_regenerate_id(true);
     $_SESSION['csrf'] = bin2hex(random_bytes(24));
     return [
       'recovery_codes'=>$initialCodes,
-      'message' => 'Bienvenido. Tu biblioteca se guarda en tu cuenta.',
+      'link_mal' => true,
+      'message' => 'Cuenta encontrada. Conecta MyAnimeList para vincularla.',
       'data' => state($db),
     ];
   }
@@ -244,9 +222,10 @@ function dispatch_auth(PDO $db, string $action, array $input): ?array
     ];
   }
   if ($action === 'account_delete') {
-    // Una cuenta creada con MyAnimeList no tiene contraseña que confirmar.
-    $row = sql($db, "SELECT * FROM sa1_users WHERE id=? AND password_hash=''", [member()])->fetch()
-      ?: verify_current_password($db, $input);
+    // Una cuenta que entra con MyAnimeList no usa contraseña.
+    $row = mal_login_linked($db, member())
+      ? sql($db, 'SELECT * FROM sa1_users WHERE id=?', [member()])->fetch()
+      : verify_current_password($db, $input);
     if (($input['confirmation'] ?? '') !== 'ELIMINAR') {
       throw new WebError('Escribe ELIMINAR para confirmar.');
     }
