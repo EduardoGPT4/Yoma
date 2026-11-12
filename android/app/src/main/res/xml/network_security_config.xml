@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- yoma.site y sus subdominios: el hosting no envía el certificado intermedio
+     de Google Trust Services. Se añaden los intermedios públicos de Google como
+     anclas, junto a las del sistema (ver lib/config/yoma_certificates.dart). -->
+<network-security-config>
+    <domain-config>
+        <domain includeSubdomains="true">yoma.site</domain>
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="@raw/gts_wr1"/>
+            <certificates src="@raw/gts_wr2"/>
+            <certificates src="@raw/gts_wr3"/>
+            <certificates src="@raw/gts_wr4"/>
+            <certificates src="@raw/gts_wr5"/>
+            <certificates src="@raw/gts_we1"/>
+            <certificates src="@raw/gts_we2"/>
+            <certificates src="@raw/gts_we3"/>
+            <certificates src="@raw/gts_we4"/>
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

@@ -1,4 +1,6 @@
 <network-security-config>
     <base-config cleartextTrafficPermitted="false"/>
     <domain-config cleartextTrafficPermitted="true"><domain includeSubdomains="false">127.0.0.1</domain></domain-config>
+    <!-- Igual que en main/res/xml/network_security_config.xml. -->
+    <domain-config><domain includeSubdomains="true">yoma.site</domain><trust-anchors><certificates src="system"/><certificates src="@raw/gts_wr1"/><certificates src="@raw/gts_wr2"/><certificates src="@raw/gts_wr3"/><certificates src="@raw/gts_wr4"/><certificates src="@raw/gts_wr5"/><certificates src="@raw/gts_we1"/><certificates src="@raw/gts_we2"/><certificates src="@raw/gts_we3"/><certificates src="@raw/gts_we4"/></trust-anchors></domain-config>
 </network-security-config>

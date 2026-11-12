@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../../../config/yoma_certificates.dart';
 import '../../../config/yoma_web.dart';
 import '../../../services/myanimelist_client.dart';
 import '../models/anime_models.dart';
@@ -26,7 +27,7 @@ class YomaTvSource {
     HttpClient? http,
     Future<String> Function(List<String>)? hostCookie,
   }) : base = base ?? origin,
-       http = http ?? HttpClient(),
+       http = http ?? yomaHttpClient(),
        hostCookie = hostCookie ?? MalPlatform.hostCookie {
     this.http.connectionTimeout = const Duration(seconds: 20);
     this.http.maxConnectionsPerHost = 3;

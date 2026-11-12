@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import '../config/yoma_certificates.dart';
 import '../config/yoma_web.dart';
 import 'package:flutter/services.dart';
 
@@ -144,7 +145,7 @@ class MyAnimeListClient {
     MalCredentialStore? credentials,
     Future<String> Function(List<String>)? solveHostCookie,
   }) : api = api ?? endpoint,
-       http = http ?? HttpClient(),
+       http = http ?? yomaHttpClient(),
        credentials = credentials ?? MalPlatform(),
        solveHostCookie = solveHostCookie ?? MalPlatform.hostCookie {
     this.http.connectionTimeout = const Duration(seconds: 15);
