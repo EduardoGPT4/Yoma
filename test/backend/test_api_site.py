@@ -128,7 +128,14 @@ sql($db,'INSERT INTO sa1_yomashi_devices (id,token_hash,tokens,mal_user_id,mal_n
 
     def test_the_status_page_answers_without_exposing_configuration(self):
         with urllib.request.urlopen(self.base, timeout=10) as r:
-            self.assertEqual(json.loads(r.read()), {'service': 'yoma-api', 'ok': False})
+            self.assertEqual(json.loads(r.read()), {'service': 'yoma-api', 'ok': False, 'config': False, 'database': False})
+        # Con la configuración y la base de datos funcionando, dice que está listo.
+        (self.folder / 'private/config.local.php').write_text("<?php return [];", encoding='utf-8')
+        try:
+            with urllib.request.urlopen(self.base, timeout=10) as r:
+                self.assertEqual(json.loads(r.read()), {'service': 'yoma-api', 'ok': True, 'config': True, 'database': True})
+        finally:
+            (self.folder / 'private/config.local.php').unlink()
 
     def test_ping_proves_the_database_works(self):
         self.assertEqual(self.api({'action': 'ping'}), (200, {'service': 'yoma-api', 'sync': True}))
