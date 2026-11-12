@@ -102,6 +102,15 @@ class LocalAnimeDownloads {
     );
   }
 
+  /// Pasa a la cola local lo que quedaba en la cola de la cuenta web:
+  /// mueve los episodios descargados, vuelve a pedir los pendientes y
+  /// devuelve el progreso visto (`progress`) para el historial.
+  Future<Map<String, dynamic>> adoptWeb() async {
+    if (!Platform.isAndroid) return const {};
+    final raw = await channel.invokeMethod<String>('adoptWeb');
+    return raw == null ? const {} : animeMap(jsonDecode(raw));
+  }
+
   /// Mueve los episodios ya descargados a Yoma/YomaTV/Anime. Devuelve
   /// cuántos se movieron (0 si falta el permiso o hay una descarga activa).
   Future<int> migrate() async {

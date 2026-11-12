@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import '../../../services/picture_in_picture.dart';
 
 /// Video con los controles superpuestos.
 ///
@@ -21,6 +22,9 @@ class AnimeVideoStage extends StatefulWidget {
   final Widget? overlay;
   final Duration hideAfter;
 
+  /// Abre la imagen en imagen; sin él no se muestra el botón.
+  final VoidCallback? onPictureInPicture;
+
   const AnimeVideoStage({
     super.key,
     required this.video,
@@ -30,6 +34,7 @@ class AnimeVideoStage extends StatefulWidget {
     this.seek,
     this.overlay,
     this.hideAfter = const Duration(seconds: 3),
+    this.onPictureInPicture,
   });
 
   /// Duración del opening que salta «Saltar opening».
@@ -67,7 +72,12 @@ class _AnimeVideoStageState extends State<AnimeVideoStage> {
   void initState() {
     super.initState();
     _video?.addListener(_changed);
+    PictureInPicture.active.addListener(_pictureInPicture);
     _changed();
+  }
+
+  void _pictureInPicture() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -85,6 +95,7 @@ class _AnimeVideoStageState extends State<AnimeVideoStage> {
   void dispose() {
     _hide?.cancel();
     _video?.removeListener(_changed);
+    PictureInPicture.active.removeListener(_pictureInPicture);
     super.dispose();
   }
 
@@ -175,25 +186,28 @@ class _AnimeVideoStageState extends State<AnimeVideoStage> {
                   ? const Center(child: CircularProgressIndicator())
                   : const SizedBox.shrink(),
             ),
-          // Tocar el video muestra u oculta los controles.
-          Positioned.fill(
-            child: GestureDetector(
-              key: const ValueKey('anime-video-surface'),
-              behavior: HitTestBehavior.opaque,
-              onTap: video == null ? null : _toggle,
-            ),
-          ),
-          if (video != null)
+          // En la ventana pequeña solo se ve el video.
+          if (!PictureInPicture.active.value) ...[
+            // Tocar el video muestra u oculta los controles.
             Positioned.fill(
-              child: IgnorePointer(
-                ignoring: !_visible,
-                child: AnimatedOpacity(
-                  opacity: _visible ? 1 : 0,
-                  duration: const Duration(milliseconds: 200),
-                  child: _controls(video),
-                ),
+              child: GestureDetector(
+                key: const ValueKey('anime-video-surface'),
+                behavior: HitTestBehavior.opaque,
+                onTap: video == null ? null : _toggle,
               ),
             ),
+            if (video != null)
+              Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: !_visible,
+                  child: AnimatedOpacity(
+                    opacity: _visible ? 1 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: _controls(video),
+                  ),
+                ),
+              ),
+          ],
           if (widget.overlay != null)
             Positioned(
               left: 0,
@@ -304,6 +318,15 @@ class _AnimeVideoStageState extends State<AnimeVideoStage> {
                             ),
                           ),
                         ),
+                        if (widget.onPictureInPicture != null)
+                          IconButton(
+                            tooltip: 'Imagen en imagen',
+                            onPressed: widget.onPictureInPicture,
+                            icon: const Icon(
+                              Icons.picture_in_picture_alt,
+                              color: Colors.white,
+                            ),
+                          ),
                         IconButton(
                           tooltip: widget.full
                               ? 'Salir de pantalla completa'

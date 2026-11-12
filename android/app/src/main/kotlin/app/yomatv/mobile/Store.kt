@@ -114,6 +114,25 @@ class Store(private val context: Context, private val databaseName: String = "yo
         }
     }
     fun list(owner: Long): List<Episode> = read("owner=?", arrayOf(owner.toString()))
+    /** Todos los episodios no eliminados, de cualquier cuenta (para migrarlos). */
+    fun all(online: Boolean = false): List<Episode> = read("state<>?", arrayOf("removed"), online)
+    /** Registra un episodio cuyo archivo ya está en [video]: entra completo, sin pasar
+     *  por la cola. Si ya había una fila, solo la completa cuando no está descargándose. */
+    fun adoptDone(payload: JSONObject, total: Long, hash: String): Boolean {
+        validate(payload)
+        val owner = payload.getLong("owner")
+        val key = Episode.key(owner, payload.getString("slug"), payload.getString("number"), payload.getString("language"))
+        val values = ContentValues().apply {
+            put("id", key); put("owner", owner); put("payload", payload.toString()); put("added", System.currentTimeMillis())
+            put("state", "done"); put("bytes", total); put("total", total); put("hash", hash)
+        }
+        if (writableDatabase.insertWithOnConflict("downloads", null, values, SQLiteDatabase.CONFLICT_IGNORE) != -1L) return true
+        val done = ContentValues().apply {
+            put("payload", payload.toString()); put("state", "done"); put("bytes", total); put("total", total); put("hash", hash)
+            put("error", ""); put("attempts", 0); put("speed", 0)
+        }
+        return writableDatabase.update("downloads", done, "id=? AND owner=? AND state NOT IN ('downloading','verifying','done')", arrayOf(key, owner.toString())) == 1
+    }
     fun playback(owner: Long): List<Episode> = read("owner=?", arrayOf(owner.toString()), true)
     /** Online progress never becomes a download job or changes a downloaded file's identity. */
     @Synchronized fun openOnline(payload: JSONObject): Episode {

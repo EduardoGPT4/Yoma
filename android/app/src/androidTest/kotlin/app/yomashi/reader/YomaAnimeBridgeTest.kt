@@ -52,6 +52,60 @@ class YomaAnimeBridgeTest {
             scenario.onActivity { web.destroy() }
         }
     }
+    @Test fun webRequestsGoToFlutterNotToTheOldActivities() {
+        val received = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val previous = NativeAnimeBridge.forward
+        NativeAnimeBridge.forward = { received.add(it) }
+        try {
+            ActivityScenario.launch<app.yomatv.mobile.MainActivity>(Intent(context,app.yomatv.mobile.MainActivity::class.java).putExtra("qa_offline",true)).use { scenario ->
+                lateinit var web: WebView
+                scenario.onActivity { activity ->
+                    web=WebView(activity);web.settings.javaScriptEnabled=true;activity.setContentView(web)
+                    assertTrue(NativeAnimeBridge.attach(activity,web))
+                }
+                fun page(base:String) {
+                    val ready=CountDownLatch(1)
+                    scenario.onActivity {
+                        web.webViewClient=object:WebViewClient(){
+                            override fun shouldInterceptRequest(view:WebView, request:android.webkit.WebResourceRequest):android.webkit.WebResourceResponse? {
+                                if (!request.isForMainFrame) return null
+                                return android.webkit.WebResourceResponse("text/html","UTF-8",java.io.ByteArrayInputStream("<p>YomaTV</p>".toByteArray()))
+                            }
+                            override fun onPageFinished(view:WebView,url:String){ready.countDown()}
+                        }
+                        web.loadUrl(base)
+                    }
+                    assertTrue(ready.await(10,TimeUnit.SECONDS));Thread.sleep(300)
+                }
+                // Los mensajes se envían con la página ya cargada, como hace la web.
+                fun send(vararg messages:String) = scenario.onActivity {
+                    web.evaluateJavascript(messages.joinToString(";") { "window.YomaAndroid?.postMessage(JSON.stringify($it))" }, null)
+                }
+                page("https://untrusted.example/")
+                send("{type:'open',action:'play',slug:'x',episode_id:5}")
+                Thread.sleep(800)
+                assertTrue(received.isEmpty())
+                page("https://tv.yoma.site/")
+                send(
+                    "{type:'open',action:'play',slug:'frieren-2',episode_id:135}",
+                    "{type:'open',action:'download',slug:'frieren-2',episode_id:136,language:'lat'}",
+                    "{type:'open',action:'episodes',slug:'frieren-2'}",
+                    "{type:'open',action:'delete',slug:'frieren-2',episode_id:1}",
+                    "{type:'open',action:'play',slug:'../x',episode_id:1}",
+                    "{type:'plan',owner:1,slug:'frieren-2'}",
+                )
+                val deadline=System.currentTimeMillis()+5000
+                while(received.size<3&&System.currentTimeMillis()<deadline)Thread.sleep(50)
+                Thread.sleep(300)
+                val requests = received.map { JSONObject(it) }
+                assertEquals(listOf("play","download","episodes"), requests.map { it.getString("action") })
+                assertEquals(135L, requests[0].getLong("episode_id"))
+                assertEquals("LAT", requests[1].getString("language"))
+                assertFalse(requests[2].has("episode_id"))
+                scenario.onActivity { web.destroy() }
+            }
+        } finally { NativeAnimeBridge.forward = previous }
+    }
     @Test fun disconnectKeepsDownloadsAndMangaDataButClearsTheWebIdentity() {
         val owner=900260099L
         Prefs(context).apply{this.owner=owner;paused=true}

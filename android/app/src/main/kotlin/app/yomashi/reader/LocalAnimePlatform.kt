@@ -73,6 +73,12 @@ object LocalAnimePlatform {
                                 if(lock==null) 0 else try{db.migrateLocal(1)}finally{lock.release()}
                             }
                         }
+                        // Una vez: la cola de la cuenta web pasa a la cola local.
+                        "adoptWeb" -> {
+                            val outcome=WebDownloadsMigration.run(context)
+                            if(outcome.requeued>0)Queue.startLocal(context)
+                            outcome.toJson().toString()
+                        }
                         "enqueue" -> {
                             require(Build.VERSION.SDK_INT>=26){"Las descargas de anime necesitan Android 8 o posterior."}
                             val data=payload(call.arguments)

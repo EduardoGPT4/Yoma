@@ -167,6 +167,11 @@ class AnimeController extends ChangeNotifier {
   Future<void> _migrateDownloads() async {
     String? failure;
     try {
+      await adoptWebDownloads();
+    } catch (e) {
+      failure = 'No se pudieron pasar las descargas de la cuenta web: $e';
+    }
+    try {
       await transfers.migrate();
     } catch (e) {
       failure = 'No se pudieron mover los episodios a Yoma/YomaTV: $e';
@@ -177,6 +182,19 @@ class AnimeController extends ChangeNotifier {
       downloadError = failure;
       changed();
     }
+  }
+
+  /// La cola de la cuenta web ya no se usa: sus episodios pasan a la cola
+  /// local y su progreso al historial del teléfono (sin pisar el de aquí).
+  Future<void> adoptWebDownloads() async {
+    final outcome = await transfers.adoptWeb();
+    final rows = (outcome['progress'] as List? ?? []).map(animeMap).toList();
+    if (rows.isEmpty) return;
+    for (final row in await store.importWebProgress(rows)) {
+      final ep = AnimeEpisode.fromJson(animeMap(row['episode']));
+      positions[ep.key] = row;
+    }
+    changed();
   }
 
   /// Los episodios vistos sin conexión (por ejemplo en Descargas) quedan en

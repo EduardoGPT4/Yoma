@@ -67,41 +67,37 @@
     if(account&&location.hash!=='#account'){
       event.preventDefault();event.stopImmediatePropagation();post({type:'account'});return;
     }
+    // Reproducir y descargar los hace la app (reproductor y cola local de
+    // Flutter): no hace falta la cuenta web, solo saber qué anime y episodio.
+    const fail=message=>{if(typeof toast==='function')toast(message,true);};
+    // «Ver capítulo» en la ficha: el reproductor de la app, sin pedir la cuenta web.
+    const watch=event.target.closest('#dialog [data-play]');
+    const slug=detailState?.anime?.slug;
+    if(watch&&!watch.disabled&&slug&&Number(watch.dataset.play)>0){
+      event.preventDefault();event.stopImmediatePropagation();
+      post({type:'open',action:'play',slug:String(slug),episode_id:Number(watch.dataset.play)});
+      return;
+    }
     const play=event.target.closest('[data-native-online]');
     if(play){
-      event.preventDefault();event.stopImmediatePropagation();if(play.disabled)return;
-      play.disabled=true;const owner=Number(state?.user?.id)||0,id=Number(playerView?.episode?.id),selected=playerView?.servers?.[playerView.index];
-      try{
-        if(!owner || !id || selected?.server!=='MP4Upload')throw new Error('Elige MP4Upload para abrir el reproductor de la app.');
-        const result=await api('offline_plan',{episode_id:id,language:selected.language}),plan=result.offline_plan;
-        if(Number(state?.user?.id)!==owner || Number(plan.owner)!==owner || Number(playerView?.episode?.id)!==id || playerView.servers[playerView.index]!==selected)throw new Error('La selección cambió. Vuelve a pulsar reproducir.');
-        plan.episodes=plan.episodes.filter(ep=>Number(ep.episode_id)===id);
-        post({...plan,type:'play_online',episode_id:id,server:'MP4Upload'});
-      }catch(error){if(typeof toast==='function')toast(error.message,true);}
-      finally{play.disabled=false;}
+      event.preventDefault();event.stopImmediatePropagation();
+      const episode=playerView?.episode;
+      if(!episode?.slug||!Number(episode.id))return fail('Actualiza el episodio antes de reproducirlo.');
+      post({type:'open',action:'play',slug:String(episode.slug),episode_id:Number(episode.id)});
       return;
     }
     const b = event.target.closest('[data-native-offline]'); if (!b || b.disabled) return;
-    event.preventDefault(); event.stopImmediatePropagation(); b.disabled = true;
-    const owner = Number(state?.user?.id)||0;
-    try {
-      if (!owner) throw new Error('Inicia sesión antes de guardar capítulos en el celular.');
-      let id;
-      if (b.dataset.nativeOffline === 'episode') id = playerView?.episode?.id;
-      else id = detailState?.episodes?.[0]?.id;
-      if (!id && b.dataset.nativeOffline === 'anime') id = detailState?.anime?.episodes?.[0]?.id;
-      if (!id) {
-        const node = document.querySelector('#dialog [data-play]'); id = Number(node?.dataset.play);
-      }
-      if (!id) throw new Error('Actualiza el listado del anime antes de descargar.');
-      const selectedLanguage = b.dataset.nativeOffline === 'episode' ? playerView?.servers?.[playerView.index]?.language : null;
-      const language = String(selectedLanguage || state.settings?.language || 'SUB').toUpperCase();
-      const result = await api('offline_plan', {episode_id:Number(id),language}), plan = result.offline_plan;
-      if (Number(state?.user?.id) !== owner || Number(plan.owner) !== owner) throw new Error('La cuenta cambió; vuelve a elegir los capítulos.');
-      if (b.dataset.nativeOffline === 'episode') plan.episodes = plan.episodes.filter(ep=>Number(ep.episode_id)===Number(id));
-      post({...plan,type:'plan'});
-    } catch (error) { if (typeof toast === 'function') toast(error.message,true); }
-    finally { b.disabled = false; }
+    event.preventDefault(); event.stopImmediatePropagation();
+    if (b.dataset.nativeOffline === 'episode') {
+      const episode=playerView?.episode,selected=playerView?.servers?.[playerView.index];
+      if(!episode?.slug||!Number(episode.id))return fail('Actualiza el episodio antes de descargarlo.');
+      const language=String(selected?.language||state?.settings?.language||'SUB').toUpperCase();
+      post({type:'open',action:'download',slug:String(episode.slug),episode_id:Number(episode.id),language});
+    } else {
+      const slug=detailState?.anime?.slug||detailState?.episodes?.[0]?.slug;
+      if(!slug)return fail('Actualiza el listado del anime antes de descargar.');
+      post({type:'open',action:'episodes',slug:String(slug)});
+    }
   }, true);
   update();
 })(/*YOMA_NATIVE_LAYOUT*/);

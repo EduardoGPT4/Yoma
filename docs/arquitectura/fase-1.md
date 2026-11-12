@@ -1,6 +1,6 @@
 # Fase 1: compatibilidad y coherencia
 
-Estado al 12 de noviembre de 2026 (Yoma 3.2.16).
+Estado al 12 de noviembre de 2026 (Yoma 3.2.17).
 
 ## 1. Pruebas de bloqueo de contenido (11 fallos)
 
@@ -54,18 +54,37 @@ Esa decisión afecta a MAL y al historial de las dos plataformas, así que queda
 
 **Hecho en su lugar.** Las pantallas Kotlin ya no rompen la identidad visual: usan exactamente los colores de Yoma (sección 4).
 
-### Opciones para unificar (pendiente de decisión)
+### Decisión: modelo local (Yoma 3.2.17)
 
-1. **Flutter como única interfaz, con el modelo local.**
-   - La web integrada envía `plan` y `play_online` a Flutter.
-   - Las descargas de la cuenta web se migran a la cola local.
-   - Lo visto deja de enviarse a la cuenta web; sigue llegando a MAL por la sesión de la app.
-   - Hay que añadir imagen en imagen al reproductor de Flutter antes de retirar `PlayerActivity`.
-2. **Flutter como única interfaz, conservando la cuenta web.**
-   - El reproductor y la cola de Flutter aprenden a trabajar con la cuenta web: `offline_plan` y `watch_scrobble`.
-   - Es más trabajo, pero el historial de la web y el de la app coinciden.
-   - Encaja con la Fase 3, que busca compartir biblioteca e historial.
-3. **Mantener Kotlin para la cuenta web**, ya con el mismo diseño, hasta la Fase 3.
+Se eligió la opción «Flutter como única interfaz, con el modelo local».
+
+**Qué abre ahora la web integrada:**
+
+| Acción en la web integrada | Qué abre ahora |
+|---|---|
+| «Ver capítulo» en la ficha y «Reproducir» en el vídeo | Reproductor de Flutter (`AnimePlayerScreen`), sin cuenta web |
+| «↓ Descargar» de un episodio | Cola local de Flutter, con el idioma elegido en la web |
+| «↓ Capítulos para llevar» | Ficha de Flutter, con su selección de varios episodios |
+| Icono «Descargas de anime» | Pestaña Descargas de YomaTV en Flutter |
+
+**Cómo funciona:**
+
+- La web envía `open` con la acción, el anime y el episodio (`native-integration.js`).
+- `NativeAnimeBridge` lo valida y lo entrega a Flutter (`AnimeWebRequest`, `NativeAnimeScreen.openFromWeb`).
+- El puente ya no abre `MainActivity` ni `PlayerActivity` de `app.yomatv.mobile`, ni arranca la cola de la cuenta web.
+
+**Migración** (`WebDownloadsMigration.kt`, una vez al abrir YomaTV):
+
+- Los episodios descargados de la cuenta web pasan a la cola local sin volver a descargarse: se mueve el archivo y se conserva su huella.
+- Los que estaban en cola, en pausa o con error se piden en la cola local.
+- Su posición y «visto» pasan al historial del teléfono, sin pisar lo que ya hubiera.
+- Si un archivo no se puede mover, se reintenta en el siguiente inicio: nunca se borra un episodio completo.
+
+**Imagen en imagen.** El reproductor de Flutter la tiene ahora, igual que `PlayerActivity`. El vídeo no se pausa al entrar en la ventana pequeña.
+
+**Consecuencia aceptada.** Lo visto en la app ya no se envía a la cuenta de tv.yoma.site. Sigue llegando a MyAnimeList con la sesión de la app.
+
+**Pendiente (Fase 2).** El código Kotlin de `app.yomatv.mobile` (`MainActivity`, `PlayerActivity`, `DownloadsPanel`, `EpisodePicker`, cola web) ya no se abre desde ningún sitio, pero no se ha borrado. Se retirará cuando una versión con la migración lleve tiempo instalada.
 
 ## 3. Enlace de descarga de la web
 
@@ -100,7 +119,7 @@ Lo que no cambia:
 
 ## Pendiente
 
-- Decidir el modelo de datos de YomaTV (sección 2) antes de redirigir rutas o retirar Kotlin.
+- Retirar el código Kotlin de la cuenta web (sección 2) cuando la migración esté asentada.
 - Revisar y restaurar las reglas de exclusión (sección 1).
 - Subir el código de tv.yoma.site al repositorio, sin `private/config.local.php`, para poder probar la web y versionarla.
 - Fase 2: tokens de la web generados desde `yoma_tokens.dart` y un único nombre por color en los tres sitios.

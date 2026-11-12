@@ -142,6 +142,51 @@ class AnimeLocalStore {
     return written;
   }
 
+  /// Progreso traído de la antigua cola de la cuenta web (posición y
+  /// «visto»). Solo rellena episodios sin progreso en el teléfono: lo que
+  /// ya hay aquí es más reciente. Devuelve las filas escritas.
+  Future<List<Map<String, dynamic>>> importWebProgress(
+    Iterable<Map<String, dynamic>> rows,
+  ) async {
+    final store = await database();
+    final written = <Map<String, dynamic>>[];
+    await store.transaction(() async {
+      for (final row in rows) {
+        final slug = '${row['slug'] ?? ''}';
+        final number = '${row['number'] ?? ''}';
+        if (slug.isEmpty || number.isEmpty) continue;
+        final episode = AnimeEpisode.fromJson({
+          'id': row['episode_id'],
+          'slug': slug,
+          'number': number,
+          'url': '',
+        });
+        if (await store.getRecord('anime_progress', episode.key) != null) {
+          continue;
+        }
+        final anime = AnimeTitle.fromJson({
+          'slug': slug,
+          'title': row['title'],
+          if (row['cover'] != null) 'cover': row['cover'],
+        });
+        final duration = animeInt(row['duration']);
+        final value = progressRow(
+          const {},
+          anime,
+          episode,
+          positionMs: animeInt(
+            row['position'],
+          ).clamp(0, duration > 0 ? duration : animeInt(row['position'])),
+          durationMs: duration,
+          watched: row['watched'] == true ? true : null,
+        );
+        await store.putRecord('anime_progress', episode.key, value);
+        written.add(value);
+      }
+    });
+    return written;
+  }
+
   Future<void> markWatched(
     AnimeTitle anime,
     AnimeEpisode episode,

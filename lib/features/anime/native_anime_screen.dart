@@ -11,6 +11,7 @@ import 'anime_screen.dart';
 import 'data/anime_controller.dart';
 import 'data/anime_mal_client.dart';
 import 'data/anime_mal_shelf.dart';
+import 'data/anime_web_request.dart';
 import 'data/local_anime_downloads.dart';
 import 'models/anime_models.dart';
 import 'screens/anime_detail_screen.dart';
@@ -67,9 +68,59 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen>
         initialUrl: episode == null
             ? null
             : YomaWeb.resolve('#watch/${episode.id}'),
+        onOpen: (request) => unawaited(openFromWeb(request)),
+        onDownloads: showDownloads,
       ),
     ),
   );
+
+  /// La web integrada pide reproducir, descargar o elegir episodios: se
+  /// usan el reproductor, la cola local y la ficha de Flutter.
+  Future<void> openFromWeb(AnimeWebRequest request) async {
+    if (request.action == 'episodes') {
+      _detail(request.slug);
+      return;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final detail = await app.detail(request.slug);
+      final episode = detail.episodes
+          .where((e) => e.id == request.episodeId)
+          .firstOrNull;
+      if (episode == null) {
+        throw 'El episodio ya no aparece en el listado. Actualízalo e '
+            'inténtalo de nuevo.';
+      }
+      if (!mounted) return;
+      if (request.action == 'play') {
+        _play(detail, episode);
+        return;
+      }
+      final outcome = await app.enqueue(
+        detail.anime,
+        episode,
+        request.language,
+      );
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            AnimeController.downloadNotice([outcome], paused: app.paused),
+          ),
+          action: SnackBarAction(label: 'Ver', onPressed: showDownloads),
+        ),
+      );
+    } catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text('No se pudo abrir el episodio: $e')),
+      );
+    }
+  }
+
+  /// Vuelve a la pestaña Descargas de YomaTV.
+  void showDownloads() {
+    _navigator.currentState?.popUntil((route) => route.isFirst);
+    app.selectTab(3);
+  }
 
   /// Con [mal], la ficha viene de la sección de MyAnimeList: al empezar a
   /// ver ese mismo anime se vincula para sincronizar los episodios vistos.

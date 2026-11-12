@@ -7,16 +7,25 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../config/yoma_web.dart';
 import '../../design/yoma_tokens.dart';
 import '../../services/myanimelist_service.dart';
+import 'data/anime_web_request.dart';
 
 class AnimeScreen extends StatefulWidget {
   final bool active;
   final bool syncMal;
   final Uri? initialUrl;
+
+  /// La web pide reproducir o descargar: lo hacen las pantallas de Flutter.
+  final void Function(AnimeWebRequest)? onOpen;
+
+  /// Abre las descargas de YomaTV (la pestaña de Flutter).
+  final VoidCallback? onDownloads;
   const AnimeScreen({
     super.key,
     required this.active,
     this.syncMal = true,
     this.initialUrl,
+    this.onOpen,
+    this.onDownloads,
   });
   @override
   State<AnimeScreen> createState() => AnimeScreenState();
@@ -43,6 +52,9 @@ class AnimeScreenState extends State<AnimeScreen> with WidgetsBindingObserver {
       _sessionChanged,
     );
     if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (Platform.isAndroid && widget.onOpen != null) {
+      _native.setMethodCallHandler(_fromNative);
+    }
     final controller = WebViewController();
     _controller = controller;
     unawaited(_initialize(controller));
@@ -190,16 +202,10 @@ class AnimeScreenState extends State<AnimeScreen> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _downloads() async {
-    try {
-      await _native.invokeMethod<void>('downloads');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
-    }
+  Future<void> _fromNative(MethodCall call) async {
+    if (call.method != 'open' || !mounted) return;
+    final request = AnimeWebRequest.parse(call.arguments);
+    if (request != null) widget.onOpen?.call(request);
   }
 
   Future<bool> goBack() async {
@@ -217,6 +223,9 @@ class AnimeScreenState extends State<AnimeScreen> with WidgetsBindingObserver {
       _sessionChanged,
     );
     WidgetsBinding.instance.removeObserver(this);
+    if (Platform.isAndroid && widget.onOpen != null) {
+      _native.setMethodCallHandler(null);
+    }
     if (_nativeId != null) {
       unawaited(_native.invokeMethod<void>('detach', _nativeId));
     }
@@ -233,10 +242,10 @@ class AnimeScreenState extends State<AnimeScreen> with WidgetsBindingObserver {
         icon: const Icon(Icons.arrow_back),
       ),
       actions: [
-        if (Platform.isAndroid)
+        if (widget.onDownloads != null)
           IconButton(
             tooltip: 'Descargas de anime',
-            onPressed: _downloads,
+            onPressed: widget.onDownloads,
             icon: const Icon(Icons.download_outlined),
           ),
         IconButton(

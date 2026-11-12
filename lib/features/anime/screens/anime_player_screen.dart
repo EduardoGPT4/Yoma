@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
+import '../../../services/picture_in_picture.dart';
 import '../data/anime_controller.dart';
 import '../data/local_anime_downloads.dart';
 import '../data/next_episode_countdown.dart';
@@ -37,7 +38,8 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
       _played = false,
       _marked = false,
       _wasPlaying = false,
-      _full = false;
+      _full = false,
+      _pictureInPictureSupported = false;
   int _generation = 0;
   Timer? _persist;
 
@@ -54,6 +56,12 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     app.activity.addListener(_activity);
+    PictureInPicture.active.addListener(_pictureInPictureChanged);
+    unawaited(
+      PictureInPicture.supported().then((value) {
+        if (mounted && value) setState(() => _pictureInPictureSupported = true);
+      }),
+    );
     unawaited(_openEpisode());
     _persist = Timer.periodic(
       const Duration(seconds: 5),
@@ -68,9 +76,29 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     }
   }
 
+  void _pictureInPictureChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Sigue viéndose en una ventana pequeña, como en el reproductor anterior.
+  Future<void> _pictureInPicture() async {
+    final size = _video?.value.size ?? Size.zero;
+    final ok = await PictureInPicture.enter(
+      width: size.width > 0 ? size.width.round() : 16,
+      height: size.height > 0 ? size.height.round() : 9,
+    );
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Este teléfono no permite ver en imagen en imagen.'),
+        ),
+      );
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) {
+    if (PictureInPicture.shouldPause(state)) {
       _video?.pause();
       unawaited(_save());
     }
@@ -404,208 +432,217 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     full: full,
     onToggleFullscreen: full ? (exit ?? () {}) : _fullscreen,
     overlay: full ? _nextBanner() : null,
+    onPictureInPicture: _pictureInPictureSupported && _video != null
+        ? () => unawaited(_pictureInPicture())
+        : null,
   );
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: true,
-    onPopInvokedWithResult: (didPop, _) {
-      if (didPop) unawaited(_save());
-    },
-    child: Scaffold(
-      appBar: AppBar(
-        title: Text('Episodio ${_episode.number}'),
-        actions: [
-          IconButton(
-            tooltip: 'Ver en la web',
-            onPressed: () {
-              _video?.pause();
-              widget.openWeb(_episode);
-            },
-            icon: const Icon(Icons.open_in_browser),
-          ),
-        ],
-      ),
-      body: ListView(
-        children: [
-          // Los controles van encima del video: la caja es solo el video.
-          SizedBox(
-            height: MediaQuery.sizeOf(context).width * 9 / 16,
-            child: _stage(),
-          ),
-          _nextBanner(),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  anime.title,
-                  style: Theme.of(context).textTheme.titleLarge,
+  Widget build(BuildContext context) => PictureInPicture.active.value
+      // En la ventana pequeña solo el video, sin barra ni listado.
+      ? Scaffold(backgroundColor: Colors.black, body: _stage())
+      : PopScope(
+          canPop: true,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) unawaited(_save());
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text('Episodio ${_episode.number}'),
+              actions: [
+                IconButton(
+                  tooltip: 'Ver en la web',
+                  onPressed: () {
+                    _video?.pause();
+                    widget.openWeb(_episode);
+                  },
+                  icon: const Icon(Icons.open_in_browser),
                 ),
-                const SizedBox(height: 12),
-                if (_error != null)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _error!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
+              ],
+            ),
+            body: ListView(
+              children: [
+                // Los controles van encima del video: la caja es solo el video.
+                SizedBox(
+                  height: MediaQuery.sizeOf(context).width * 9 / 16,
+                  child: _stage(),
+                ),
+                _nextBanner(),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        anime.title,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 12),
+                      if (_error != null)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _error!,
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  children: [
+                                    FilledButton(
+                                      onPressed: _openEpisode,
+                                      child: const Text('Reintentar'),
+                                    ),
+                                    OutlinedButton(
+                                      onPressed: () => widget.openWeb(_episode),
+                                      child: const Text('Ver en la web'),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              FilledButton(
-                                onPressed: _openEpisode,
-                                child: const Text('Reintentar'),
-                              ),
-                              OutlinedButton(
-                                onPressed: () => widget.openWeb(_episode),
-                                child: const Text('Ver en la web'),
-                              ),
-                            ],
+                        ),
+                      if (_servers.isNotEmpty)
+                        DropdownButtonFormField<AnimeServer>(
+                          initialValue: _selected,
+                          decoration: const InputDecoration(
+                            labelText: 'Idioma y servidor',
+                          ),
+                          isExpanded: true,
+                          items: _servers
+                              .map(
+                                (s) => DropdownMenuItem(
+                                  value: s,
+                                  child: Text(
+                                    '${s.label}${s.supported ? '' : ' · Web'}',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (s) {
+                            if (s != null) unawaited(_playServer(s));
+                          },
+                        ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _adjacent(-1) == null
+                                  ? null
+                                  : () => _change(_adjacent(-1)!),
+                              icon: const Icon(Icons.skip_previous),
+                              label: const Text('Anterior'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _adjacent(1) == null
+                                  ? null
+                                  : () => _change(_adjacent(1)!),
+                              icon: const Icon(Icons.skip_next),
+                              label: const Text('Siguiente'),
+                            ),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                if (_servers.isNotEmpty)
-                  DropdownButtonFormField<AnimeServer>(
-                    initialValue: _selected,
-                    decoration: const InputDecoration(
-                      labelText: 'Idioma y servidor',
-                    ),
-                    isExpanded: true,
-                    items: _servers
-                        .map(
-                          (s) => DropdownMenuItem(
-                            value: s,
-                            child: Text(
-                              '${s.label}${s.supported ? '' : ' · Web'}',
-                              overflow: TextOverflow.ellipsis,
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final value =
+                                  app.positions[_episode.key]?['watched'] !=
+                                  true;
+                              _marked = true;
+                              await app.mark(anime, _episode, value);
+                              if (mounted) setState(() {});
+                            },
+                            icon: Icon(
+                              app.positions[_episode.key]?['watched'] == true
+                                  ? Icons.check_circle
+                                  : Icons.check_circle_outline,
+                            ),
+                            label: const Text('Visto'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              try {
+                                final outcome = await app.enqueue(
+                                  anime,
+                                  _episode,
+                                  _selected?.language ??
+                                      '${app.settings['language'] ?? 'SUB'}',
+                                );
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        AnimeController.downloadNotice([
+                                          outcome,
+                                        ], paused: app.paused),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(animeErrorText(e))),
+                                  );
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.download_outlined),
+                            label: const Text('Descargar'),
+                          ),
+                          PopupMenuButton<double>(
+                            tooltip: 'Velocidad',
+                            onSelected: (speed) {
+                              _video?.setPlaybackSpeed(speed);
+                              app.saveSetting('speed', speed);
+                            },
+                            itemBuilder: (_) => [.5, .75, 1.0, 1.25, 1.5, 2.0]
+                                .map(
+                                  (speed) => PopupMenuItem(
+                                    value: speed,
+                                    child: Text('${speed}x'),
+                                  ),
+                                )
+                                .toList(),
+                            child: const Padding(
+                              padding: EdgeInsets.all(14),
+                              child: Text('Velocidad'),
                             ),
                           ),
-                        )
-                        .toList(),
-                    onChanged: (s) {
-                      if (s != null) unawaited(_playServer(s));
-                    },
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        animeLanguageLabel(
+                          '${_selected?.language ?? app.settings['language'] ?? 'SUB'}',
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
                   ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _adjacent(-1) == null
-                            ? null
-                            : () => _change(_adjacent(-1)!),
-                        icon: const Icon(Icons.skip_previous),
-                        label: const Text('Anterior'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _adjacent(1) == null
-                            ? null
-                            : () => _change(_adjacent(1)!),
-                        icon: const Icon(Icons.skip_next),
-                        label: const Text('Siguiente'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        final value =
-                            app.positions[_episode.key]?['watched'] != true;
-                        _marked = true;
-                        await app.mark(anime, _episode, value);
-                        if (mounted) setState(() {});
-                      },
-                      icon: Icon(
-                        app.positions[_episode.key]?['watched'] == true
-                            ? Icons.check_circle
-                            : Icons.check_circle_outline,
-                      ),
-                      label: const Text('Visto'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        try {
-                          final outcome = await app.enqueue(
-                            anime,
-                            _episode,
-                            _selected?.language ??
-                                '${app.settings['language'] ?? 'SUB'}',
-                          );
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  AnimeController.downloadNotice([
-                                    outcome,
-                                  ], paused: app.paused),
-                                ),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(animeErrorText(e))),
-                            );
-                          }
-                        }
-                      },
-                      icon: const Icon(Icons.download_outlined),
-                      label: const Text('Descargar'),
-                    ),
-                    PopupMenuButton<double>(
-                      tooltip: 'Velocidad',
-                      onSelected: (speed) {
-                        _video?.setPlaybackSpeed(speed);
-                        app.saveSetting('speed', speed);
-                      },
-                      itemBuilder: (_) => [.5, .75, 1.0, 1.25, 1.5, 2.0]
-                          .map(
-                            (speed) => PopupMenuItem(
-                              value: speed,
-                              child: Text('${speed}x'),
-                            ),
-                          )
-                          .toList(),
-                      child: const Padding(
-                        padding: EdgeInsets.all(14),
-                        child: Text('Velocidad'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  animeLanguageLabel(
-                    '${_selected?.language ?? app.settings['language'] ?? 'SUB'}',
-                  ),
-                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    ),
-  );
+        );
   @override
   void dispose() {
     _closed = true;
@@ -615,6 +652,7 @@ class _AnimePlayerScreenState extends State<AnimePlayerScreen>
     _stageVersion.dispose();
     WidgetsBinding.instance.removeObserver(this);
     app.activity.removeListener(_activity);
+    PictureInPicture.active.removeListener(_pictureInPictureChanged);
     unawaited(_save());
     final video = _video;
     _video = null;

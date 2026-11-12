@@ -21,6 +21,13 @@ object NativeAnimeBridge {
     private const val playbackRequest = 50861
     private var playbackWeb = java.lang.ref.WeakReference<WebView>(null)
     private const val channelName = "app.yoma/anime"
+    /** Canal hacia Flutter: la web integrada pide pantallas de Flutter, nunca actividades propias. */
+    private var flutter: MethodChannel? = null
+    /** Entrega a Flutter una petición ya validada; las pruebas la sustituyen. */
+    @JvmStatic internal var forward: (String) -> Unit = { request ->
+        (flutter ?: error("YomaTV no está listo.")).invokeMethod("open", request)
+    }
+    private val slugPattern = Regex("[A-Za-z0-9_-]{1,160}")
     private fun trusted(web: WebView): Boolean {
         val uri = runCatching { android.net.Uri.parse(web.url) }.getOrNull() ?: return false
         return YomaWeb.owns(uri)
@@ -41,7 +48,9 @@ object NativeAnimeBridge {
         }
     }
     fun register(activity: Activity, engine: FlutterEngine) {
-        MethodChannel(engine.dartExecutor.binaryMessenger, channelName).setMethodCallHandler { call, result ->
+        val channel = MethodChannel(engine.dartExecutor.binaryMessenger, channelName)
+        flutter = channel
+        channel.setMethodCallHandler { call, result ->
             try {
                 if (Build.VERSION.SDK_INT < 26) {
                     if (call.method == "attach") result.success(false)
@@ -63,11 +72,6 @@ object NativeAnimeBridge {
                     "script" -> {
                         val css = activity.assets.open("native-layout.css").bufferedReader().use { it.readText() }
                         result.success(activity.assets.open("native-integration.js").bufferedReader().use { it.readText() }.replace("/*YOMA_NATIVE_LAYOUT*/", JSONObject.quote(css)).replace("/*YOMA_ANIME_BRAND*/", JSONObject.quote("data:image/png;base64," + android.util.Base64.encodeToString(activity.assets.open("anime-brand.png").use { it.readBytes() }, android.util.Base64.NO_WRAP))).replace(".mobile-navigation{display:none!important}", ""))
-                    }
-                    "downloads" -> {
-                        Notices.channels(activity)
-                        activity.startActivity(Intent(activity, app.yomatv.mobile.MainActivity::class.java).putExtra("downloads", true))
-                        result.success(null)
                     }
                     "resetIdentity" -> resetIdentity(activity) { result.success(null) }
                     else -> result.notImplemented()
@@ -111,25 +115,29 @@ object NativeAnimeBridge {
                 }
                 prefs.userAgent = web.settings.userAgentString
                 CookieManager.getInstance().flush()
-                if (owner > 0) { Queue.start(activity); Queue.sync(activity) }
+                // La cola de la cuenta web ya no se usa: las descargas son locales.
             }
-            "plan" -> {
-                require(prefs.owner > 0 && message.getLong("owner") == prefs.owner) { "La cuenta cambió. Abre la ficha otra vez." }
-                activity.startActivity(Intent(activity, app.yomatv.mobile.MainActivity::class.java)
-                    .putExtra("downloads", true).putExtra("yoma_plan", message.toString()))
-            }
-            "play_online" -> {
-                require(message.optString("server") == "MP4Upload")
-                val owner = message.getLong("owner")
-                require(owner > 0 && owner == prefs.owner)
-                val payload = OnlinePlayback.payload(message, owner, message.getLong("episode_id"))
-                val episode = Store(activity).use { it.openOnline(payload) }
-                web.evaluateJavascript("window.dispatchEvent(new Event('season-native-suspend'))", null)
-                playbackWeb = java.lang.ref.WeakReference(web)
-                activity.startActivityForResult(Intent(activity, PlayerActivity::class.java).putExtra("owner", owner).putExtra("key", episode.key).putExtra("online", true), playbackRequest)
+            // Reproducir, descargar un episodio o elegir varios: lo hace Flutter
+            // con su reproductor y su cola local; la web solo dice qué anime.
+            "open" -> {
+                val action = message.getString("action")
+                require(action in setOf("play", "download", "episodes"))
+                val slug = message.getString("slug")
+                require(slugPattern.matches(slug))
+                val request = JSONObject().put("action", action).put("slug", slug)
+                if (action != "episodes") {
+                    val episode = message.getLong("episode_id")
+                    require(episode in 1..Int.MAX_VALUE.toLong())
+                    request.put("episode_id", episode)
+                }
+                if (action == "download") {
+                    val language = message.optString("language", "SUB").uppercase()
+                    require(language in setOf("SUB", "LAT", "DUB"))
+                    request.put("language", language)
+                }
+                forward(request.toString())
             }
             "account" -> web.evaluateJavascript("location.hash='#account'", null)
-            "more" -> activity.startActivity(Intent(activity, app.yomatv.mobile.MainActivity::class.java))
             // Flutter keeps its navigation and toolbar. Web messages cannot
             // request arbitrary URLs, files, intents or credential operations.
         }
