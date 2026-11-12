@@ -53,7 +53,7 @@ class EpisodePicker(private val context: Context,initial: List<EpisodeChoice>,op
         fun bindChecked(value:Boolean){binding=true;check.isChecked=value;check.text=if(value)"Visto" else "Marcar visto";binding=false}
         fun bind(choice:EpisodeChoice,open:()->Unit,mark:(Boolean)->Unit){
             tag="episode-choice-${choice.id}";title.text=choice.title;actual.tag="episode-current-${choice.id}";actual.visibility=if(choice.current)VISIBLE else GONE
-            background=outlined(if(choice.current)0xff30212b.toInt() else SURFACE,context.dp(14).toFloat())
+            background=outlined(if(choice.current)YomaColors.ACCENT_SOFT else SURFACE,context.dp(14).toFloat())
             check.setOnCheckedChangeListener(null);bindChecked(choice.seen);check.tag="episode-mark-${choice.id}";check.contentDescription="${if(choice.seen)"Quitar de vistos" else "Marcar como visto"}: ${choice.title}"
             check.setOnCheckedChangeListener{_,value->if(!binding)mark(value)}
             copy.isEnabled=choice.playable;copy.isClickable=choice.playable;copy.isFocusable=true;copy.contentDescription="${choice.title}${if(choice.current)" · Actual" else ""}${if(choice.playable)" · Reproducir" else " · Todavía no está descargado"}";copy.setOnClickListener{if(choice.playable)open()}

@@ -27,7 +27,7 @@ class NavigationTab(context: Context, key: String, name: String): LinearLayout(c
 }
 
 fun outlined(color: Int, radius: Float) = GradientDrawable().apply {
-    setColor(color); cornerRadius=radius; setStroke(1,0xff393449.toInt())
+    setColor(color); cornerRadius=radius; setStroke(1,YomaColors.BORDER)
 }
 
 /** Vector icons stay sharp and do not depend on the device's font or emoji set. */

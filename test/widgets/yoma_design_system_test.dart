@@ -372,8 +372,12 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('Episodio 3 · Subtitulado'), findsOneWidget);
-        final first = tester.getTopLeft(find.text('Episodio 1 · Subtitulado')).dy;
-        final second = tester.getTopLeft(find.text('Episodio 2 · Subtitulado')).dy;
+        final first = tester
+            .getTopLeft(find.text('Episodio 1 · Subtitulado'))
+            .dy;
+        final second = tester
+            .getTopLeft(find.text('Episodio 2 · Subtitulado'))
+            .dy;
         expect(first, lessThan(second));
         // Al plegar un grupo queda a la vista el siguiente; un grupo de un
         // solo episodio se muestra abierto y se pliega al tocarlo.

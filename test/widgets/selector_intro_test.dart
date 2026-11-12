@@ -114,7 +114,6 @@ void main() {
     });
   }
 
-
   testWidgets('the selector is written, drawn and resolved once', (
     tester,
   ) async {

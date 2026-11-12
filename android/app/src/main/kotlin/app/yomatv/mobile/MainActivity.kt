@@ -28,12 +28,13 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import org.json.JSONObject
 
-const val INK = 0xff0e0d14.toInt()
-const val SURFACE = 0xff1b1925.toInt()
-const val PAPER = 0xfff4eee5.toInt()
-const val MUTED = 0xffb4adbf.toInt()
-const val ACCENT = 0xffff6a55.toInt()
-const val MINT = 0xffaee6c9.toInt()
+// Nombres históricos de esta pantalla; los valores son los de Yoma (YomaColors).
+const val INK = YomaColors.BACKGROUND
+const val SURFACE = YomaColors.SURFACE
+const val PAPER = YomaColors.TEXT_PRIMARY
+const val MUTED = YomaColors.TEXT_SECONDARY
+const val ACCENT = YomaColors.ACCENT
+const val MINT = YomaColors.SUCCESS
 
 fun android.content.Context.dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 fun background(color: Int, radius: Float = 18f) = GradientDrawable().apply { setColor(color); cornerRadius = radius }
@@ -408,7 +409,7 @@ class MainActivity : ComponentActivity() {
                 row.addView(label(entryLabel,16,PAPER).apply{setPadding(0,0,0,0);importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO},LinearLayout.LayoutParams(0,-2,1f))
                 row.addView(NavGlyph(this,"chevron").apply{tint=MUTED;importantForAccessibility=View.IMPORTANT_FOR_ACCESSIBILITY_NO},LinearLayout.LayoutParams(dp(18),dp(18)).apply{leftMargin=dp(8)})
                 box.addView(row,LinearLayout.LayoutParams(-1,-2))
-                if(index<entries.lastIndex)box.addView(View(this).apply{setBackgroundColor(0xff393449.toInt())},LinearLayout.LayoutParams(-1,dp(1)))
+                if(index<entries.lastIndex)box.addView(View(this).apply{setBackgroundColor(YomaColors.BORDER)},LinearLayout.LayoutParams(-1,dp(1)))
             }
         }
         section("TU BIBLIOTECA",listOf(Triple("library","Mi biblioteca","library"),Triple("history","Historial","history"),Triple("mal","MyAnimeList${if(malConnected)" · Conectado" else ""}","mal"),Triple("favorites","Favoritos","favorites"),Triple("collections","Colecciones","collections")))
@@ -551,7 +552,7 @@ class MainActivity : ComponentActivity() {
         this.text = text; textSize = size.toFloat(); setTextColor(color); includeFontPadding=false
         gravity=android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
         textAlignment=View.TEXT_ALIGNMENT_GRAVITY;setLineSpacing(0f,1.15f);setPadding(0,dp(6),0,dp(6))
-        if (serif) typeface = Typeface.create("serif", Typeface.NORMAL)
+        if (serif) { typeface = YomaType.title; letterSpacing = YomaType.TITLE_SPACING }
     }
     private fun button(text: String, primary: Boolean, action: () -> Unit) = Button(this).apply {
         this.text = text; isAllCaps = false; textSize = 14f; minHeight = dp(48); minimumHeight = dp(48)

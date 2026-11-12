@@ -10,7 +10,7 @@ import android.widget.TextView
 /** The image overlays the initial, so missing or failed images need no extra UI. */
 class AccountAvatar(context:Context,private val load:(ImageView,String)->Unit=CoverArt::show):FrameLayout(context) {
     private val initial=TextView(context).apply {
-        gravity=Gravity.CENTER;textSize=19f;includeFontPadding=false;setTextColor(0xffc7b8da.toInt())
+        gravity=Gravity.CENTER;textSize=19f;includeFontPadding=false;setTextColor(YomaColors.ACCENT)
         importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_NO
     }
     private val photo=ImageView(context).apply {

@@ -27,7 +27,7 @@ class DownloadsPanel(context:Context,private val actions:DownloadActions):Scroll
     private val body=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL;setPadding(context.dp(18),context.dp(12),context.dp(18),context.dp(24))}
     private val main=column();private val detail=column()
     private val used=text("",18).apply{typeface=Typeface.create("sans-serif-medium",Typeface.NORMAL)};private val available=text("",14)
-    private val storageBar=track(0xffff526b.toInt())
+    private val storageBar=track(YomaColors.ACCENT)
     private val filterButtons=linkedMapOf<String,Button>()
     private val activeTitle=text("",23,true);private val activeRows=column()
     private val readyTitle=text("Listas para ver",23,true);private val readyRows=column()
@@ -48,7 +48,7 @@ class DownloadsPanel(context:Context,private val actions:DownloadActions):Scroll
         body.addView(main);body.addView(detail)
         main.addView(text("Descargas",36,true));main.addView(text("Tus episodios, donde quieras",16).apply{setTextColor(MUTED)},lp(top=4,bottom=14))
         val storage=box();val storageRow=row()
-        storageRow.addView(NavGlyph(context,"storage").apply{tint=0xffb8a0d4.toInt()},LinearLayout.LayoutParams(context.dp(30),context.dp(32)).apply{rightMargin=context.dp(14)})
+        storageRow.addView(NavGlyph(context,"storage").apply{tint=YomaColors.TEXT_SECONDARY},LinearLayout.LayoutParams(context.dp(30),context.dp(32)).apply{rightMargin=context.dp(14)})
         val numbers=column();val caption=row()
         caption.addView(used,LinearLayout.LayoutParams(0,-2,1f));caption.addView(available.apply{setTextColor(MUTED)})
         numbers.addView(caption);val storageTools=row();storageTools.addView(storageBar,LinearLayout.LayoutParams(0,context.dp(6),1f));storageTools.addView(link("Administrar →"){actions.storage()},LinearLayout.LayoutParams(-2,-2).apply{leftMargin=context.dp(10)});numbers.addView(storageTools,lp(top=4))
@@ -67,7 +67,7 @@ class DownloadsPanel(context:Context,private val actions:DownloadActions):Scroll
         main.addView(waitingTitle,lp(top=8,bottom=8));main.addView(waitingRows,lp(bottom=12));waitingRows.background=outlined(SURFACE,context.dp(18).toFloat());waitingRows.clipToOutline=true
         main.addView(empty,lp(top=12,bottom=16))
         val wifiBox=box().apply{setPadding(context.dp(14),0,context.dp(14),0)};val wifiRow=row()
-        wifiRow.addView(NavGlyph(context,"wifi").apply{tint=0xffc4b5e6.toInt()},LinearLayout.LayoutParams(context.dp(24),context.dp(24)).apply{rightMargin=context.dp(12)})
+        wifiRow.addView(NavGlyph(context,"wifi").apply{tint=YomaColors.TEXT_SECONDARY},LinearLayout.LayoutParams(context.dp(24),context.dp(24)).apply{rightMargin=context.dp(12)})
         wifiRow.addView(wifi,LinearLayout.LayoutParams(0,-2,1f));wifiBox.addView(wifiRow);main.addView(wifiBox)
         wifi.setOnCheckedChangeListener{_,checked->if(!binding)actions.wifi(checked)}
         detail.addView(link("‹ Todos los animes"){actions.group(null)},lp(bottom=14));detail.addView(detailTitle,lp(bottom=12));detail.addView(detailRows);detail.addView(detailEmpty)
@@ -134,7 +134,7 @@ class DownloadsPanel(context:Context,private val actions:DownloadActions):Scroll
     }
     private inner class TransferRow:LinearLayout(context){
         private val art=art(60,76);private val title=text("",16,true);private val meta=text("",14)
-        private val progress=track(0xffb8a0d4.toInt());private val size=text("",14)
+        private val progress=track(YomaColors.ACCENT);private val size=text("",14)
         private var current:Episode?=null
         private val pause=pill("Pausar"){current?.let(actions.toggle)}
         init{
@@ -150,7 +150,7 @@ class DownloadsPanel(context:Context,private val actions:DownloadActions):Scroll
             set(meta,episodeCaption(ep));val info=DownloadPresentation.of(ep,s.paused,s.running)
             progress.visibility=if(info.progress==null)GONE else VISIBLE;progress.progress=info.progress?:0
             set(size,info.summary+if(info.error.isNotBlank())"\n${info.error}" else "")
-            size.setTextColor(if(ep.state=="failed")ACCENT else MUTED)
+            size.setTextColor(if(ep.state=="failed")YomaColors.ERROR else MUTED)
             set(pause,info.action);pause.isEnabled=info.actionable;pause.contentDescription="${info.action} capítulo ${ep.number} de ${ep.title}"
         }
     }
@@ -159,7 +159,7 @@ class DownloadsPanel(context:Context,private val actions:DownloadActions):Scroll
         private val end=NavGlyph(context,"chevron");private var slug="";private var current:Episode?=null
         private var last=false
         private var complete=true
-        private val divider=android.graphics.Paint().apply{color=0xff393449.toInt();strokeWidth=context.dp(1).toFloat()}
+        private val divider=android.graphics.Paint().apply{color=YomaColors.BORDER;strokeWidth=context.dp(1).toFloat()}
         init{
             gravity=Gravity.CENTER_VERTICAL;setPadding(context.dp(12),context.dp(8),context.dp(12),context.dp(8));setWillNotDraw(false);minimumHeight=context.dp(68);isFocusable=true;isClickable=true
             addView(art,LinearLayout.LayoutParams(context.dp(48),context.dp(48)).apply{rightMargin=context.dp(12)})
@@ -171,19 +171,19 @@ class DownloadsPanel(context:Context,private val actions:DownloadActions):Scroll
     }
     private inner class EpisodeRow:LinearLayout(context){
         private val title=text("",18,true);private val meta=text("",14);private val state=text("",14);private val error=text("",14)
-        private val bar=track(0xffb8a0d4.toInt());private var current:Episode?=null
+        private val bar=track(YomaColors.ACCENT);private var current:Episode?=null
         private val action=pill("Reproducir"){current?.let(actions.toggle)}
         private val secondary=icon("close","Cancelar descarga"){current?.let{if(it.state=="done")actions.options(it)else actions.cancel(it)}}
         init{
             orientation=VERTICAL;setPadding(context.dp(14),context.dp(12),context.dp(14),context.dp(12));background=outlined(SURFACE,context.dp(18).toFloat())
-            title.maxLines=2;title.ellipsize=TextUtils.TruncateAt.END;meta.maxLines=2;meta.setTextColor(MUTED);state.maxLines=3;error.maxLines=3;error.setTextColor(ACCENT)
+            title.maxLines=2;title.ellipsize=TextUtils.TruncateAt.END;meta.maxLines=2;meta.setTextColor(MUTED);state.maxLines=3;error.maxLines=3;error.setTextColor(YomaColors.ERROR)
             addView(title);addView(meta,lp(top=5));addView(state,lp(top=8));addView(error,lp(top=5));addView(bar,lp(height=5,top=8))
             val buttons=row();buttons.addView(action,LinearLayout.LayoutParams(0,-2,1f));buttons.addView(secondary,LinearLayout.LayoutParams(context.dp(44),context.dp(44)).apply{leftMargin=context.dp(10)});addView(buttons,lp(top=10))
         }
         fun bind(ep:Episode,s:DownloadSnapshot){
             current=ep;tag="download-episode-${ep.key}";val info=DownloadPresentation.of(ep,s.paused,s.running)
             set(title,ep.title);set(meta,episodeCaption(ep));set(state,info.summary+(if(ep.watched)" · ✓ Visto" else ""))
-            state.setTextColor(if(ep.state=="failed")ACCENT else if(ep.state=="done")MINT else PAPER)
+            state.setTextColor(if(ep.state=="failed")YomaColors.ERROR else if(ep.state=="done")MINT else PAPER)
             set(error,info.error);error.visibility=if(info.error.isEmpty())GONE else VISIBLE
             bar.visibility=if(info.progress!=null&&ep.state!="done")VISIBLE else GONE;bar.progress=info.progress?:0
             set(action,info.action);action.isEnabled=info.actionable;action.contentDescription="${info.action} capítulo ${ep.number} de ${ep.title}"
@@ -209,16 +209,16 @@ class DownloadsPanel(context:Context,private val actions:DownloadActions):Scroll
     private fun column()=LinearLayout(context).apply{orientation=LinearLayout.VERTICAL}
     private fun row()=LinearLayout(context).apply{gravity=Gravity.CENTER_VERTICAL}
     private fun lp(height:Int=-2,top:Int=0,bottom:Int=0)=LinearLayout.LayoutParams(-1,if(height<0)height else context.dp(height)).apply{topMargin=context.dp(top);bottomMargin=context.dp(bottom)}
-    private fun text(value:String,size:Int,serif:Boolean=false)=TextView(context).apply{text=value;textSize=size.toFloat();includeFontPadding=false;setTextColor(PAPER);setLineSpacing(0f,1.1f);if(serif)typeface=Typeface.create("serif",Typeface.NORMAL)}
+    private fun text(value:String,size:Int,serif:Boolean=false)=TextView(context).apply{text=value;textSize=size.toFloat();includeFontPadding=false;setTextColor(PAPER);setLineSpacing(0f,1.1f);if(serif){typeface=YomaType.title;letterSpacing=YomaType.TITLE_SPACING}}
     private fun box()=column().apply{background=outlined(SURFACE,context.dp(18).toFloat());setPadding(context.dp(14),context.dp(14),context.dp(14),context.dp(14))}
     private fun pill(value:String,click:()->Unit)=Button(context).apply{text=value;textSize=14f;includeFontPadding=false;isAllCaps=false;minWidth=0;minimumWidth=0;minHeight=context.dp(44);setPadding(context.dp(8),context.dp(9),context.dp(8),context.dp(9));background=outlined(SURFACE,context.dp(24).toFloat());setTextColor(PAPER);setOnClickListener{click()}}
-    private fun link(value:String,click:()->Unit)=pill(value,click).apply{background=null;setTextColor(0xffc4a7ef.toInt());gravity=Gravity.END or Gravity.CENTER_VERTICAL}
+    private fun link(value:String,click:()->Unit)=pill(value,click).apply{background=null;setTextColor(YomaColors.ACCENT);gravity=Gravity.END or Gravity.CENTER_VERTICAL}
     private fun icon(kind:String,name:String,click:()->Unit)=FrameLayout(context).apply{minimumWidth=context.dp(44);minimumHeight=context.dp(44);background=outlined(SURFACE,context.dp(24).toFloat());contentDescription=name;isFocusable=true;isClickable=true;addView(NavGlyph(context,kind),FrameLayout.LayoutParams(context.dp(20),context.dp(20),Gravity.CENTER));setOnClickListener{click()}}
     private fun art(width:Int,height:Int)=ImageView(context).apply{setImageResource(R.drawable.anime_brand);scaleType=ImageView.ScaleType.CENTER_CROP;background=outlined(SURFACE,context.dp(11).toFloat());clipToOutline=true;importantForAccessibility=IMPORTANT_FOR_ACCESSIBILITY_NO;minimumWidth=context.dp(width);minimumHeight=context.dp(height)}
     private fun track(color:Int)=ProgressBar(context,null,android.R.attr.progressBarStyleHorizontal).apply{
         max=1000;minimumHeight=0;setPadding(0,0,0,0)
-        val layer=LayerDrawable(arrayOf(GradientDrawable().apply{setColor(0xff393347.toInt());cornerRadius=context.dp(8).toFloat()},ClipDrawable(GradientDrawable().apply{setColor(color);cornerRadius=context.dp(8).toFloat()},Gravity.START,ClipDrawable.HORIZONTAL)))
+        val layer=LayerDrawable(arrayOf(GradientDrawable().apply{setColor(YomaColors.SURFACE_HIGH);cornerRadius=context.dp(8).toFloat()},ClipDrawable(GradientDrawable().apply{setColor(color);cornerRadius=context.dp(8).toFloat()},Gravity.START,ClipDrawable.HORIZONTAL)))
         layer.setId(0,android.R.id.background);layer.setId(1,android.R.id.progress);progressDrawable=layer
-        progressTintList=ColorStateList.valueOf(color);progressBackgroundTintList=ColorStateList.valueOf(0xff393347.toInt())
+        progressTintList=ColorStateList.valueOf(color);progressBackgroundTintList=ColorStateList.valueOf(YomaColors.SURFACE_HIGH)
     }
 }
