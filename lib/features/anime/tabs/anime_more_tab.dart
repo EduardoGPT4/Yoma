@@ -59,18 +59,20 @@ class _AnimeMore extends StatelessWidget {
                     ),
                   )
                 : const Icon(Icons.sync),
-            title: const Text('Sincronizar con tu cuenta'),
+            // No es la conexión con MAL (la línea de arriba): es copiar la
+            // biblioteca y el historial entre tus dispositivos y la web.
+            title: const Text('Biblioteca en tus dispositivos'),
             subtitle: Text(
               app.accountSyncError ??
                   (app.accountSync.unsupported
-                      ? 'El servidor aún no tiene la sincronización.'
+                      ? 'Disponible al activarse el servidor nuevo. Tu MyAnimeList funciona igual. Toca para reintentar.'
                       : app.accountSyncedAt == null
-                      ? 'Biblioteca, favoritos e historial en tus dispositivos y en la web.'
+                      ? 'Comparte biblioteca, favoritos e historial con tus otros dispositivos y la web.'
                       : 'Al día · ${formatTimeAgo(app.accountSyncedAt!.millisecondsSinceEpoch)}'),
             ),
             onTap: app.accountSyncing
                 ? null
-                : () => unawaited(app.syncAccount()),
+                : () => unawaited(app.syncAccount(force: true)),
           ),
         ListTile(
           contentPadding: EdgeInsets.zero,

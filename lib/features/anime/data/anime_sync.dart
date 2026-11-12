@@ -38,11 +38,20 @@ class AnimeSync {
   static const sentNamespace = 'yoma_sync_sent';
   static const pushMax = 200;
 
-  /// El servidor respondió que no tiene la sincronización (versión antigua).
-  bool unsupported = false;
+  /// El servidor respondió que no tiene la sincronización (por ejemplo, el
+  /// puente antiguo de tv.yoma.site mientras api.yoma.site no responde). Se
+  /// vuelve a probar pasado [MyAnimeListClient.recheck], el mismo plazo en que
+  /// la app vuelve a probar api.yoma.site.
+  DateTime? _unsupportedAt;
+  bool get unsupported =>
+      _unsupportedAt != null &&
+      DateTime.now().difference(_unsupportedAt!) < MyAnimeListClient.recheck;
   Future<AnimeSyncResult>? _running;
 
-  Future<AnimeSyncResult> sync() {
+  /// Con [force] (el usuario lo pidió) se vuelve a probar aunque el servidor
+  /// no tuviera la sincronización hace un momento.
+  Future<AnimeSyncResult> sync({bool force = false}) {
+    if (force) _unsupportedAt = null;
     final running = _running;
     if (running != null) return running;
     final work = _sync();
@@ -63,7 +72,7 @@ class AnimeSync {
       return AnimeSyncResult(sent: sent, received: received);
     } on MalFailure catch (e) {
       if (e.status == 404) {
-        unsupported = true;
+        _unsupportedAt = DateTime.now();
         return AnimeSyncResult.none;
       }
       rethrow;

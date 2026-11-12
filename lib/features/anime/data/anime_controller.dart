@@ -70,12 +70,12 @@ class AnimeController extends ChangeNotifier {
   static const accountSyncDelay = Duration(seconds: 20);
 
   /// Sube lo cambiado aquí y aplica lo cambiado en otros sitios.
-  Future<void> syncAccount() async {
+  Future<void> syncAccount({bool force = false}) async {
     if (_disposed) return;
     _accountSyncTimer?.cancel();
     accountSyncing = true;
     try {
-      final result = await accountSync.sync();
+      final result = await accountSync.sync(force: force);
       if (_disposed) return;
       if (result.received > 0) await _reloadLocal();
       if (result.ran) accountSyncedAt = DateTime.now();

@@ -252,6 +252,12 @@ void main() {
     final requests = server.requests;
     await a.sync.sync();
     expect(server.requests, requests);
+    // Ya con el servidor nuevo, tocar «reintentar» sincroniza sin reiniciar.
+    server.available = true;
+    final retried = await a.sync.sync(force: true);
+    expect(retried.ran, isTrue);
+    expect(retried.sent, 1);
+    expect(a.sync.unsupported, isFalse);
 
     final b = await phone();
     await b.client.credentials.clear();
