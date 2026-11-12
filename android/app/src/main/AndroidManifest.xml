@@ -19,8 +19,6 @@
         android:name="app.yomatv.mobile.YomaApp"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true">
-        <activity android:name="app.yomatv.mobile.MainActivity" android:exported="false" android:theme="@style/Theme.Yoma" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" />
-        <activity android:name="app.yomatv.mobile.PlayerActivity" android:exported="false" android:theme="@style/Theme.Yoma" android:configChanges="orientation|screenSize|screenLayout|keyboardHidden" android:supportsPictureInPicture="true" />
         <service android:name=".DownloadHostService" android:exported="false"
             android:foregroundServiceType="dataSync" android:stopWithTask="false" />
         <service android:name="androidx.work.impl.foreground.SystemForegroundService"

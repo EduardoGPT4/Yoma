@@ -2,6 +2,7 @@ package app.yomashi.reader
 
 import android.content.Context
 import app.yomatv.mobile.Episode
+import app.yomatv.mobile.Queue
 import app.yomatv.mobile.Store
 import app.yomatv.mobile.moveFile
 import org.json.JSONArray
@@ -93,6 +94,7 @@ object WebDownloadsMigration {
             runCatching {
                 androidx.work.WorkManager.getInstance(context).cancelUniqueWork("yoma-anime-downloads").result.get()
             }
+            Queue.stopWebQueue(context)
         }
         return Store(context, LEGACY_DATABASE).use { legacy ->
             Store(context, LOCAL_DATABASE).use { local -> run(legacy, local) }

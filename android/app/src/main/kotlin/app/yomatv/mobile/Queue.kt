@@ -23,8 +23,8 @@ object Notices {
         manager.createNotificationChannel(NotificationChannel("yoma_anime_downloads", "Anime · Descargas", NotificationManager.IMPORTANCE_LOW))
         manager.createNotificationChannel(NotificationChannel("yoma_anime_results", "Anime · Capítulos y errores", NotificationManager.IMPORTANCE_DEFAULT))
     }
-    fun notification(context: Context, title: String, message: String, ongoing: Boolean = false, local: Boolean = false): Notification {
-        val intent = if (local) Intent(context, app.yomashi.reader.MainActivity::class.java) else Intent(context, MainActivity::class.java).putExtra("downloads", true)
+    fun notification(context: Context, title: String, message: String, ongoing: Boolean = false): Notification {
+        val intent = Intent(context, app.yomashi.reader.MainActivity::class.java)
         val pending = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return Notification.Builder(context, if (ongoing) "yoma_anime_downloads" else "yoma_anime_results")
             .setSmallIcon(android.R.drawable.stat_sys_download).setContentTitle(title).setContentText(message)
@@ -45,23 +45,12 @@ object Queue {
     }
     fun pauseLocal(context: Context) { Prefs(context,true).paused=true; WorkManager.getInstance(context).cancelUniqueWork("yoma-anime-local-downloads") }
 
-    fun start(context: Context, replace: Boolean = false) {
-        val prefs = Prefs(context); if (prefs.owner <= 0 || prefs.paused) return
-        val constraints = Constraints.Builder().setRequiredNetworkType(if (prefs.wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED).setRequiresStorageNotLow(true).build()
-        val request = OneTimeWorkRequestBuilder<DownloadWorker>().setInputData(workDataOf("owner" to prefs.owner))
-            .setConstraints(constraints).setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build()
-        WorkManager.getInstance(context).enqueueUniqueWork("yoma-anime-downloads", if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.APPEND_OR_REPLACE, request)
-    }
-    fun sync(context: Context) {
-        val owner = Prefs(context).owner; if (owner <= 0) return
-        val request = OneTimeWorkRequestBuilder<SyncWorker>().setInputData(workDataOf("owner" to owner))
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS).build()
-        WorkManager.getInstance(context).enqueueUniqueWork("yoma-anime-sync-$owner", ExistingWorkPolicy.APPEND_OR_REPLACE, request)
-    }
-    fun pause(context: Context) {
-        Prefs(context).paused = true
-        WorkManager.getInstance(context).cancelUniqueWork("yoma-anime-downloads")
+    /** Detiene la antigua cola de la cuenta web (trabajos de versiones anteriores). */
+    fun stopWebQueue(context: Context) {
+        val work = WorkManager.getInstance(context)
+        work.cancelUniqueWork("yoma-anime-downloads")
+        val owner = Prefs(context).owner
+        if (owner > 0) work.cancelUniqueWork("yoma-anime-sync-$owner")
     }
 }
 
@@ -70,13 +59,15 @@ open class DownloadWorker(context: Context, params: WorkerParameters) : Worker(c
     private var transfer: Transfer? = null
     private val owner = inputData.getLong("owner", 0)
     override fun getForegroundInfo(): ForegroundInfo {
-        val notification = Notices.notification(applicationContext, "YomaTV · Descargas", "Preparando la cola…", true, localMode)
-        return if (Build.VERSION.SDK_INT >= 29) ForegroundInfo(if(localMode)27101 else 7101, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else ForegroundInfo(if(localMode)27101 else 7101, notification)
+        val notification = Notices.notification(applicationContext, "YomaTV · Descargas", "Preparando la cola…", true)
+        return if (Build.VERSION.SDK_INT >= 29) ForegroundInfo(27101, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) else ForegroundInfo(27101, notification)
     }
     override fun onStopped() { transfer?.stop(); super.onStopped() }
     override fun doWork(): Result {
+        // Un trabajo de la antigua cola de la cuenta web (versiones anteriores) no hace nada.
+        if (!localMode) return Result.success()
         // Serializes overlapping WorkManager replacements, including file writes.
-        java.io.FileOutputStream(java.io.File(applicationContext.filesDir, if(localMode)"yoma-anime-local-downloads.lock" else "yoma-anime-downloads.lock"), true).channel.use { channel ->
+        java.io.FileOutputStream(java.io.File(applicationContext.filesDir, "yoma-anime-local-downloads.lock"), true).channel.use { channel ->
             var lock: java.nio.channels.FileLock? = null
             var tries = 0
             while (lock == null && tries++ < 100) {
@@ -89,10 +80,10 @@ open class DownloadWorker(context: Context, params: WorkerParameters) : Worker(c
         }
     }
     private fun runQueue(): Result {
-        val context = applicationContext; val prefs = Prefs(context,localMode)
+        val context = applicationContext; val prefs = Prefs(context, true)
         if (owner <= 0 || prefs.owner != owner || prefs.paused) return Result.success()
         setForegroundAsync(getForegroundInfo()).get()
-        Store(context,if(localMode)"yoma_anime_local_downloads.db" else "yoma_anime.db").use { store ->
+        Store(context, "yoma_anime_local_downloads.db").use { store ->
             store.recover(owner)
             for (job in store.list(owner).filter { it.state in setOf("queued", "retry") }) {
                 if (isStopped || prefs.paused || prefs.owner != owner) return Result.success()
@@ -124,7 +115,7 @@ open class DownloadWorker(context: Context, params: WorkerParameters) : Worker(c
                         store.update(job.key, owner, "bytes" to progress.bytes, "total" to progress.total,
                             "etag" to progress.resume.etag, "modified" to progress.resume.modified, "speed" to progress.bytesPerSecond)
                         val text = "Cap. ${job.number} · ${formatBytes(progress.bytes)} / ${formatBytes(progress.total)}"
-                        try { context.getSystemService(NotificationManager::class.java).notify(if(localMode)27101 else 71, Notices.notification(context, job.title, text, true, localMode)) } catch (_: SecurityException) { }
+                        try { context.getSystemService(NotificationManager::class.java).notify(27101, Notices.notification(context, job.title, text, true)) } catch (_: SecurityException) { }
                     }
                     if (isStopped || prefs.owner != owner || prefs.paused) throw TransferStopped()
                     store.update(job.key, owner, "state" to "verifying", "speed" to 0.0)

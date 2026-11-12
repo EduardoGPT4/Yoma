@@ -21,7 +21,7 @@ class YomaAnimeBridgeTest {
     private val context get() = instrumentation.targetContext
     @Test fun originAndMainFrameAreRequiredForNativeMessages() {
         Prefs(context).apply { owner=731; paused=true }
-        ActivityScenario.launch<app.yomatv.mobile.MainActivity>(Intent(context,app.yomatv.mobile.MainActivity::class.java).putExtra("qa_offline",true)).use { scenario ->
+        ActivityScenario.launch<MainActivity>(Intent(context,MainActivity::class.java)).use { scenario ->
             lateinit var web: WebView
             scenario.onActivity { activity ->
                 web=WebView(activity);web.settings.javaScriptEnabled=true;activity.setContentView(web)
@@ -57,7 +57,7 @@ class YomaAnimeBridgeTest {
         val previous = NativeAnimeBridge.forward
         NativeAnimeBridge.forward = { received.add(it) }
         try {
-            ActivityScenario.launch<app.yomatv.mobile.MainActivity>(Intent(context,app.yomatv.mobile.MainActivity::class.java).putExtra("qa_offline",true)).use { scenario ->
+            ActivityScenario.launch<MainActivity>(Intent(context,MainActivity::class.java)).use { scenario ->
                 lateinit var web: WebView
                 scenario.onActivity { activity ->
                     web=WebView(activity);web.settings.javaScriptEnabled=true;activity.setContentView(web)

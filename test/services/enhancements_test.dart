@@ -460,6 +460,32 @@ void main() {
     },
   );
   test(
+    'maintenance also sends pending YomaTV episodes to MAL and a failure does not stop it',
+    () async {
+      final engine = RecordingEngine();
+      addTearDown(engine.dispose);
+      var calls = 0;
+      final service = MaintenanceService(
+        engine,
+        conditions: () async => {
+          'connected': true,
+          'wifi': true,
+          'charging': true,
+          'battery': 100,
+        },
+        animeMalFlush: () async {
+          calls++;
+          throw StateError('Sin conexión');
+        },
+      );
+      await const AutomationSettings(updates: false, backups: false).save();
+      await service.run();
+      expect(calls, 1);
+      // El resto del mantenimiento siguió: quedó registrado.
+      expect(await store.getRecord('maintenance', 'last'), isNotNull);
+    },
+  );
+  test(
     'automatic quota includes partial files and prevents extra enqueue',
     () async {
       final partial = Directory('${root.path}/chapter');

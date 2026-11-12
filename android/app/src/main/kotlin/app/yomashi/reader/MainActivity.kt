@@ -33,7 +33,7 @@ class MainActivity : FlutterActivity() {
         downloads?.setMethodCallHandler { call, result ->
             DownloadHostService.dispatch(this, call.method, call.arguments, result)
         }
-        // Imagen en imagen del reproductor de YomaTV (antes solo en PlayerActivity).
+        // Imagen en imagen del reproductor de YomaTV.
         pictureInPicture = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.yoma/pip")
         pictureInPicture?.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -85,11 +85,6 @@ class MainActivity : FlutterActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         pictureInPicture?.invokeMethod("changed", isInPictureInPictureMode)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        NativeAnimeBridge.onActivityResult(this, requestCode, data)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {

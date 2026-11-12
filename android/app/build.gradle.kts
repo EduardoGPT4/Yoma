@@ -87,10 +87,10 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     implementation("androidx.activity:activity-ktx:1.9.0")
     implementation("androidx.webkit:webkit:1.14.0")
-    implementation("androidx.media3:media3-exoplayer:1.9.4")
-    implementation("androidx.media3:media3-ui:1.9.4")
     testImplementation("junit:junit:4.13.2")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
+    // WorkManager devuelve ListenableFuture (Guava); antes llegaba con media3, en esta misma versión.
+    implementation("com.google.guava:guava:33.3.1-android")
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")

@@ -56,12 +56,6 @@
   window.addEventListener('pageshow', () => { previousAuth=''; update(); });
   window.addEventListener('hashchange',update);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { previousAuth=''; update(); } });
-  window.addEventListener('yoma-native-playback-return',event=>{
-    if(Number(state?.user?.id)!==Number(event.detail?.owner))return;
-    const id=Number(event.detail?.episode_id);
-    if(id>0 && location.hash.startsWith('#watch/') && typeof openPlayer==='function')openPlayer(id,{fromRoute:true}).catch(error=>toast(error.message,true));
-    if(typeof scheduleWatchPump==='function')scheduleWatchPump();
-  });
   document.addEventListener('click', async event => {
     const account=event.target.closest('#account[data-action="account"]');
     if(account&&location.hash!=='#account'){

@@ -7,6 +7,7 @@ import 'package:yomashi/data/app_database.dart';
 import 'package:yomashi/data/library_store.dart';
 import 'package:yomashi/features/anime/data/anime_controller.dart';
 import 'package:yomashi/features/anime/data/anime_local_store.dart';
+import 'package:yomashi/features/anime/data/anime_mal_client.dart';
 import 'package:yomashi/features/anime/data/anime_web_request.dart';
 import 'package:yomashi/features/anime/data/local_anime_downloads.dart';
 import 'package:yomashi/features/anime/models/anime_models.dart';
@@ -41,6 +42,13 @@ class _Transfers extends LocalAnimeDownloads {
     queued.add('${anime.slug}:${episode.id}:$language');
     return 'added';
   }
+}
+
+/// Cliente de MAL de YomaTV que solo cuenta los envíos.
+class _CountingMal extends AnimeMalClient {
+  int flushes = 0;
+  @override
+  Future<void> flush() async => flushes++;
 }
 
 void main() {
@@ -161,6 +169,62 @@ void main() {
 
       await tester.pumpWidget(const SizedBox());
       await settle();
+      app.dispose();
+    },
+  );
+
+  testWidgets(
+    'al volver a la app YomaTV envía a MAL aunque no esté a la vista',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final mal = _CountingMal();
+      late AnimeController app;
+      await tester.runAsync(() async {
+        final db = await LibraryStore.initialize(
+          database: AppDatabase.forTesting(NativeDatabase.memory()),
+        );
+        app = AnimeController(
+          source: _Source(),
+          mal: mal,
+          store: AnimeLocalStore(database: () async => db),
+          transfers: _Transfers(),
+          connectivity: () => const Stream.empty(),
+        );
+      });
+      await tester.pumpWidget(
+        ChangeNotifierProvider(
+          create: (_) => ProfileProvider(),
+          child: MaterialApp(
+            home: NativeAnimeScreen(
+              active: false,
+              home: () {},
+              controller: app,
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+      final before = mal.flushes;
+      // La secuencia de Android al salir de la app y volver.
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      await tester.pump();
+      expect(mal.flushes, before + 1);
+      await tester.pumpWidget(const SizedBox());
       app.dispose();
     },
   );

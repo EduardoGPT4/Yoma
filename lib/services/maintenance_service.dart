@@ -11,6 +11,7 @@ import 'rotating_backup_service.dart';
 import 'diagnostics.dart';
 import 'myanimelist_service.dart';
 import '../features/anime/data/anime_episode_watch.dart';
+import '../features/anime/data/anime_mal_client.dart';
 
 class MaintenancePlatform {
   static const channel = MethodChannel('app.yomashi.reader/maintenance');
@@ -61,12 +62,17 @@ class MaintenanceService {
 
   /// Revisión de episodios nuevos de YomaTV (sustituible en pruebas).
   final AnimeEpisodeWatch? animeWatch;
+
+  /// Envía a MAL los episodios de YomaTV pendientes (sustituible en pruebas).
+  final Future<void> Function() animeMalFlush;
   MaintenanceService(
     this.engine, {
     Future<OnlineMangaDetail> Function(String)? detail,
     Future<Map<String, dynamic>> Function()? conditions,
     this.animeWatch,
-  }) : detail =
+    Future<void> Function()? animeMalFlush,
+  }) : animeMalFlush = animeMalFlush ?? (() => AnimeMalClient().flush()),
+       detail =
            detail ??
            ((ref) => OnlineCatalogService.fetchMangaDetail(ref, refresh: true)),
        conditions = conditions ?? MaintenancePlatform.conditions;
@@ -78,6 +84,14 @@ class MaintenanceService {
     var count = 0;
     try {
       await MyAnimeListService.shared.flush();
+      // Lo visto en YomaTV sin conexión también llega a MAL con la app
+      // cerrada, como los capítulos de YomaShi. Un fallo aquí no detiene
+      // el resto del mantenimiento.
+      try {
+        await animeMalFlush();
+      } catch (e) {
+        await Diagnostics.record('anime_mal', e);
+      }
       if (s.backups) await RotatingBackupService.run(retain: s.backupRetention);
       final c = await conditions();
       if ((s.updates || manual) &&

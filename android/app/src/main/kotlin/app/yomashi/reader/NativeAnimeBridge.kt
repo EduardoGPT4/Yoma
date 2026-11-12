@@ -2,7 +2,6 @@ package app.yomashi.reader
 
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.webkit.CookieManager
 import android.webkit.WebView
@@ -18,8 +17,6 @@ import org.json.JSONObject
 
 /** No JavaScriptInterface: WebKit enforces the origin and main-frame boundary. */
 object NativeAnimeBridge {
-    private const val playbackRequest = 50861
-    private var playbackWeb = java.lang.ref.WeakReference<WebView>(null)
     private const val channelName = "app.yoma/anime"
     /** Canal hacia Flutter: la web integrada pide pantallas de Flutter, nunca actividades propias. */
     private var flutter: MethodChannel? = null
@@ -33,15 +30,10 @@ object NativeAnimeBridge {
         return YomaWeb.owns(uri)
     }
     fun resetIdentity(context: Context, complete: () -> Unit = {}) {
-        val prefs = Prefs(context)
-        val owner = prefs.owner
-        prefs.owner = 0
-        if (Build.VERSION.SDK_INT >= 26) {
-            WorkManager.getInstance(context).cancelUniqueWork("yoma-anime-downloads")
-            if (owner > 0) WorkManager.getInstance(context).cancelUniqueWork("yoma-anime-sync-$owner")
-        }
-        // Keep downloaded files and their owner-scoped progress. New credentials
-        // must establish the web owner again before any worker can resume.
+        // La cuenta cambió: la web integrada olvida su sesión. Las descargas
+        // locales y su progreso no dependen de ella y se conservan.
+        if (Build.VERSION.SDK_INT >= 26) Queue.stopWebQueue(context)
+        Prefs(context).owner = 0
         CookieManager.getInstance().removeAllCookies {
             CookieManager.getInstance().flush()
             complete()
@@ -82,7 +74,6 @@ object NativeAnimeBridge {
     fun attach(activity: Activity, web: WebView): Boolean {
         if (Build.VERSION.SDK_INT < 26 || !WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return false
         WebViewCompat.removeWebMessageListener(web, "YomaAndroid")
-        Notices.channels(activity)
         WebViewCompat.addWebMessageListener(web, "YomaAndroid", YomaWeb.ORIGINS) { view, message, sourceOrigin, mainFrame, _ ->
             if (!mainFrame || sourceOrigin.toString() !in YomaWeb.ORIGINS || !trusted(view)) return@addWebMessageListener
             val text = message.data.orEmpty()
@@ -92,15 +83,6 @@ object NativeAnimeBridge {
             }
         }
         return true
-    }
-    fun onActivityResult(context: Context, request: Int, data: Intent?) {
-        if (request != playbackRequest || data == null) return
-        val web = playbackWeb.get() ?: return
-        val owner = data.getLongExtra("owner",0)
-        if (owner <= 0 || owner != Prefs(context).owner || !trusted(web)) return
-        val detail = JSONObject().put("owner",owner).put("episode_id",data.getLongExtra("episode_id",0))
-        web.evaluateJavascript("window.dispatchEvent(new CustomEvent('yoma-native-playback-return',{detail:$detail}))",null)
-        playbackWeb.clear()
     }
     private fun receive(activity: Activity, web: WebView, message: JSONObject) {
         val prefs = Prefs(activity)
