@@ -1,6 +1,8 @@
 ((nativeLayout) => {
   'use strict';
-  if (window.__seasonNative || !window.YomaAndroid || location.origin !== 'https://hk-br035.gt.tc' || !location.pathname.startsWith('/seasonav1/')) return;
+  // Dominios de YomaTV y la ruta en la que vive en cada uno (lib/config/yoma_web.dart).
+  const yomaRoot = {'https://tv.yoma.site': '/'}[location.origin];
+  if (window.__seasonNative || !window.YomaAndroid || !yomaRoot || !location.pathname.startsWith(yomaRoot)) return;
   window.__seasonNative = true;window.YomaNativeOnline = true;document.documentElement.classList.add('yoma-native');
   const animeBrand = /*YOMA_ANIME_BRAND*/;
   const post = data => YomaAndroid.postMessage(JSON.stringify(data));

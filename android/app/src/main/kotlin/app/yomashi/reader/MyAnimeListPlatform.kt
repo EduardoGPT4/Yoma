@@ -82,7 +82,7 @@ object MyAnimeListPlatform {
                     }
                     "openBrowser" -> {
                         val uri=Uri.parse(call.arguments as String)
-                        require(uri.scheme=="https" && uri.host=="hk-br035.gt.tc" && uri.port in listOf(-1,443) && uri.userInfo==null && uri.path=="/seasonav1/yomashi-connect.php")
+                        require(YomaWeb.owns(uri) && uri.path==YomaWeb.pathOf(uri,"yomashi-connect.php"))
                         context.startActivity(Intent(Intent.ACTION_VIEW,uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                         result.success(null)
                     }

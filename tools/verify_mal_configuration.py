@@ -15,7 +15,7 @@ try:
         match=re.search(r"'"+re.escape(name)+r"'\s*=>\s*'([^']*)'",text)
         return match.group(1) if match else ''
     result={'client_id_matches_screenshot':value('client_id')=='4b2744af72ec84089ce310bf76b03dff',
-            'redirect_matches_screenshot':value('redirect_uri')=='https://hk-br035.gt.tc/seasonav1/mal-callback.php',
+            'redirect_matches_screenshot':value('redirect_uri')=='https://tv.yoma.site/mal-callback.php',
             'server_secret_configured':bool(re.fullmatch('[a-f0-9]{64}',value('client_secret'))),
             'read_only':True,'credentials_saved_locally':False}
     (ROOT/'docs/yoma/mal-configuration-check.json').write_text(json.dumps(result,indent=2))

@@ -21,10 +21,9 @@ object NativeAnimeBridge {
     private const val playbackRequest = 50861
     private var playbackWeb = java.lang.ref.WeakReference<WebView>(null)
     private const val channelName = "app.yoma/anime"
-    private const val origin = "https://hk-br035.gt.tc"
     private fun trusted(web: WebView): Boolean {
         val uri = runCatching { android.net.Uri.parse(web.url) }.getOrNull() ?: return false
-        return uri.scheme == "https" && uri.host == "hk-br035.gt.tc" && uri.port in setOf(-1,443) && uri.userInfo == null && uri.path?.startsWith("/seasonav1/") == true
+        return YomaWeb.owns(uri)
     }
     fun resetIdentity(context: Context, complete: () -> Unit = {}) {
         val prefs = Prefs(context)
@@ -80,8 +79,8 @@ object NativeAnimeBridge {
         if (Build.VERSION.SDK_INT < 26 || !WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return false
         WebViewCompat.removeWebMessageListener(web, "YomaAndroid")
         Notices.channels(activity)
-        WebViewCompat.addWebMessageListener(web, "YomaAndroid", setOf(origin)) { view, message, sourceOrigin, mainFrame, _ ->
-            if (!mainFrame || sourceOrigin.toString() != origin || !trusted(view)) return@addWebMessageListener
+        WebViewCompat.addWebMessageListener(web, "YomaAndroid", YomaWeb.ORIGINS) { view, message, sourceOrigin, mainFrame, _ ->
+            if (!mainFrame || sourceOrigin.toString() !in YomaWeb.ORIGINS || !trusted(view)) return@addWebMessageListener
             val text = message.data.orEmpty()
             if (text.length > 512 * 1024) return@addWebMessageListener
             runCatching { receive(activity, view, JSONObject(text)) }.onFailure {

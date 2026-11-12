@@ -175,8 +175,8 @@ class MainActivity : ComponentActivity() {
         prefs.userAgent = web.settings.userAgentString
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-            WebViewCompat.addWebMessageListener(web, "YomaAndroid", setOf("https://hk-br035.gt.tc")) { view, message, origin, mainFrame, _ ->
-                if (mainFrame && origin.scheme == "https" && origin.host == "hk-br035.gt.tc" && origin.port in setOf(-1,443) && trusted(view.url)) {
+            WebViewCompat.addWebMessageListener(web, "YomaAndroid", app.yomashi.reader.YomaWeb.ORIGINS) { view, message, origin, mainFrame, _ ->
+                if (mainFrame && origin.scheme == "https" && origin.host in app.yomashi.reader.YomaWeb.HOSTS && origin.port in setOf(-1,443) && trusted(view.url)) {
                     val data = message.data.orEmpty()
                     if (data.length <= 512 * 1024) runCatching { receive(JSONObject(data), view, key) }.onFailure { toast("No se pudo preparar la descarga. Abre de nuevo la ficha.") }
                 }
@@ -242,7 +242,7 @@ class MainActivity : ComponentActivity() {
 
     private fun trusted(url: String?): Boolean {
         val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
-        return uri.scheme == "https" && uri.host == "hk-br035.gt.tc" && uri.port == -1 && uri.userInfo == null && uri.path?.startsWith("/seasonav1/") == true
+        return app.yomashi.reader.YomaWeb.owns(uri) && uri.port == -1
     }
     private fun exitFullscreen() {
         fullscreen?.let { (it.parent as? ViewGroup)?.removeView(it) }; fullscreen = null

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import '../../../config/yoma_web.dart';
 import '../../../services/myanimelist_client.dart';
 import '../models/anime_models.dart';
 
@@ -14,7 +15,7 @@ class AnimeSourceFailure implements Exception {
 
 /// Only the first-party public JSON API is used. No web account is loaded.
 class YomaTvSource {
-  static final origin = Uri.parse('https://hk-br035.gt.tc/seasonav1/');
+  static final origin = YomaWeb.base;
   final Uri base;
   final HttpClient http;
   final Future<String> Function(List<String>) hostCookie;

@@ -10,7 +10,7 @@ class MalRemoteError extends RuntimeException { function __construct(public int 
 function db():PDO { static $db;$db??=new PDO('sqlite:'.getenv('YS_TEST_DB'),null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);return $db; }
 function sql(PDO $db,string $query,array $args=[]):PDOStatement { $q=$db->prepare($query);$q->execute($args);return $q; }
 function rate(PDO $db,string $key,int $max,int $seconds):void {}
-function mal_require_config():array { return ['client_id'=>'fixture-client','client_secret'=>'fixture-secret-DO-NOT-PUBLISH-REAL-VALUES','redirect_uri'=>'https://hk-br035.gt.tc/seasonav1/mal-callback.php','encryption_key'=>base64_encode(hash('sha256','local-fixture-key',true))]; }
+function mal_require_config():array { return ['client_id'=>'fixture-client','client_secret'=>'fixture-secret-DO-NOT-PUBLISH-REAL-VALUES','redirect_uri'=>'https://tv.yoma.site/mal-callback.php','encryption_key'=>base64_encode(hash('sha256','local-fixture-key',true))]; }
 function mal_tokens(array $r,?string $refresh=null):array { if(!is_string($r['access_token']??null))throw new MalRemoteError(502);return ['access_token'=>$r['access_token'],'refresh_token'=>$r['refresh_token']??$refresh,'expires_at'=>time()+(int)$r['expires_in']]; }
 function mal_profile_data(array $r):array { return ['id'=>(int)$r['id'],'name'=>(string)$r['name']]; }
 function mal_http(string $endpoint,array $params=[],?string $token=null,string $method='GET'):array {

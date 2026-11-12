@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/profile_provider.dart';
+import '../../config/yoma_web.dart';
 import '../../design/yoma_components.dart';
 import '../../design/yoma_tokens.dart';
 import '../../widgets/app_metrics.dart';
@@ -65,9 +66,7 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen>
         syncMal: false,
         initialUrl: episode == null
             ? null
-            : Uri.parse(
-                'https://hk-br035.gt.tc/seasonav1/#watch/${episode.id}',
-              ),
+            : YomaWeb.resolve('#watch/${episode.id}'),
       ),
     ),
   );

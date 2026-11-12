@@ -2,7 +2,7 @@
 from pathlib import Path
 import http.cookiejar,json,re,subprocess,urllib.request,urllib.error,urllib.parse
 ROOT=Path(__file__).resolve().parents[1]
-BASE='https://hk-br035.gt.tc/seasonav1/'
+BASE='https://tv.yoma.site/'
 class PublicSource:
     def __init__(self):
         self.jar=http.cookiejar.CookieJar();self.opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.jar));self.cookie=''

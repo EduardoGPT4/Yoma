@@ -1,0 +1,97 @@
+/* Yoma · mismo diseño que la app (lib/design/yoma_tokens.dart), yoma.site y
+   shi.yoma.site. Se carga la última: solo redefine tokens y unos pocos
+   elementos de marca; el resto de la web los usa a través de las variables. */
+
+:root, :root[data-theme] {
+  --bg: #101014;
+  --surface: #18171d;
+  --surface2: #211f27;
+  --line: #2e2b34;
+  --line-strong: #39353f;
+  --text: #ffffff;
+  --muted: #a9a6b1;
+  --accent: #f0848d;
+  --accent-hover: #f59ca4;
+  --accent-ink: #101014;
+  --gold: #ffcb77;
+  --ok: #5fd3a0;
+  --info: #af83ff;
+  --danger: #f3a0a6;
+  --ok-soft: #5fd3a014;
+  --ok-border: #5fd3a060;
+  --gold-soft: #ffcb7714;
+  --gold-border: #ffcb7766;
+  --info-soft: #af83ff14;
+  --info-border: #af83ff55;
+  --danger-soft: #f3a0a614;
+  --danger-border: #f3a0a666;
+  --accent-soft: #f0848d1a;
+  --overlay: #101014eb;
+  --yoma-anime: #f080b7;
+  --yoma-manga: #af83ff;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font);
+  color-scheme: dark;
+}
+
+/* La app solo tiene tema oscuro; el claro de la web usa los mismos tonos
+   ajustados para que todo el texto supere 4,5:1 de contraste. */
+:root[data-theme='light'] {
+  --bg: #f6f4f8;
+  --surface: #ffffff;
+  --surface2: #eeebf2;
+  --line: #ddd8e3;
+  --line-strong: #9c95a6;
+  --text: #18161c;
+  --muted: #5c5664;
+  --accent: #b4304a;
+  --accent-hover: #9c263e;
+  --accent-ink: #ffffff;
+  --gold: #7c5410;
+  --ok: #17684f;
+  --info: #6b45c9;
+  --danger: #b0263d;
+  --ok-soft: #17684f0c;
+  --ok-border: #17684f77;
+  --gold-soft: #7c54100c;
+  --gold-border: #7c541077;
+  --info-soft: #6b45c90d;
+  --info-border: #6b45c977;
+  --danger-soft: #b0263d0d;
+  --danger-border: #b0263d77;
+  --accent-soft: #b4304a0d;
+  --overlay: #f6f4f8f5;
+  --yoma-anime: #b02a74;
+  --yoma-manga: #6b45c9;
+  color-scheme: light;
+}
+
+body { font-family: var(--font); }
+
+/* Título del módulo, como en la app: logo de YomaTV y su nombre. */
+.brand img { border-radius: 10px; object-fit: cover; }
+.brand > span { font: 800 22px/1.1 var(--font); letter-spacing: -.01em; }
+.brand-accent { color: var(--yoma-anime); }
+
+/* Barra de sección, como la de la app: volver a Yoma o ir al otro módulo. */
+.yoma-sections {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  font: 700 14px/1 var(--font);
+}
+.yoma-sections a {
+  color: var(--muted);
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.yoma-sections a:hover { color: var(--text); background: var(--surface2); }
+.yoma-sections a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.yoma-sections .to-manga { color: var(--yoma-manga); }

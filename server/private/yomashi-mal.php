@@ -4,7 +4,7 @@ if (!defined('SEASON_BOOTSTRAPPED')) { http_response_code(404); exit(); }
 
 // Uses the host's existing private MAL configuration. No app secret is sent to Android.
 require_once __DIR__.'/yoma-anime-mal.php';
-const YS_ORIGIN = 'https://hk-br035.gt.tc/seasonav1/';
+const YS_ORIGIN = 'https://tv.yoma.site/';
 const YS_STATUSES = ['reading','completed','on_hold','dropped','plan_to_read'];
 // Sliding device session: renewed at most once a day while the app keeps using it.
 const YS_SESSION_TTL = 90*86400;

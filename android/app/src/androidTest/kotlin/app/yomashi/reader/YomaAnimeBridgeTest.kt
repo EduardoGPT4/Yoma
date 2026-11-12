@@ -43,7 +43,7 @@ class YomaAnimeBridgeTest {
             }
             page("https://untrusted.example/", "<script>window.YomaAndroid?.postMessage('{\"type\":\"auth\",\"owner\":0}')</script>")
             assertEquals(731L,Prefs(context).owner)
-            page("https://hk-br035.gt.tc/seasonav1/", "<iframe srcdoc=\"&lt;script>window.YomaAndroid?.postMessage('{&quot;type&quot;:&quot;auth&quot;,&quot;owner&quot;:0}')&lt;/script>\"></iframe>")
+            page("https://tv.yoma.site/", "<iframe srcdoc=\"&lt;script>window.YomaAndroid?.postMessage('{&quot;type&quot;:&quot;auth&quot;,&quot;owner&quot;:0}')&lt;/script>\"></iframe>")
             assertEquals(731L,Prefs(context).owner)
             scenario.onActivity { web.evaluateJavascript("YomaAndroid.postMessage(JSON.stringify({type:'auth',owner:0}))",null) }
             val deadline=System.currentTimeMillis()+5000

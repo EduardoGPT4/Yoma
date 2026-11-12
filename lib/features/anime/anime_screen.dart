@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../../config/yoma_web.dart';
 import '../../design/yoma_tokens.dart';
 import '../../services/myanimelist_service.dart';
 
@@ -26,7 +27,7 @@ class AnimeScreenState extends State<AnimeScreen> with WidgetsBindingObserver {
   bool _nativeReady = false;
   int? _nativeId;
   String? _nativeScript;
-  static final site = Uri.parse('https://hk-br035.gt.tc/seasonav1/');
+  static final site = YomaWeb.base;
   WebViewController? _controller;
   String? _error;
   int _progress = 0;
@@ -79,7 +80,8 @@ class AnimeScreenState extends State<AnimeScreen> with WidgetsBindingObserver {
           },
           onHttpError: (error) {
             if (mounted &&
-                error.request?.uri.path == '/seasonav1/yoma-session.php' &&
+                error.request?.uri.path ==
+                    YomaWeb.resolve('yoma-session.php').path &&
                 error.response?.statusCode != 409) {
               setState(
                 () => _error =

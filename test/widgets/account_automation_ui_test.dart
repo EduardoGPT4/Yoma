@@ -115,8 +115,7 @@ void main() {
   testWidgets(
     'pending authorization reopens its URL without replacing session',
     (tester) async {
-      const url =
-          'https://hk-br035.gt.tc/seasonav1/yomashi-connect.php?device=fixture';
+      const url = 'https://tv.yoma.site/yomashi-connect.php?device=fixture';
       final credentials = _UiCredentials()
         ..value = {
           'connected': false,

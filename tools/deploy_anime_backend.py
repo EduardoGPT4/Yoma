@@ -12,13 +12,18 @@ def read(ftp,path):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--publish',action='store_true')
     # Opt-in: also point the authorization page (yomashi-connect.php) at this extension.
-    parser.add_argument('--connect',action='store_true');args=parser.parse_args()
+    parser.add_argument('--connect',action='store_true')
+    # Carpeta de YomaTV en el FTP. En InfinityFree cada dominio y subdominio
+    # tiene la suya (por ejemplo /tv.yoma.site/htdocs); se indica siempre a mano
+    # para no publicar en el sitio equivocado.
+    parser.add_argument('--remote-dir',required=True,help='p. ej. /tv.yoma.site/htdocs');args=parser.parse_args()
+    if not re.fullmatch(r'/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*',args.remote_dir) or 'htdocs' not in args.remote_dir.split('/'):raise SystemExit('--remote-dir debe ser una carpeta dentro de htdocs, p. ej. /tv.yoma.site/htdocs')
     print('Waiting for deployment credential on stdin (not saved).',flush=True)
     import getpass
     auth={'username':input('FTP user: '),'password':getpass.getpass('FTP password: ')}
     if auth.get('username')!='if0_43115975':raise RuntimeError('Unexpected hosting account')
     ftp=HostingFTP(context=ssl.create_default_context(),timeout=35)
-    ftp.connect('ftpupload.net',21);ftp.login(auth['username'],auth['password']);auth.clear();ftp.prot_p();ftp.cwd('/htdocs/seasonav1')
+    ftp.connect('ftpupload.net',21);ftp.login(auth['username'],auth['password']);auth.clear();ftp.prot_p();ftp.cwd(args.remote_dir)
     current=json.loads(read(ftp,'private/current.json'));active=current['release']
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{5,63}',active):raise RuntimeError('Invalid active release')
     old=read(ftp,'yomashi-api.php')

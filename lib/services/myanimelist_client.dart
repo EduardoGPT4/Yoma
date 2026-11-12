@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import '../config/yoma_web.dart';
 import 'package:flutter/services.dart';
 
 class MalFailure implements Exception {
@@ -130,9 +131,7 @@ class MalMangaPage {
 class MyAnimeListClient {
   /// Signals committed credential changes without exposing the device token.
   final sessionChanges = ValueNotifier<int>(0);
-  static final endpoint = Uri.parse(
-    'https://hk-br035.gt.tc/seasonav1/yomashi-api.php',
-  );
+  static final endpoint = YomaWeb.resolve('yomashi-api.php');
   final Uri api;
   final HttpClient http;
   final MalCredentialStore credentials;
@@ -319,9 +318,9 @@ class MyAnimeListClient {
     final uri = Uri.tryParse(value['connect_url'] as String? ?? '');
     if (uri == null ||
         uri.scheme != 'https' ||
-        uri.host != 'hk-br035.gt.tc' ||
+        !YomaWeb.hosts.contains(uri.host) ||
         uri.port != 443 ||
-        uri.path != '/seasonav1/yomashi-connect.php' ||
+        uri.path != YomaWeb.pathOf(uri, 'yomashi-connect.php') ||
         uri.userInfo.isNotEmpty ||
         uri.fragment.isNotEmpty ||
         !RegExp(

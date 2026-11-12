@@ -12,7 +12,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-const val SITE = "https://hk-br035.gt.tc/seasonav1/"
+val SITE: String get() = app.yomashi.reader.YomaWeb.SITE
 class ApiFailure(val status: Int, message: String) : IOException(message)
 
 /** Cookies stay in Android's private WebView cookie store; never in queue exports. */
