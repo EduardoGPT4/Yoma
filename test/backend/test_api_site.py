@@ -128,12 +128,16 @@ sql($db,'INSERT INTO sa1_yomashi_devices (id,token_hash,tokens,mal_user_id,mal_n
 
     def test_the_status_page_answers_without_exposing_configuration(self):
         with urllib.request.urlopen(self.base, timeout=10) as r:
-            self.assertEqual(json.loads(r.read()), {'service': 'yoma-api', 'ok': False, 'config': False, 'database': False})
+            data = json.loads(r.read())
+        self.assertEqual({k: data[k] for k in ['service', 'ok', 'config', 'database', 'problem']},
+                         {'service': 'yoma-api', 'ok': False, 'config': False, 'database': False, 'problem': 'sin_configuracion'})
         # Con la configuración y la base de datos funcionando, dice que está listo.
         (self.folder / 'private/config.local.php').write_text("<?php return [];", encoding='utf-8')
         try:
             with urllib.request.urlopen(self.base, timeout=10) as r:
-                self.assertEqual(json.loads(r.read()), {'service': 'yoma-api', 'ok': True, 'config': True, 'database': True})
+                data = json.loads(r.read())
+            self.assertEqual({k: data[k] for k in ['ok', 'config', 'database']}, {'ok': True, 'config': True, 'database': True})
+            self.assertNotIn('problem', data)
         finally:
             (self.folder / 'private/config.local.php').unlink()
 
