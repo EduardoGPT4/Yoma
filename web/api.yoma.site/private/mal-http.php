@@ -149,7 +149,6 @@ function mal_http(
   if(function_exists('release_remote_session'))release_remote_session();
   $ok = curl_exec($curl);
   $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
-  curl_close($curl);
   if ($ok && $method === 'DELETE' && $status >= 200 && $status < 300) {
     return [];
   }

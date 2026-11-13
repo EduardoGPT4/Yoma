@@ -215,7 +215,6 @@ function public_html(string $path): string
   if(function_exists('release_remote_session'))release_remote_session();
   $ok = curl_exec($curl);
   $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-  curl_close($curl);
   if (!$ok || $status !== 200) {
     throw new ScraperError(
       'No se pudo leer AnimeAV1. Se conserva el catálogo anterior; intenta de nuevo más tarde.',
