@@ -165,24 +165,38 @@ class _SectionBar extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: YomaSpacing.sm),
+            // Con texto grande, los botones se recortan con «…» en vez de
+            // salirse de la barra.
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                TextButton.icon(
-                  style: style(YomaColors.textSecondary),
-                  onPressed: onHome,
-                  icon: const Icon(Icons.space_dashboard_outlined),
-                  label: const Text('Yoma'),
-                ),
-                const Spacer(),
-                TextButton.icon(
-                  style: style(YomaColors.textPrimary),
-                  onPressed: onSwitch,
-                  icon: Icon(
-                    toAnime
-                        ? Icons.play_circle_outline
-                        : Icons.menu_book_outlined,
+                Flexible(
+                  child: TextButton.icon(
+                    style: style(YomaColors.textSecondary),
+                    onPressed: onHome,
+                    icon: const Icon(Icons.space_dashboard_outlined),
+                    label: const Text(
+                      'Yoma',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  label: Text(toAnime ? 'Ir a Anime' : 'Ir a Manga'),
+                ),
+                Flexible(
+                  child: TextButton.icon(
+                    style: style(YomaColors.textPrimary),
+                    onPressed: onSwitch,
+                    icon: Icon(
+                      toAnime
+                          ? Icons.play_circle_outline
+                          : Icons.menu_book_outlined,
+                    ),
+                    label: Text(
+                      toAnime ? 'Ir a Anime' : 'Ir a Manga',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ),
               ],
             ),

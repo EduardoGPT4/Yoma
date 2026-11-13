@@ -264,7 +264,12 @@ class _AnimeMain extends StatelessWidget {
       appBar: AppBar(
         title: const YomaModuleTitle(
           logoAsset: 'assets/branding/1-Anime.png',
-          label: Text('YomaTV'),
+          label: Text(
+            'YomaTV',
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
         actions: [
           IconButton(

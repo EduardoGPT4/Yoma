@@ -258,7 +258,8 @@ class YomaModuleTitle extends StatelessWidget {
         ),
       ),
       const SizedBox(width: YomaSpacing.sm + 2),
-      label,
+      // En barras estrechas el nombre cede espacio antes que el logo.
+      Flexible(child: label),
     ],
   );
 }

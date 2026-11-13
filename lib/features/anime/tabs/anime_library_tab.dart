@@ -47,20 +47,26 @@ class _AnimeLibraryState extends State<_AnimeLibrary> {
               Expanded(
                 child: DropdownButtonFormField<String>(
                   initialValue: _status,
+                  // Con texto grande o pantallas estrechas se recorta con «…».
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Estado'),
-                  items: const [
-                    DropdownMenuItem(value: '', child: Text('Todos')),
-                    DropdownMenuItem(value: 'planned', child: Text('Planeado')),
-                    DropdownMenuItem(value: 'watching', child: Text('Viendo')),
-                    DropdownMenuItem(
-                      value: 'completed',
-                      child: Text('Completado'),
-                    ),
-                    DropdownMenuItem(value: 'paused', child: Text('En pausa')),
-                    DropdownMenuItem(
-                      value: 'dropped',
-                      child: Text('Abandonado'),
-                    ),
+                  items: [
+                    for (final (value, label) in const [
+                      ('', 'Todos'),
+                      ('planned', 'Planeado'),
+                      ('watching', 'Viendo'),
+                      ('completed', 'Completado'),
+                      ('paused', 'En pausa'),
+                      ('dropped', 'Abandonado'),
+                    ])
+                      DropdownMenuItem(
+                        value: value,
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                   ],
                   onChanged: (v) => setState(() => _status = v!),
                 ),
