@@ -96,6 +96,14 @@ class Runner:
         raise MaintenanceError('No se pudo superar la comprobación del alojamiento.')
 
 
+def problem(message, out=print):
+    """Un fallo. En GitHub Actions también va a los avisos de la ejecución,
+    que se ven sin abrir el registro. Los mensajes nunca contienen el token."""
+    if os.environ.get('GITHUB_ACTIONS') == 'true':
+        out('::error title=Mantenimiento del catálogo::' + ' '.join(message.split()))
+    out(message)
+
+
 def describe(result):
     if result.get('skipped'):
         return f"sin trabajo: {result.get('reason', '')}".strip()
@@ -119,10 +127,10 @@ def run(runner, steps, pause, sleep=time.sleep, out=print):
         try:
             status, data = runner.call()
         except (OSError, MaintenanceError) as error:
-            out(f'Paso {step}: {error}')
+            problem(f'Paso {step}: {error}', out)
             return 1
         if status in (401, 403, 405) or not data.get('ok'):
-            out(f"Paso {step}: el servidor no aceptó el mantenimiento (HTTP {status}): {data.get('message', '')}")
+            problem(f"Paso {step}: el servidor no aceptó el mantenimiento (HTTP {status}): {data.get('message', '')}", out)
             return 1
         result = data.get('result') or {}
         remaining = result.get('remaining')
@@ -146,13 +154,14 @@ def main(argv=None):
         print('Sin YOMA_MAINTENANCE_TOKEN: no se hace nada.')
         return 0
     if not re.fullmatch('[a-f0-9]{64}', token):
-        print('YOMA_MAINTENANCE_TOKEN no tiene el formato esperado (64 caracteres hexadecimales).')
+        problem('YOMA_MAINTENANCE_TOKEN no tiene el formato esperado: pega solo los 64 caracteres '
+                'del token, sin «Authorization: Bearer».')
         return 1
     steps = max(1, min(40, args.steps))
     try:
         runner = Runner(os.environ.get('YOMA_MAINTENANCE_URL') or DEFAULT_URL, token)
     except MaintenanceError as error:
-        print(error)
+        problem(str(error))
         return 1
     return run(runner, steps, max(2.5, args.pause))
 
