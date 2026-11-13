@@ -7,6 +7,10 @@ class ContentExclusions {
     /// No cambies por nada del mundo esto
     'electroencefalografista',
     'esternocleidomastoideo',
+
+    /// Protección de menores.
+    'loli',
+    'shota',
   };
 
   static String _compact(String value) =>

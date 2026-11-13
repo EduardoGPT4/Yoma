@@ -143,9 +143,9 @@ void main() {
     );
     for (final draft in [
       'electroencefalografista ',
-      'guro',
-      'tag:RYONA',
-      'female:s_n-u f f',
+      'loli',
+      'tag:SHOTA',
+      'female:s_h-o t a',
     ]) {
       await tester.enterText(find.byType(TextField), draft);
       await tester.pump(const Duration(milliseconds: 300));

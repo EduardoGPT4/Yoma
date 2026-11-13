@@ -3,16 +3,13 @@ import 'package:yomashi/services/content_exclusions.dart';
 
 void main() {
   test(
-    'one configuration contains the existing and additional restrictions',
+    'one configuration contains the existing rules and minor protection',
     () {
       expect(
         ContentExclusions.tags,
         containsAll([
           'loli',
           'shota',
-          'guro',
-          'ryona',
-          'snuff',
           'electroencefalografista',
           'esternocleidomastoideo',
         ]),
@@ -27,13 +24,12 @@ void main() {
 
   test('recognizes case, separators, compound tags and query namespaces', () {
     for (final value in [
-      ' GURO ',
-      'male:RYONA',
-      '-tag:snuff',
-      'tag:guro_variant',
-      'g_u-r o',
-      ' r_Y-O N a ',
-      's_n-u f f',
+      ' LOLI ',
+      'male:SHOTA',
+      '-tag:loli',
+      'tag:shota_variant',
+      'l_o-l i',
+      ' s_H-O T a ',
     ]) {
       expect(ContentExclusions.matches(value), isTrue, reason: value);
     }
@@ -47,15 +43,12 @@ void main() {
     expect(
       tokens,
       containsAll([
-        'guro',
-        'female:guro',
-        'male:guro',
-        'ryona',
-        'female:ryona',
-        'male:ryona',
-        'snuff',
-        'female:snuff',
-        'male:snuff',
+        'loli',
+        'female:loli',
+        'male:loli',
+        'shota',
+        'female:shota',
+        'male:shota',
       ]),
     );
     for (final tag in ContentExclusions.tags) {

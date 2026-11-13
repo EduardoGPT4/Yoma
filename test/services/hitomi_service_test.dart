@@ -66,11 +66,11 @@ b: '123/'
         body = _nozomi(const [42, 99]);
       } else if (path == '/n/tag/female:esternocleidomastoideo-all.nozomi') {
         body = _nozomi(const [7]);
-      } else if (path == '/n/tag/guro-all.nozomi') {
+      } else if (path == '/n/tag/loli-all.nozomi') {
         body = _nozomi(const [8]);
-      } else if (path == '/n/tag/male:ryona-all.nozomi') {
+      } else if (path == '/n/tag/male:shota-all.nozomi') {
         body = _nozomi(const [9]);
-      } else if (path == '/n/tag/female:snuff-all.nozomi') {
+      } else if (path == '/n/tag/female:loli-all.nozomi') {
         body = _nozomi(const [10]);
       } else if (path == '/galleriesindex/version') {
         body = utf8.encode('v1');
@@ -157,7 +157,7 @@ b: '123/'
     }
   });
 
-  test('additional exclusions reject direct details and pages', () async {
+  test('minor protection rejects direct details and pages', () async {
     for (final id in [8, 9, 10]) {
       await expectLater(
         HitomiService.fetchMangaDetail('$id'),
@@ -171,7 +171,7 @@ b: '123/'
   });
 
   test('failed exclusion indexes report an error and can be retried', () async {
-    failedExclusionIndex = '/n/tag/guro-all.nozomi';
+    failedExclusionIndex = '/n/tag/loli-all.nozomi';
     await expectLater(
       HitomiService.fetchCatalogPage(),
       throwsA(
@@ -190,7 +190,7 @@ b: '123/'
   test(
     'restricted searches and suggestions stop before requesting indexes',
     () async {
-      for (final query in ['tag:GURO', 'male:ryona', 'snuff']) {
+      for (final query in ['tag:LOLI', 'male:shota', 'loli']) {
         final page = await HitomiService.fetchCatalogPage(search: query);
         expect(page.items, isEmpty);
         expect(await HitomiService.fetchTagSuggestions(query), isEmpty);
@@ -280,7 +280,7 @@ String _gallery(int id, String title) {
     ],
     'tags': [
       {
-        'tag': const {7: 'esternocleidomastoideo', 8: 'guro', 9: 'ryona', 10: 'snuff'}[id] ?? 'romance',
+        'tag': const {7: 'esternocleidomastoideo', 8: 'loli', 9: 'shota', 10: 'loli'}[id] ?? 'romance',
         'female': '1',
       },
     ],

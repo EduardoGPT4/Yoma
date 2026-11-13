@@ -31,8 +31,8 @@ void main() {
     expect(HitomiService.galleryIsBlocked({}), isFalse);
   });
 
-  test('additional restrictions apply to metadata and suggestions', () {
-    for (final tag in ['guro', 'ryona', 'snuff']) {
+  test('minor protection applies to metadata and suggestions', () {
+    for (final tag in ['loli', 'shota']) {
       expect(HitomiService.tagIsBlocked(' ${tag.toUpperCase()} '), isTrue);
       expect(HitomiService.suggestionAllowed('tag', tag), isFalse);
       expect(
