@@ -677,7 +677,7 @@ document.addEventListener('click', async (event) => {
     if (action === 'cron_config') {
       if (!featureHome?.maintenance?.external_enabled) {
         modal(
-          '<p class="eyebrow">ACTUALIZACIÓN DEL SITIO</p><h2>Se actualiza cuando visitas la web.</h2><p>InfinityFree gratuito bloquea los cron externos, incluidos cron-job.org y los monitores usados como cron. La revisión se activa al visitar como administrador, como máximo cada doce horas, y continúa los listados pendientes con pausas.</p><p>El endpoint protegido queda disponible para un alojamiento que permita tareas programadas; está desactivado aquí.</p>'
+          '<p class="eyebrow">ACTUALIZACIÓN DEL SITIO</p><h2>Se actualiza cuando visitas la web.</h2><p>Ahora la revisión se activa al visitar la web como administrador, como máximo cada doce horas, y continúa los listados pendientes con pausas.</p><p>Para que avance sola, la tarea «Mantenimiento del catálogo» de GitHub puede llamarla cada 30 minutos. Actívala añadiendo <code>&#39;external_maintenance&#39; =&gt; true,</code> dentro de <code>return [ … ];</code> en <code>private/config.local.php</code> y vuelve aquí: este botón pasará a «Configurar actualización externa».</p>'
         );
         return;
       }

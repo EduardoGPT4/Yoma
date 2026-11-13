@@ -38,7 +38,7 @@ InfinityFree no tiene cron. La tarea de GitHub «Mantenimiento del catálogo» (
 Para activarla:
 
 1. En el servidor, añade `'external_maintenance' => true,` a `releases/<versión>/private/config.local.php`.
-2. En la web, entra como administrador y genera el token en **Actualización externa**. Generar otro token invalida el anterior.
+2. En la web, entra con la cuenta administradora y abre el menú (☰) → **Preferencias**. Al final está el panel **Actualización del sitio**. Pulsa **Configurar actualización externa** y genera el token. Si el botón dice «Acerca de la actualización externa», el paso 1 no está hecho. Generar otro token invalida el anterior.
 3. Guárdalo como secreto `YOMA_MAINTENANCE_TOKEN` del repositorio:
 
    ```
