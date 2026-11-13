@@ -26,7 +26,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: tools/run_catalog_maintenance.py
+          sparse-checkout: |
+            tools/run_catalog_maintenance.py
+            android/app/src/main/res/raw/gts_*.pem
           sparse-checkout-cone-mode: false
       - name: Avanzar la cola
         env:

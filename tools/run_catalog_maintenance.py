@@ -19,14 +19,19 @@ import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 DEFAULT_URL = 'https://tv.yoma.site/maintenance.php'
+# El alojamiento no envía su certificado intermedio (Google Trust Services).
+# Windows lo descarga solo; Linux no. Se usan los mismos intermedios que la app.
+INTERMEDIATES = Path(__file__).resolve().parents[1] / 'android/app/src/main/res/raw'
 USER_AGENT = 'Mozilla/5.0 Yoma catalog maintenance'
 
 
@@ -40,6 +45,13 @@ def allowed_url(url):
         return True
     # Solo para las pruebas: un servidor en este mismo equipo.
     return parts.scheme == 'http' and parts.hostname == '127.0.0.1'
+
+
+def tls_context():
+    context = ssl.create_default_context()
+    for pem in sorted(INTERMEDIATES.glob('gts_*.pem')):
+        context.load_verify_locations(cafile=str(pem))
+    return context
 
 
 def aes_decrypt_hex(key, iv, cipher):
@@ -66,6 +78,7 @@ class Runner:
         self.url = url
         self.token = token
         self.cookie = ''
+        self.context = tls_context()
 
     def call(self):
         """Un paso de mantenimiento: (estado HTTP, respuesta JSON)."""
@@ -76,7 +89,7 @@ class Runner:
                 headers['Cookie'] = '__test=' + self.cookie
             request = urllib.request.Request(self.url, data=b'{}', headers=headers, method='POST')
             try:
-                response = urllib.request.urlopen(request, timeout=90)
+                response = urllib.request.urlopen(request, timeout=90, context=self.context)
             except urllib.error.HTTPError as error:
                 response = error
             with response:

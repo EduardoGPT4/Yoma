@@ -126,6 +126,14 @@ class TestRunner(unittest.TestCase):
         self.assertIn('no se hace nada', out.getvalue())
         self.assertEqual(Hosting.calls, [])
 
+    def test_brings_the_intermediates_the_hosting_does_not_send(self):
+        # Linux no los descarga solos: sin ellos, GitHub no verifica tv.yoma.site.
+        pems = sorted(tool.INTERMEDIATES.glob('gts_*.pem'))
+        self.assertIn('gts_wr1.pem', [p.name for p in pems])
+        workflow = (ROOT / '.github/workflows/catalog-maintenance.yml').read_text(encoding='utf-8')
+        self.assertIn('android/app/src/main/res/raw/gts_*.pem', workflow)
+        self.assertTrue(tool.tls_context().cert_store_stats()['x509'] >= len(pems))
+
     def test_only_the_site_or_this_computer(self):
         for url in ['https://evil.example/maintenance.php', 'http://tv.yoma.site/maintenance.php']:
             with self.assertRaises(tool.MaintenanceError):
