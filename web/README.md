@@ -15,6 +15,22 @@ Cada carpeta es lo que se sube a la carpeta `htdocs` de su dominio en el hosting
 - **Datos que genera el servidor:** `data/`, `feeds/`, `downloads/` y lo mismo dentro de cada versión.
 - **Versiones anteriores de tv.yoma.site:** se conservan en el hosting para volver atrás.
 
+## Subir cambios
+
+`tools/web_release.py` compara la carpeta con el sitio real y arma solo lo que falta:
+
+```
+python -I tools/web_release.py estado    tv.yoma.site
+python -I tools/web_release.py paquete   tv.yoma.site
+python -I tools/web_release.py publicado tv.yoma.site
+```
+
+1. **paquete** crea `dist/sitios/actualizacion/<sitio>-<commit>.zip`. Antes comprueba que `ready.json` esté al día.
+2. Descomprime el zip en `htdocs` del sitio. Si el script lista archivos borrados, puedes eliminarlos del servidor.
+3. **publicado** comprueba el sitio real (salud, estado y archivos). Si todo responde, anota el commit en `web/desplegado.json`; haz commit de ese archivo.
+
+Los archivos de texto públicos se comparan descargándolos; los finales de línea no cuentan como cambio. El resto (PHP, `.htaccess`, `private/`, imágenes y fuentes) se compara con el último commit publicado. Nunca incluye `*.local.php` ni `data/`, `feeds/` o `downloads/`.
+
 ## tv.yoma.site por versiones
 
 - **Versión activa:** `private/current.json` indica qué carpeta de `releases/` está activa.
