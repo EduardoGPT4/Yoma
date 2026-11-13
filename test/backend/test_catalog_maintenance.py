@@ -53,14 +53,15 @@ class Hosting(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self.rfile.read(int(self.headers.get('Content-Length', 0)))
-        type(self).calls.append((self.headers.get('Authorization'), self.headers.get('Cookie')))
+        type(self).calls.append((self.headers.get('X-Yoma-Maintenance'), self.headers.get('Cookie')))
         if self.headers.get('Cookie') != '__test=' + self.cookie:
             cipher = aes_encrypt_hex(self.key, self.iv, self.cookie)
             body = ('<html><body><script src="/aes.js"></script><script>function toNumbers(d){}'
                     f'var a=toNumbers("{self.key}"),b=toNumbers("{self.iv}"),c=toNumbers("{cipher}");'
                     'document.cookie="__test="+toHex(slowAES.decrypt(c,2,a,b));</script></body></html>').encode()
             return self.reply(200, body, 'text/html')
-        if self.headers.get('Authorization') != 'Bearer ' + TOKEN:
+        # Como InfinityFree: solo la cabecera propia llega al servidor.
+        if self.headers.get('X-Yoma-Maintenance') != TOKEN:
             return self.reply(403, json.dumps({'ok': False, 'message': 'Token de actualización no válido.'}).encode())
         result = type(self).results.pop(0) if type(self).results else {'skipped': True, 'remaining': 0, 'reason': 'Nada pendiente.'}
         self.reply(200, json.dumps({'ok': True, 'result': result}).encode())
@@ -202,6 +203,30 @@ class TestRealSite(unittest.TestCase):
         code, lines = self.run_tool()
         self.assertEqual(code, 1)
         self.assertIn('desactivada', lines[0])
+
+    def test_the_token_arrives_without_authorization(self):
+        # Como en InfinityFree, que quita «Authorization» antes de llegar a PHP.
+        import urllib.error
+        import urllib.request
+        self.config.write_text("<?php return ['external_maintenance' => true];", encoding='utf-8')
+        try:
+            def post(headers):
+                request = urllib.request.Request(self.url, data=b'{}', headers={'Content-Type': 'application/json', **headers}, method='POST')
+                try:
+                    response = urllib.request.urlopen(request, timeout=30)
+                except urllib.error.HTTPError as error:
+                    response = error
+                with response:
+                    return response.status, json.loads(response.read())
+            status, data = post({'X-Yoma-Maintenance': TOKEN})
+            self.assertEqual((status, data['ok']), (200, True), data)
+            status, data = post({})
+            self.assertEqual(status, 401, data)
+            self.assertIn('No llegó el token', data['message'])
+            status, _ = post({'X-Yoma-Maintenance': 'cd' * 32})
+            self.assertEqual(status, 403)
+        finally:
+            self.config.unlink(missing_ok=True)
 
     def test_runs_with_the_token_and_rejects_another(self):
         self.config.write_text("<?php return ['external_maintenance' => true];", encoding='utf-8')

@@ -84,7 +84,9 @@ class Runner:
         """Un paso de mantenimiento: (estado HTTP, respuesta JSON)."""
         for _ in range(3):
             headers = {'User-Agent': USER_AGENT, 'Content-Type': 'application/json', 'Accept': 'application/json',
-                       'Authorization': 'Bearer ' + self.token}
+                       'Authorization': 'Bearer ' + self.token,
+                       # InfinityFree no entrega «Authorization» a PHP.
+                       'X-Yoma-Maintenance': self.token}
             if self.cookie:
                 headers['Cookie'] = '__test=' + self.cookie
             request = urllib.request.Request(self.url, data=b'{}', headers=headers, method='POST')

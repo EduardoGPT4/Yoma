@@ -13,10 +13,16 @@ try {
       403,
     );
   }
-  $header = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+  // InfinityFree no entrega «Authorization» a PHP (por eso el puente de MAL usa
+  // X-YomaShi-Token): se acepta también la cabecera propia X-Yoma-Maintenance.
+  $header = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+  $own = (string) ($_SERVER['HTTP_X_YOMA_MAINTENANCE'] ?? '');
   $token = preg_match('/^Bearer ([a-f0-9]{64})$/D', $header, $match)
     ? $match[1]
-    : '';
+    : (preg_match('/^[a-f0-9]{64}$/D', $own) ? $own : '');
+  if ($token === '') {
+    throw new WebError('No llegó el token de actualización. Revisa que la petición envíe X-Yoma-Maintenance.', 401);
+  }
   $hash = meta(db(), 'maintenance_token_hash', '');
   if (!$hash || !hash_equals($hash, hash('sha256', $token))) {
     throw new WebError('Token de actualización no válido.', 403);
