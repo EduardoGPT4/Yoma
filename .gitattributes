@@ -6,3 +6,12 @@
 *.gradle text eol=lf
 *.kts text eol=lf
 *.yml text eol=lf
+# La web se publica byte a byte y ready.json guarda sus huellas: siempre LF.
+web/**/*.js text eol=lf
+web/**/*.css text eol=lf
+web/**/*.html text eol=lf
+web/**/*.json text eol=lf
+web/**/*.webmanifest text eol=lf
+web/**/*.txt text eol=lf
+web/**/*.svg text eol=lf
+web/**/.htaccess text eol=lf

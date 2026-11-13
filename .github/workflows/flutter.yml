@@ -19,7 +19,10 @@ jobs:
       - run: flutter pub get
       - run: dart format --output=none --set-exit-if-changed lib test integration_test test_driver
       - run: flutter analyze
-      - run: flutter test --coverage
+      - run: flutter test --coverage --file-reporter json:build/test-report.json
+      - name: Pruebas que fallaron
+        if: failure()
+        run: python3 -I tools/report_failed_tests.py build/test-report.json
       - run: python3 test/backend/test_myanimelist.py
       - run: python3 test/backend/test_anime.py
       - run: python3 test/backend/test_yoma_session.py
