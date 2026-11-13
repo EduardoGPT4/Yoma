@@ -30,3 +30,19 @@ python -I tools/generate_web_tokens.py
 ```
 
 `test/unit/yoma_web_tokens_test.dart` comprueba que la web y la app no se separen.
+
+## Mantenimiento del catálogo
+
+InfinityFree no tiene cron. La tarea de GitHub «Mantenimiento del catálogo» (`.github/workflows/catalog-maintenance.yml`) llama a `maintenance.php` a los minutos 7 y 37 de cada hora, y hace hasta 12 trabajos por vez. Los trabajos son: revisar el horario (cada 12 horas), leer listados de capítulos pendientes o con más de 30 días, y recorrer el directorio (cada semana). Usa `tools/run_catalog_maintenance.py`, que resuelve la comprobación del alojamiento.
+
+Para activarla:
+
+1. En el servidor, añade `'external_maintenance' => true,` a `releases/<versión>/private/config.local.php`.
+2. En la web, entra como administrador y genera el token en **Actualización externa**. Generar otro token invalida el anterior.
+3. Guárdalo como secreto `YOMA_MAINTENANCE_TOKEN` del repositorio:
+
+   ```
+   gh secret set YOMA_MAINTENANCE_TOKEN --repo EduardoGPT4/Yoma
+   ```
+
+Sin el secreto, la tarea termina sin hacer nada. Para lanzarla a mano: pestaña **Actions** → «Mantenimiento del catálogo» → **Run workflow**.

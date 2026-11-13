@@ -682,7 +682,7 @@ document.addEventListener('click', async (event) => {
         return;
       }
       modal(
-        `<p class="eyebrow">ACTUALIZACIÓN EXTERNA</p><h2>Un endpoint protegido.</h2><p>En un alojamiento compatible, configura un POST cada cinco minutos desde tu servicio de automatización. El servidor revisa el horario cada doce horas y procesa un listado de capítulos por solicitud.</p><form id="cron-token-form">${securityField('cron', 'current_password', 'Contraseña actual')}<p class="form-error"></p><button class="button primary" type="submit">Generar token de actualización</button></form><small>Generar otro token invalida el anterior. Se muestra una sola vez.</small>`
+        `<p class="eyebrow">ACTUALIZACIÓN EXTERNA</p><h2>Un endpoint protegido.</h2><p>La tarea «Mantenimiento del catálogo» de GitHub llama a este endpoint cada 30 minutos con este token. El servidor revisa el horario cada doce horas y procesa un listado de capítulos por solicitud.</p><form id="cron-token-form">${state.user?.mal_linked ? '' : securityField('cron', 'current_password', 'Contraseña actual')}<p class="form-error"></p><button class="button primary" type="submit">Generar token de actualización</button></form><small>Generar otro token invalida el anterior. Se muestra una sola vez.</small>`
       );
       return;
     }
@@ -748,11 +748,11 @@ document.addEventListener('submit', async (event) => {
     }
     if (f.id === 'cron-token-form') {
       r = await api('maintenance_token', {
-        current_password: f.elements.current_password.value,
+        current_password: f.elements.current_password?.value || '',
       });
       if (state.user?.id !== user || !dialogCurrent(interaction,true)) return;
       modal(
-        `<p class="eyebrow">GUARDA ESTE TOKEN</p><h2>POST cada cinco minutos.</h2><p>URL: <code>${e(r.endpoint)}</code></p><p>Encabezado de autorización:</p><pre class="secret-display">Authorization: Bearer ${e(r.maintenance_token)}</pre><p>No publiques ni compartas este token. El horario también se revisa al visitar la web como administrador.</p>`
+        `<p class="eyebrow">GUARDA ESTE TOKEN</p><h2>Guárdalo en GitHub.</h2><p>Guárdalo como secreto <code>YOMA_MAINTENANCE_TOKEN</code> del repositorio: la tarea «Mantenimiento del catálogo» lo usa cada 30 minutos.</p><p>URL: <code>${e(r.endpoint)}</code></p><p>Encabezado de autorización:</p><pre class="secret-display">Authorization: Bearer ${e(r.maintenance_token)}</pre><p>No publiques ni compartas este token. El horario también se revisa al visitar la web como administrador.</p>`
       );
     }
   } catch (error) {

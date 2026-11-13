@@ -222,11 +222,12 @@ function dispatch_maintenance(PDO $db, string $action, array $input): ?array
   if ($action === 'maintenance_token') {
     if (!external_maintenance_enabled()) {
       throw new WebError(
-        'La actualización externa está desactivada. InfinityFree gratuito no admite cron externos; se revisa al visitar como administrador.',
+        'La actualización externa está desactivada. Añade «external_maintenance» => true en private/config.local.php.',
         409,
       );
     }
-    verify_current_password($db, $input);
+    // Una cuenta que entra con MyAnimeList no usa contraseña.
+    if (!mal_login_linked($db, member())) verify_current_password($db, $input);
     $token = bin2hex(random_bytes(32));
     set_meta($db, 'maintenance_token_hash', hash('sha256', $token));
     return [

@@ -1,0 +1,35 @@
+name: Mantenimiento del catálogo
+
+# Avanza la cola del catálogo de tv.yoma.site: horario, listados de capítulos
+# y directorio. InfinityFree no tiene cron propio; esta tarea lo sustituye.
+# Necesita el secreto YOMA_MAINTENANCE_TOKEN (sin él no hace nada).
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: 'Trabajos en esta ejecución (1–40)'
+        default: '12'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalog-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/run_catalog_maintenance.py
+          sparse-checkout-cone-mode: false
+      - name: Avanzar la cola
+        env:
+          YOMA_MAINTENANCE_TOKEN: ${{ secrets.YOMA_MAINTENANCE_TOKEN }}
+          STEPS: ${{ github.event.inputs.steps || '12' }}
+        run: python3 -I tools/run_catalog_maintenance.py --steps "$STEPS"
