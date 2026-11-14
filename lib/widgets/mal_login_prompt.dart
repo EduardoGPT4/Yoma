@@ -11,8 +11,7 @@ import '../services/myanimelist_service.dart';
 ///   de Yoma es la de tu ID de MAL, la misma en la web y en otros teléfonos.
 /// - «Continuar sin cuenta» deja la app en local. Lo guardado aquí se sube a
 ///   tu cuenta cuando conectes MyAnimeList más tarde (desde la tarjeta del
-///   inicio o desde Más). En esta versión eso cubre YomaTV (AnimeSync); el
-///   manga usa la conexión con MAL de siempre.
+///   inicio o desde Más): YomaTV (AnimeSync) y el manga online (MangaSync).
 ///
 /// Se pregunta una sola vez por instalación y nunca con MAL ya conectado.
 class MalLoginPrompt extends StatelessWidget {
@@ -69,7 +68,13 @@ class MalLoginPrompt extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+      // Por encima de la barra de navegación del sistema.
+      padding: EdgeInsets.fromLTRB(
+        24,
+        4,
+        24,
+        24 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -89,8 +94,8 @@ class MalLoginPrompt extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Tu biblioteca y tu progreso de anime te siguen entre este '
-            'teléfono, otros dispositivos y la web, y tus listas de MAL se '
+            'Tu anime te sigue entre este teléfono, otros dispositivos y la '
+            'web; tu manga online, entre tus teléfonos. Tus listas de MAL se '
             'actualizan solas. La primera vez se crea tu cuenta sola, sin '
             'contraseña.',
             style: text.bodyMedium?.copyWith(color: YomaColors.textSecondary),
@@ -109,8 +114,8 @@ class MalLoginPrompt extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Sin cuenta, todo se guarda en este teléfono. Si conectas '
-            'MyAnimeList después, tu biblioteca y tu progreso de anime se '
-            'suben a tu cuenta.',
+            'MyAnimeList después, tu biblioteca y tu progreso (anime y manga '
+            'online) se suben a tu cuenta.',
             textAlign: TextAlign.center,
             style: text.bodySmall?.copyWith(color: YomaColors.textMuted),
           ),
