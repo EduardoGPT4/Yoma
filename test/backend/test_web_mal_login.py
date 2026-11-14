@@ -112,7 +112,14 @@ class TestWebMalLogin(unittest.TestCase):
                'SEASON_WEB_MAL_TEST_URL': f'http://127.0.0.1:{cls.mock.server_port}',
                'SEASON_WEB_ADMIN_EMAILS': ADMIN}
         cls.log = open(Path(cls.temp.name) / 'php.log', 'wb')
-        cls.php = subprocess.Popen(['php', '-S', f'127.0.0.1:{port}', '-t', str(cls.folder)], env=env, stdout=cls.log, stderr=cls.log)
+        # Sesiones y errores en la carpeta de la prueba: no depende de la
+        # configuración de PHP del sistema (en Linux, /var/lib/php/sessions).
+        sessions = Path(cls.temp.name) / 'sessions'
+        sessions.mkdir()
+        cls.errors = Path(cls.temp.name) / 'php-errors.log'
+        cls.php = subprocess.Popen(['php', '-d', f'session.save_path={sessions}', '-d', 'log_errors=1',
+                                    '-d', f'error_log={cls.errors}', '-S', f'127.0.0.1:{port}', '-t', str(cls.folder)],
+                                   env=env, stdout=cls.log, stderr=cls.log)
         cls.base = f'http://127.0.0.1:{port}/'
         try:
             for attempt in range(200):
@@ -123,7 +130,10 @@ class TestWebMalLogin(unittest.TestCase):
                     if attempt == 199:
                         raise
                     time.sleep(.05)
-        except BaseException:
+        except BaseException as error:
+            # Que el motivo se vea en la CI sin abrir el registro completo.
+            detail = cls.errors.read_text(errors='replace')[-800:] if cls.errors.is_file() else ''
+            print(f'::error title=test_web_mal_login::La web local no arrancó: {error} {" ".join(detail.split())}')
             cls.tearDownClass()
             raise
 

@@ -164,7 +164,11 @@ class TestRealSite(unittest.TestCase):
             port = sock.getsockname()[1]
         env = {**os.environ, 'SEASON_WEB_SQLITE': str(cls.db_file)}
         cls.log = open(Path(cls.temp.name) / 'php.log', 'wb')
-        cls.php = subprocess.Popen(['php', '-S', f'127.0.0.1:{port}', '-t', str(cls.folder)], env=env, stdout=cls.log, stderr=cls.log)
+        # Sesiones en la carpeta de la prueba, no en la del sistema.
+        sessions = Path(cls.temp.name) / 'sessions'
+        sessions.mkdir()
+        cls.php = subprocess.Popen(['php', '-d', f'session.save_path={sessions}', '-S', f'127.0.0.1:{port}', '-t', str(cls.folder)],
+                                   env=env, stdout=cls.log, stderr=cls.log)
         cls.url = f'http://127.0.0.1:{port}/maintenance.php'
         import urllib.request
         for attempt in range(200):
