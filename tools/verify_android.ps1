@@ -21,5 +21,13 @@ if(($badging | Select-String "^package: name='app.yomashi.reader.qa'").Count -ne
     throw 'Bloqueado: el APK no tiene el identificador aislado de pruebas'
 }
 # Instalar únicamente el binario ya verificado, sin reconstruirlo durante drive.
-flutter drive "--$Mode" --no-dds --driver=test_driver/integration_test.dart --target=integration_test/device_test.dart "--use-application-binary=$apk" -d $Device
-if($LASTEXITCODE) { throw 'Falló la prueba Android; revisar el informe de Flutter' }
+New-Item -ItemType Directory -Force build | Out-Null
+flutter drive "--$Mode" --no-dds --driver=test_driver/integration_test.dart --target=integration_test/device_test.dart "--use-application-binary=$apk" -d $Device 2>&1 | Tee-Object -FilePath build/integration_drive.log
+if($LASTEXITCODE) {
+    # En GitHub Actions, el motivo va a los avisos de la ejecución.
+    if($env:GITHUB_ACTIONS -eq 'true') {
+        Select-String -Path build/integration_drive.log -Pattern 'Expected|Actual|EXCEPTION|Exception|Error:|failed|Which:' |
+            Select-Object -First 15 | ForEach-Object { Write-Host "::error title=Prueba Android::$($_.Line.Trim())" }
+    }
+    throw 'Falló la prueba Android; revisar el informe de Flutter'
+}
