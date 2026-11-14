@@ -49,7 +49,7 @@ python -I tools/generate_web_tokens.py
 
 ## Mantenimiento del catálogo
 
-InfinityFree no tiene cron. La tarea de GitHub «Mantenimiento del catálogo» (`.github/workflows/catalog-maintenance.yml`) llama a `maintenance.php` a los minutos 7 y 37 de cada hora, y hace hasta 12 trabajos por vez. Los trabajos son: revisar el horario (cada 12 horas), leer listados de capítulos pendientes o con más de 30 días, y recorrer el directorio (cada semana). Usa `tools/run_catalog_maintenance.py`, que resuelve la comprobación del alojamiento.
+InfinityFree no tiene cron. La tarea de GitHub «Mantenimiento del catálogo» (`.github/workflows/catalog-maintenance.yml`) llama a `maintenance.php` a los minutos 7 y 37 de cada hora, y hace hasta 30 trabajos por vez (GitHub a veces las retrasa). Los trabajos son: revisar el horario (cada 12 horas), leer listados de capítulos pendientes o con más de 30 días, y recorrer el directorio (cada semana). Usa `tools/run_catalog_maintenance.py`, que resuelve la comprobación del alojamiento.
 
 Para activarla:
 

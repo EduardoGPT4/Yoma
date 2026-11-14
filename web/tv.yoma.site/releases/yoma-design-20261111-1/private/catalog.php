@@ -67,11 +67,23 @@ function detail_fill(PDO $db, string $slug): bool
   if (!consume_limit($db, 'detail-fill:' . $slug, 1, 600) || !consume_limit($db, 'detail-fill-global', 30, 3600)) return false;
   $GLOBALS['season_scrape_task'] = ['path' => '/media/' . $slug, 'interactive' => true];
   try {
-    sync_anime($db, $slug);
+    try {
+      sync_anime($db, $slug);
+    } catch (WebError $busy) {
+      // Otra lectura de la fuente hace menos de 2 s (otra ficha o la cola):
+      // se espera ese margen y se reintenta una vez.
+      if ($busy->status !== 429) throw $busy;
+      usleep(2100000);
+      sync_anime($db, $slug);
+    }
     if ($task) sql($db, "UPDATE sa1_catalog_tasks SET state='done',error='',lock_until=0,updated_at=? WHERE task_key=? AND state='pending'", [time(), catalog_task_key('detail', $slug)]);
     return true;
   } catch (Throwable $error) {
     error_log('detail_fill: ' . get_class($error));
+    // Sin turno en la fuente no cuenta como intento: al reabrir se prueba otra vez.
+    if ($error instanceof WebError && $error->status === 429) {
+      try { sql($db, 'DELETE FROM sa1_limits WHERE name=?', ['detail-fill:' . $slug]); } catch (Throwable $ignored) {}
+    }
     try { catalog_enqueue($db, 'detail', $slug, [], 10); } catch (Throwable $ignored) {}
     return false;
   } finally {
