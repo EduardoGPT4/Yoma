@@ -111,6 +111,21 @@ class TestYomaSyncWeb(unittest.TestCase):
         self.assertEqual(items[('episode', 'frieren-2:2')]['payload']['position_ms'], 300500)
         self.assertEqual(items[('episode', 'frieren-2:2')]['payload']['episode_id'], 102)
 
+    def test_the_web_ignores_manga_from_yomashi(self):
+        # La web solo tiene anime: el manga del teléfono no se aplica ni la rompe.
+        self.web_sync()
+        t = now_ms()
+        self.api('sync_push', changes=[
+            {'kind': 'manga', 'key': 'a' * 40, 'updated_at': t, 'payload': {'url': 'https://mangadex.org/title/x', 'title': 'X'}},
+            {'kind': 'manga_read', 'key': 'b' * 40, 'updated_at': t, 'payload': {'url': 'https://mangadex.org/chapter/y'}},
+            {'kind': 'anime', 'key': 'otro', 'updated_at': t, 'payload': {'saved': True, 'status': 'planned'}},
+        ])
+        result = self.web_sync()
+        self.assertEqual(result['applied'], 1)
+        # Y no los borra ni los reescribe al subir lo de la web.
+        items = self.phone_items()
+        self.assertFalse(items[('manga', 'a' * 40)]['deleted'])
+
     def test_the_phone_reaches_the_web(self):
         self.web_sync()
         t = now_ms()

@@ -8,6 +8,7 @@ import 'anime_mal_client.dart';
 import 'anime_mal_shelf.dart';
 import 'local_anime_downloads.dart';
 import 'anime_sync.dart';
+import '../../../services/manga_sync.dart';
 import 'yomatv_source.dart';
 
 part 'anime_controller_mal.dart';
@@ -46,8 +47,10 @@ class AnimeController extends ChangeNotifier {
     LocalAnimeDownloads? transfers,
     Stream<bool> Function()? connectivity,
     AnimeSync? accountSync,
+    MangaSync? mangaSync,
     this.detailMaxAge = const Duration(minutes: 10),
   }) : _accountSync = accountSync,
+       _mangaSync = mangaSync,
        connectivity = connectivity ?? _deviceConnectivity,
        mal = mal ?? AnimeMalClient(),
        source = source ?? YomaTvSource(),
@@ -62,6 +65,11 @@ class AnimeController extends ChangeNotifier {
   late final AnimeSync accountSync =
       _accountSync ?? AnimeSync(client: mal.client, database: store.database);
   final AnimeSync? _accountSync;
+
+  /// YomaShi en la misma cuenta (ver [MangaSync]): se sincroniza a la vez.
+  late final MangaSync mangaSync =
+      _mangaSync ?? MangaSync(client: mal.client, database: store.database);
+  final MangaSync? _mangaSync;
   String? accountSyncError;
   DateTime? accountSyncedAt;
   bool accountSyncing = false;
@@ -80,7 +88,10 @@ class AnimeController extends ChangeNotifier {
       final result = await accountSync.sync(force: force);
       if (_disposed) return;
       if (result.received > 0) await _reloadLocal();
-      if (result.ran) accountSyncedAt = DateTime.now();
+      // El manga se avisa a sus pantallas por MangaSync.changes.
+      final manga = await mangaSync.sync(force: force);
+      if (_disposed) return;
+      if (result.ran || manga.ran) accountSyncedAt = DateTime.now();
       accountSyncError = null;
     } catch (e) {
       accountSyncError = 'No se pudo sincronizar con tu cuenta: $e';

@@ -1,10 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/favorite_entry.dart';
+import '../data/library_store.dart';
+import '../services/manga_sync.dart';
 import '../utils/preferences.dart';
 
 class FavoritesProvider extends ChangeNotifier {
   final Map<String, FavoriteEntry> _entries = <String, FavoriteEntry>{};
+
+  /// Lo cambiado en otro dispositivo de la cuenta llega por [MangaSync].
+  FavoritesProvider() {
+    MangaSync.changes.addListener(_reload);
+  }
+
+  void _reload() => unawaited(load());
+
+  @override
+  void dispose() {
+    MangaSync.changes.removeListener(_reload);
+    super.dispose();
+  }
 
   List<FavoriteEntry> get entries {
     final items = _entries.values.toList();
@@ -56,16 +73,18 @@ class FavoritesProvider extends ChangeNotifier {
   }
 
   Future<void> removeMany(Iterable<String> keys) async {
-    var changed = false;
-    for (final key in keys) {
-      if (_entries.remove(key) != null) {
-        changed = true;
-      }
-    }
-    if (!changed) {
+    final removed = [
+      for (final key in keys)
+        if (_entries.remove(key) != null) key,
+    ];
+    if (removed.isEmpty) {
       return;
     }
     await PreferencesService.setFavoritesMap(_entries);
+    final store = await LibraryStore.ensureInitialized();
+    for (final key in removed) {
+      await store.noteMangaChange('manga', key, deleted: true);
+    }
     notifyListeners();
   }
 }

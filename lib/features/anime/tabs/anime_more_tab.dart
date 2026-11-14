@@ -67,7 +67,7 @@ class _AnimeMore extends StatelessWidget {
                   (app.accountSync.unsupported
                       ? 'Disponible al activarse el servidor nuevo. Tu MyAnimeList funciona igual. Toca para reintentar.'
                       : app.accountSyncedAt == null
-                      ? 'Comparte biblioteca, favoritos e historial con tus otros dispositivos y la web.'
+                      ? 'Comparte tu anime con tus otros dispositivos y la web, y tu manga online (biblioteca, progreso y leídos) con tus otros dispositivos.'
                       : 'Al día · ${formatTimeAgo(app.accountSyncedAt!.millisecondsSinceEpoch)}'),
             ),
             onTap: app.accountSyncing

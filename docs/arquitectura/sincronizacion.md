@@ -1,6 +1,6 @@
 # Sincronización de Yoma
 
-Estado: Yoma 3.2.20. Cumple la opción 2 de `fase-3.md`.
+Estado: Yoma 3.2.24 (YomaTV desde 3.2.20, YomaShi desde 3.2.24). Cumple la opción 2 de `fase-3.md`.
 
 ## Qué se comparte
 
@@ -12,9 +12,21 @@ Entre los teléfonos y la web de **una misma cuenta de MyAnimeList**:
 | Episodio visto | `anime_progress.watched` | `sa1_watched` | App ↔ servidor ↔ web |
 | Posición dentro del episodio (historial) | `anime_progress.positionMs` | `sa1_playback` | Entre teléfonos ↔; de la web a los teléfonos → |
 
-**Fuera de la versión 1:**
+**YomaShi (versión 2, Yoma 3.2.24):** entre teléfonos, solo manga online. La web no tiene manga y no aplica estos tipos.
 
-- **YomaShi:** no tiene web; se puede añadir como tipos nuevos (`manga`, `chapter`).
+| Dato | App (YomaShi) | Tipo | Clave |
+|---|---|---|---|
+| Biblioteca (favoritos); quitarlo viaja como borrado | `FavoriteRows` + `manga_sync_log` | `manga` | huella de la URL |
+| Dónde vas: capítulo y página | `ReadingProgressRows` (su fecha) | `manga_progress` | huella de la URL |
+| Capítulo leído; desmarcarlo viaja como borrado | `ReadChapterRows` + `manga_sync_log` | `manga_read` | huella de la URL del capítulo |
+
+- La huella son los 40 primeros caracteres hexadecimales del SHA-256 de la URL. El contenido lleva la URL.
+- Los mangas sin conexión no viajan: se identifican por rutas de archivos de cada teléfono.
+- Lo leído porque MAL ya lo tenía tampoco viaja: cada teléfono lo recibe de MAL.
+- La app pregunta antes a `sync_capabilities`. Con un servidor sin estos tipos no sube nada y vuelve a probar a los 30 minutos (`lib/services/manga_sync.dart`).
+
+**Fuera por ahora:**
+
 - **Colecciones, notas y puntuación:** quedan para más adelante.
 - **Posición de la app en la web:** la web no la recibe, porque su tabla de reproducción tiene control de sesión propio.
 

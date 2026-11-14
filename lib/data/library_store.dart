@@ -230,19 +230,66 @@ class LibraryStore {
           sourceId: Value(entry.sourceId),
         ),
       );
-  Future<void> setFavorite(FavoriteEntry entry) => _db
-      .into(_db.favoriteRows)
-      .insertOnConflictUpdate(
-        FavoriteRowsCompanion.insert(
-          mangaKey: entry.key,
-          title: entry.title,
-          coverPath: Value(entry.coverPath),
-        ),
+
+  /// Cambios de YomaShi (manga online) pendientes de sincronizar con la
+  /// cuenta: [kind] `manga` (biblioteca) o `manga_read`. El progreso no se
+  /// anota aquí: cada fila ya guarda su fecha.
+  static const mangaSyncLog = 'manga_sync_log';
+
+  /// Solo el manga online tiene la misma identidad en otros dispositivos.
+  static bool syncableUrl(String value) =>
+      value.startsWith('https://') || value.startsWith('http://');
+
+  Future<void> noteMangaChange(
+    String kind,
+    String url, {
+    required bool deleted,
+    Map<String, dynamic> payload = const {},
+  }) async {
+    if (!syncableUrl(url)) return;
+    final id = '$kind|$url';
+    await putRecord(mangaSyncLog, id, {
+      'id': id,
+      'kind': kind,
+      'url': url,
+      'deleted': deleted,
+      'payload': payload,
+      'updatedAt': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  /// [sync]: false cuando el cambio viene de la propia sincronización.
+  Future<void> setFavorite(FavoriteEntry entry, {bool sync = true}) async {
+    await _db
+        .into(_db.favoriteRows)
+        .insertOnConflictUpdate(
+          FavoriteRowsCompanion.insert(
+            mangaKey: entry.key,
+            title: entry.title,
+            coverPath: Value(entry.coverPath),
+          ),
+        );
+    if (sync) {
+      await noteMangaChange(
+        'manga',
+        entry.key,
+        deleted: false,
+        payload: {'title': entry.title, 'cover': entry.coverPath ?? ''},
       );
-  Future<void> removeFavorite(String key) => (_db.delete(
-    _db.favoriteRows,
-  )..where((row) => row.mangaKey.equals(key))).go();
-  Future<void> setChapterRead(String key, bool read) async {
+    }
+  }
+
+  Future<void> removeFavorite(String key, {bool sync = true}) async {
+    await (_db.delete(
+      _db.favoriteRows,
+    )..where((row) => row.mangaKey.equals(key))).go();
+    if (sync) await noteMangaChange('manga', key, deleted: true);
+  }
+
+  /// [sync]: false para lo que no se lee en el teléfono (traído de MAL o de
+  /// otro dispositivo): cada dispositivo ya lo recibe por su cuenta.
+  Future<void> setChapterRead(String key, bool read, {bool sync = true}) async {
+    if (sync) await noteMangaChange('manga_read', key, deleted: !read);
     if (read) {
       await _db
           .into(_db.readChapterRows)

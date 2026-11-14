@@ -2,6 +2,7 @@
 
 No se leen credenciales ni se toca ninguna cuenta real.
 """
+import hashlib
 import json
 import sys
 import time
@@ -105,7 +106,9 @@ class TestYomaSync(unittest.TestCase):
             [{'kind': 'anime', 'key': '../x', 'updated_at': t, 'payload': {}}],
             [{'kind': 'episode', 'key': 'x', 'updated_at': t, 'payload': {}}],
             [{'kind': 'anime', 'key': 'x', 'updated_at': 5, 'payload': {}}],
-            [{'kind': 'anime', 'key': 'x', 'updated_at': t, 'payload': {'title': 'a' * 3000}}],
+            [{'kind': 'anime', 'key': 'x', 'updated_at': t, 'payload': {'title': 'a' * 5000}}],
+            [{'kind': 'manga', 'key': 'a' * 40, 'updated_at': t, 'payload': {'url': 'file:///sdcard/manga'}}],
+            [{'kind': 'manga_read', 'key': 'a' * 40, 'updated_at': t, 'payload': {}}],
             [{'kind': 'anime', 'key': 'x', 'updated_at': t, 'deleted': 'yes'}],
             [{'kind': 'anime', 'key': f'k{i}', 'updated_at': t, 'payload': {}} for i in range(201)],
         ]:
@@ -114,6 +117,29 @@ class TestYomaSync(unittest.TestCase):
         for bad in [dict(since=-1), dict(since='0'), dict(limit=0), dict(limit=501)]:
             self.assertEqual(self.api('sync_pull', **bad)[0], 422, bad)
         self.assertNotIn('x', [c['key'] for c in self.pull_all()[0]])
+
+    def test_online_manga_travels_between_devices(self):
+        # YomaShi: biblioteca, progreso y capítulos leídos, identificados por URL.
+        phone, other = self.token, self.connect_fixture()['device_token']
+        _, start = self.pull_all(token=other)
+        key = lambda url: hashlib.sha256(url.encode()).hexdigest()[:40]
+        manga, chapter = 'https://mangadex.org/title/abc', 'https://mangadex.org/chapter/c1'
+        t = now_ms()
+        status, data = self.api('sync_push', token=phone, changes=[
+            {'kind': 'manga', 'key': key(manga), 'updated_at': t, 'payload': {'url': manga, 'title': 'Frieren', 'cover': 'https://cdn.example/f.jpg'}},
+            {'kind': 'manga_progress', 'key': key(manga), 'updated_at': t, 'payload': {'url': manga, 'title': 'Frieren', 'chapter_url': chapter, 'chapter_title': 'Cap. 1', 'page': 12, 'source': 'mangadex', 'extra': 1}},
+            {'kind': 'manga_read', 'key': key(chapter), 'updated_at': t, 'payload': {'url': chapter}},
+        ])
+        self.assertEqual((status, data['accepted']), (200, 3), data)
+        by_kind = {c['kind']: c for c in self.pull_all(since=start, token=other)[0]}
+        self.assertEqual(by_kind['manga_progress']['payload'], {'url': manga, 'title': 'Frieren', 'cover': '', 'chapter_url': chapter, 'chapter_title': 'Cap. 1', 'page': 12, 'source': 'mangadex'})
+        self.assertEqual(by_kind['manga_read']['payload'], {'url': chapter})
+        # Quitarlo de la biblioteca llega como borrado.
+        self.api('sync_push', token=phone, changes=[{'kind': 'manga', 'key': key(manga), 'updated_at': t + 1000, 'deleted': True}])
+        changes, _ = self.pull_all(token=other)
+        self.assertTrue([c for c in changes if c['kind'] == 'manga'][0]['deleted'])
+        status, data = self.api('sync_capabilities')
+        self.assertTrue({'manga', 'manga_progress', 'manga_read'} <= set(data['kinds']))
 
     def test_requires_a_connected_device(self):
         status, _ = self.api('sync_pull', token='0' * 64, since=0)

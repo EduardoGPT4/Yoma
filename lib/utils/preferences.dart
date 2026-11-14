@@ -78,8 +78,16 @@ class PreferencesService {
     await (await LibraryStore.ensureInitialized()).removeFavorite(key);
   }
 
-  static Future<void> setChapterRead(String key, bool read) async {
-    await (await LibraryStore.ensureInitialized()).setChapterRead(key, read);
+  static Future<void> setChapterRead(
+    String key,
+    bool read, {
+    bool sync = true,
+  }) async {
+    await (await LibraryStore.ensureInitialized()).setChapterRead(
+      key,
+      read,
+      sync: sync,
+    );
   }
 
   static Future<dynamic> getStructured(

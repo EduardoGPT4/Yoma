@@ -13,6 +13,7 @@ import '../models/reading_stats.dart';
 import '../utils/fs_scanner.dart';
 import '../utils/library_cache.dart';
 import '../utils/manga_storage.dart';
+import '../services/manga_sync.dart';
 import '../utils/preferences.dart';
 import '../utils/sorting.dart';
 import '../utils/title_sanitizer.dart';
@@ -68,8 +69,21 @@ class LibraryProvider extends ChangeNotifier {
   bool get autoRescanEnabled => _watchEnabled;
   String? get error => _error;
 
+  /// El progreso de otro dispositivo de la cuenta llega por [MangaSync].
+  LibraryProvider() {
+    MangaSync.changes.addListener(_reloadProgress);
+  }
+
+  Future<void> _reloadProgress() async {
+    final progress = await PreferencesService.getProgressMap();
+    if (_disposed) return;
+    _progress = progress;
+    notifyListeners();
+  }
+
   @override
   void dispose() {
+    MangaSync.changes.removeListener(_reloadProgress);
     _disposed = true;
     _statsTimer?.cancel();
     unawaited(flushStats());

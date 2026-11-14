@@ -17,12 +17,17 @@ if (!function_exists('yoma_sync_schema')) {
  * Tipos (v1, YomaTV):
  *   anime    clave = slug                 {saved, favorite, status, title, cover}
  *   episode  clave = slug:número           {episode_id, position_ms, duration_ms, watched, title}
+ * Tipos (v2, YomaShi; solo manga online, identificado por su URL):
+ *   manga           clave = huella de la URL  {url, title, cover}            (biblioteca; borrado = quitado)
+ *   manga_progress  clave = huella de la URL  {url, title, cover, chapter_url, chapter_title, page, source}
+ *   manga_read      clave = huella de la URL del capítulo {url}           (leído; borrado = no leído)
+ * La huella son los 40 primeros caracteres hexadecimales del SHA-256 de la URL.
  */
-define('YOMA_SYNC_KINDS', ['anime', 'episode']);
+define('YOMA_SYNC_KINDS', ['anime', 'episode', 'manga', 'manga_progress', 'manga_read']);
 define('YOMA_SYNC_STATUSES', ['planned', 'watching', 'completed', 'paused', 'dropped']);
 define('YOMA_SYNC_PUSH_MAX', 200);
 define('YOMA_SYNC_PULL_MAX', 500);
-define('YOMA_SYNC_PAYLOAD_MAX', 2048);
+define('YOMA_SYNC_PAYLOAD_MAX', 4096);
 define('YOMA_SYNC_ITEMS_MAX', 50000);
 
 function yoma_sync_schema(PDO $db): void {
@@ -39,6 +44,7 @@ function yoma_sync_key(string $kind, mixed $key): string {
   $ok = is_string($key) && match ($kind) {
     'anime' => preg_match('/^'.$slug.'$/D', $key) === 1,
     'episode' => preg_match('/^'.$slug.':[0-9]{1,6}(?:\.[0-9]{1,3})?$/D', $key) === 1,
+    'manga', 'manga_progress', 'manga_read' => preg_match('/^[a-f0-9]{40}$/D', $key) === 1,
     default => false,
   };
   if (!$ok) throw new WebError('Elemento de sincronización inválido.');
@@ -50,6 +56,20 @@ function yoma_sync_payload(string $kind, mixed $payload): array {
   if (!is_array($payload) || array_is_list($payload) && $payload !== []) throw new WebError('Contenido de sincronización inválido.');
   $text = static fn(mixed $v, int $max): string => is_string($v) ? mb_substr($v, 0, $max) : '';
   $int = static fn(mixed $v, int $max): int => is_int($v) && $v >= 0 ? min($v, $max) : 0;
+  $url = static fn(mixed $v): string => is_string($v) && preg_match('#^https?://[^\s"\'<>]{1,900}$#D', $v) ? $v : '';
+  if ($kind === 'manga' || $kind === 'manga_progress' || $kind === 'manga_read') {
+    $out = ['url' => $url($payload['url'] ?? '')];
+    if ($out['url'] === '') throw new WebError('Contenido de sincronización inválido.');
+    if ($kind === 'manga_read') return $out;
+    $out += ['title' => $text($payload['title'] ?? '', 300), 'cover' => $url($payload['cover'] ?? '')];
+    if ($kind === 'manga') return $out;
+    return $out + [
+      'chapter_url' => $url($payload['chapter_url'] ?? ''),
+      'chapter_title' => $text($payload['chapter_title'] ?? '', 300),
+      'page' => $int($payload['page'] ?? 0, 100000),
+      'source' => preg_match('/^[a-z0-9_.-]{1,40}$/D', (string) ($payload['source'] ?? '')) ? $payload['source'] : '',
+    ];
+  }
   if ($kind === 'anime') {
     $status = $payload['status'] ?? 'planned';
     return [

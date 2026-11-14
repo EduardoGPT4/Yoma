@@ -93,6 +93,8 @@ function yoma_sync_web_apply(PDO $db, int $user, string $kind, string $key, arra
     }
     return true;
   }
+  // La web solo tiene anime: el manga de YomaShi no se aplica aquí.
+  if ($kind !== 'episode') return false;
   // Episodio: el mismo id y anime en el catálogo web.
   [$slug, $number] = explode(':', $key, 2);
   $episode = sql($db, 'SELECT id FROM sa1_episodes WHERE slug=? AND number=?', [$slug, $number])->fetch();

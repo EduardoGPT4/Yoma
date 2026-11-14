@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../data/library_store.dart';
 import '../utils/preferences.dart';
 import '../services/mal_reading_sync.dart';
+import '../services/manga_sync.dart';
 import '../services/myanimelist_service.dart';
 import '../services/diagnostics.dart';
 
@@ -15,6 +16,19 @@ class ChapterReadProvider extends ChangeNotifier implements ReadChapters {
 
   /// Capítulos marcados como leídos porque MyAnimeList ya los tenía.
   static const fromMalNamespace = 'mal_read_source';
+
+  /// Lo leído en otro dispositivo de la cuenta llega por [MangaSync].
+  ChapterReadProvider() {
+    MangaSync.changes.addListener(_reload);
+  }
+
+  void _reload() => unawaited(load());
+
+  @override
+  void dispose() {
+    MangaSync.changes.removeListener(_reload);
+    super.dispose();
+  }
 
   Set<String> _readKeys = <String>{};
   Set<String> _unmarked = <String>{};
@@ -104,7 +118,8 @@ class ChapterReadProvider extends ChangeNotifier implements ReadChapters {
     if (added.isEmpty) return;
     final store = await LibraryStore.ensureInitialized();
     for (final path in added) {
-      await PreferencesService.setChapterRead(path, true);
+      // Cada dispositivo lo recibe de MAL: no se sincroniza.
+      await PreferencesService.setChapterRead(path, true, sync: false);
       await store.putRecord(fromMalNamespace, path, {
         'at': DateTime.now().millisecondsSinceEpoch,
       });
