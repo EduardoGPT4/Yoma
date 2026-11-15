@@ -15,6 +15,8 @@ extension AnimeControllerMal on AnimeController {
     if (value != null && (!value.isEmpty || value.watchingAll.isNotEmpty)) {
       unawaited(_syncWatchedFromShelf());
     }
+    // Biblioteca y descargas de lo que se está viendo.
+    if (value != null && !value.isEmpty) _scheduleWatching();
   }
 
   /// Entrada de MAL («Viendo» o «Plan to watch») que coincide por nombre

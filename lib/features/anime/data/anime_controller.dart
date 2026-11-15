@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../models/anime_models.dart';
@@ -12,6 +13,7 @@ import '../../../services/manga_sync.dart';
 import 'yomatv_source.dart';
 
 part 'anime_controller_mal.dart';
+part 'anime_controller_watching.dart';
 
 class AnimeController extends ChangeNotifier {
   final AnimeMalClient mal;
@@ -306,6 +308,16 @@ class AnimeController extends ChangeNotifier {
 
   // Estado de MyAnimeList; sus métodos están en anime_controller_mal.dart.
   bool _syncingShelf = false;
+
+  // Lo que se está viendo; sus métodos están en anime_controller_watching.dart.
+  bool _watchingBusy = false, _watchingAgain = false;
+
+  /// Ya se leyó la cola de descargas: sin ella no se sabe qué falta.
+  bool _downloadsKnown = false;
+
+  void _scheduleWatching() {
+    if (!_disposed) unawaited(syncWatching());
+  }
 
   /// Avisa a la ficha de que cambió el vínculo con MAL.
   final malLinkChanges = ValueNotifier<int>(0);
@@ -654,6 +666,9 @@ class AnimeController extends ChangeNotifier {
     saved[anime.slug] = item;
     changed();
     _scheduleAccountSync();
+    if (item['status'] == 'watching' && old['status'] != 'watching') {
+      _scheduleWatching();
+    }
   }
 
   Future<void> progress(
@@ -687,6 +702,16 @@ class AnimeController extends ChangeNotifier {
       changed();
     }
     if (watched != null) malNotice = null;
+    if (watched == true) {
+      // Lo planeado que se empieza a ver pasa a «Viendo»; con lo visto se
+      // pide el siguiente episodio.
+      final row = saved[anime.slug];
+      if (row != null && row['saved'] == true && row['status'] == 'planned') {
+        await updateLibrary(anime, status: 'watching');
+      } else {
+        _scheduleWatching();
+      }
+    }
     // Un especial «12.5» cuenta en MAL como haber visto hasta el 12.
     final number = malEpisodeCount(episode.number);
     if (watched == true && number > 0) {
@@ -765,6 +790,10 @@ class AnimeController extends ChangeNotifier {
       wifiOnly = data['wifiOnly'] != false;
       downloadError = null;
       changed();
+      if (!_downloadsKnown) {
+        _downloadsKnown = true;
+        _scheduleWatching();
+      }
     } catch (e) {
       if (!_disposed) {
         downloadError = e.toString();
@@ -845,6 +874,33 @@ class AnimeController extends ChangeNotifier {
   }) async {
     await transfers.control(action, key: key, value: value);
     await refreshDownloads();
+  }
+
+  /// Borra los archivos descargados y cancela los pendientes de [items].
+  /// Android no deja borrar mientras se descarga algo: la cola se pausa,
+  /// se borra y se reanuda si estaba en marcha.
+  Future<void> removeDownloads(Iterable<AnimeDownload> items) async {
+    final resume =
+        !paused &&
+        downloads.any((d) => {'downloading', 'verifying'}.contains(d.state));
+    if (resume) await transfers.control('pauseAll');
+    try {
+      for (final d in items) {
+        for (var attempt = 1; ; attempt++) {
+          try {
+            await transfers.control(d.ready ? 'delete' : 'cancel', key: d.key);
+            break;
+          } catch (_) {
+            // La descarga en curso tarda un momento en soltar el archivo.
+            if (attempt >= 10) rethrow;
+            await Future<void>.delayed(const Duration(milliseconds: 300));
+          }
+        }
+      }
+    } finally {
+      if (resume) await transfers.control('resumeAll');
+      await refreshDownloads();
+    }
   }
 
   @override

@@ -339,7 +339,7 @@ class _AnimeMain extends StatelessWidget {
                 ),
                 _AnimeCatalog(app: app, detail: detail),
                 _AnimeLibrary(app: app, detail: detail, play: play),
-                _AnimeDownloads(app: app, play: play),
+                _AnimeDownloads(app: app, play: play, detail: detail),
                 _AnimeMore(
                   app: app,
                   detail: detail,

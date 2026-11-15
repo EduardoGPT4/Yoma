@@ -55,9 +55,6 @@ class _AnimeLibraryState extends State<_AnimeLibrary> {
                       ('', 'Todos'),
                       ('planned', 'Planeado'),
                       ('watching', 'Viendo'),
-                      ('completed', 'Completado'),
-                      ('paused', 'En pausa'),
-                      ('dropped', 'Abandonado'),
                     ])
                       DropdownMenuItem(
                         value: value,
@@ -111,6 +108,16 @@ class _AnimeLibraryState extends State<_AnimeLibrary> {
     );
   }
 
+  /// Estados de la biblioteca: lo que se planea ver y lo que se está viendo.
+  static const _statuses = {'planned', 'watching'};
+
+  static String _legacyStatus(String value) => switch (value) {
+    'completed' => 'Completado',
+    'paused' => 'En pausa',
+    'dropped' => 'Abandonado',
+    _ => value,
+  };
+
   Future<void> _edit(AnimeTitle anime) async {
     final app = widget.app, row = app.saved[anime.slug] ?? {};
     var status = '${row['status'] ?? 'planned'}';
@@ -128,18 +135,22 @@ class _AnimeLibraryState extends State<_AnimeLibrary> {
                 DropdownButtonFormField<String>(
                   initialValue: status,
                   isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'planned', child: Text('Planeado')),
-                    DropdownMenuItem(value: 'watching', child: Text('Viendo')),
-                    DropdownMenuItem(
-                      value: 'completed',
-                      child: Text('Completado'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: 'planned',
+                      child: Text('Planeado'),
                     ),
-                    DropdownMenuItem(value: 'paused', child: Text('En pausa')),
-                    DropdownMenuItem(
-                      value: 'dropped',
-                      child: Text('Abandonado'),
+                    const DropdownMenuItem(
+                      value: 'watching',
+                      child: Text('Viendo'),
                     ),
+                    // Un estado anterior (completado, en pausa…) se conserva
+                    // hasta que se elija otro; ya no se ofrece.
+                    if (!_statuses.contains(status))
+                      DropdownMenuItem(
+                        value: status,
+                        child: Text(_legacyStatus(status)),
+                      ),
                   ],
                   onChanged: (v) => set(() => status = v!),
                 ),
