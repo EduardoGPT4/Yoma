@@ -124,6 +124,18 @@ class _AnimeDownloadsState extends State<_AnimeDownloads> {
                 ],
               ),
             ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Borrar los episodios vistos'),
+            subtitle: const Text(
+              'Una semana después de verlos, aquí, en otro dispositivo o en '
+              'MyAnimeList.',
+            ),
+            value: app.autoDeleteWatched,
+            onChanged: app.supportedDownloads
+                ? (v) => app.setAutoDownload(deleteWatched: v)
+                : null,
+          ),
           if (app.downloadError != null)
             Text(
               app.downloadError!,

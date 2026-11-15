@@ -111,6 +111,7 @@ void main() {
       AnimeMalShelf.namespace,
       AnimeControllerWatching.autoNamespace,
       AnimeControllerWatching.adoptedNamespace,
+      AnimeControllerWatching.watchedNamespace,
       'anime_mal_links',
       'anime_mal_pending',
       'anime_progress',
@@ -225,5 +226,89 @@ void main() {
     ]);
     expect(queue.numbers, ['1']);
     expect(app.downloads.map((d) => d.number), ['1']);
+  });
+
+  group('episodios vistos', () {
+    late AnimeController app;
+    late DateTime now;
+    const day = Duration(days: 1);
+
+    /// Episodio [n] de «Uno» ya descargado.
+    Map<String, dynamic> done(int n) => {
+      'key': 'uno:$n:SUB',
+      'slug': 'uno',
+      'number': '$n',
+      'state': 'done',
+      'file': '/x/uno-$n.mp4',
+    };
+
+    setUp(() async {
+      credentials.value = null;
+      queue.released = true;
+      now = DateTime(2026, 11, 1, 12);
+      app = controller()..clock = () => now;
+      await app.setAutoDownload(enabled: false);
+      queue.items.addAll([done(1), done(2)]);
+      await app.refreshDownloads();
+    });
+
+    test('se borran una semana después de verlos', () async {
+      await app.mark(uno, episode(1), true);
+      await settle(app, shelf: false);
+      expect(queue.numbers, ['1', '2']);
+      now = now.add(const Duration(days: 6, hours: 23));
+      await settle(app, shelf: false);
+      expect(queue.numbers, ['1', '2']);
+      now = now.add(const Duration(hours: 2));
+      await settle(app, shelf: false);
+      // Solo el visto; el 2 sin ver se conserva.
+      expect(queue.numbers, ['2']);
+      expect(app.downloads.map((d) => d.number), ['2']);
+      // Sigue visto: se borra el archivo, no el progreso.
+      expect(app.positions['uno:1']!['watched'], true);
+    });
+
+    test('lo visto en MAL cuenta desde que el teléfono lo sabe', () async {
+      final db = await app.store.database();
+      await db.putRecord('anime_progress', 'uno:2', {
+        'slug': 'uno',
+        'anime': uno.toJson(),
+        'episode': episode(2).toJson(),
+        'watched': true,
+        'updatedAt': 0,
+        'source': 'mal',
+      });
+      final reopened = controller()..clock = () => now;
+      await reopened.initialize();
+      await reopened.setAutoDownload(enabled: false);
+      await settle(reopened, shelf: false);
+      now = now.add(const Duration(days: 6));
+      await settle(reopened, shelf: false);
+      expect(queue.numbers, ['1', '2']);
+      now = now.add(day);
+      await settle(reopened, shelf: false);
+      expect(queue.numbers, ['1']);
+    });
+
+    test('desmarcado vuelve a contar; desactivado no borra', () async {
+      await app.mark(uno, episode(1), true);
+      await settle(app, shelf: false);
+      now = now.add(const Duration(days: 5));
+      // Desmarcado y vuelto a marcar sin que pase la limpieza entre medias.
+      await app.mark(uno, episode(1), false);
+      await app.mark(uno, episode(1), true);
+      await settle(app, shelf: false);
+      now = now.add(const Duration(days: 3));
+      await settle(app, shelf: false);
+      expect(queue.numbers, ['1', '2']);
+
+      await app.setAutoDownload(deleteWatched: false);
+      now = now.add(const Duration(days: 30));
+      await settle(app, shelf: false);
+      expect(queue.numbers, ['1', '2']);
+      await app.setAutoDownload(deleteWatched: true);
+      await settle(app, shelf: false);
+      expect(queue.numbers, ['2']);
+    });
   });
 }

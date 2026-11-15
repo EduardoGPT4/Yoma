@@ -315,6 +315,10 @@ class AnimeController extends ChangeNotifier {
   /// Ya se leyó la cola de descargas: sin ella no se sabe qué falta.
   bool _downloadsKnown = false;
 
+  /// Hora actual; las pruebas la adelantan para simular el paso de los días.
+  @visibleForTesting
+  DateTime Function() clock = DateTime.now;
+
   void _scheduleWatching() {
     if (!_disposed) unawaited(syncWatching());
   }
@@ -332,6 +336,8 @@ class AnimeController extends ChangeNotifier {
       // Al volver a YomaTV, lo visto en la web de MAL aparece en una hora
       // como mucho.
       unawaited(loadMalShelf(maxAge: resumeMaxAge));
+      // Y se borran las descargas vistas hace una semana o más.
+      if (_downloadsKnown) _scheduleWatching();
     }
   }
 
@@ -727,6 +733,7 @@ class AnimeController extends ChangeNotifier {
         changed();
       }
     } else if (watched == false) {
+      await _forgetWatched(episode);
       // Desmarcado: MAL debe quedar en el episodio visto más alto que
       // queda. Si aún no se envió baja el pendiente; si ya se envió, se
       // deshace en MAL.
