@@ -369,6 +369,14 @@ void main() {
       // En la pantalla pequeña con texto grande los grupos quedan bajo el
       // borde; ahí solo se comprueba que nada se desborde.
       if (name == 'phone') {
+        // Con otras fuentes (Linux) las tarjetas pueden quedar bajo el
+        // borde: se desplaza hasta ellas como haría el usuario.
+        await tester.dragUntilVisible(
+          find.text('Dark Machine: The Animation'),
+          find.byKey(const PageStorageKey('anime-downloads')),
+          const Offset(0, -200),
+        );
+        await tester.pump(const Duration(milliseconds: 400));
         expect(find.text("Demons' Crest"), findsOneWidget);
         expect(
           find.textContaining('3 episodios · 2 descargados'),
