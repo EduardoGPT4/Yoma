@@ -5,7 +5,9 @@ import '../utils/app_failure.dart';
 import 'manga_source_adapter.dart';
 import 'hitomi_service.dart';
 import 'inmanga_service.dart';
+import 'leercapitulo_service.dart';
 import 'mangadex_service.dart';
+import 'mangaoni_service.dart';
 import 'manhwaweb_service.dart';
 import 'tmo_service.dart';
 import 'zonatmo_to_service.dart';
@@ -84,6 +86,33 @@ class OnlineCatalogService {
       pagesRequest: ManhwaWebService.fetchChapterPages,
       capabilities: const SourceCapabilities(feedLabel: 'Nuevas obras'),
     ),
+    'leercapitulo': CallbackSourceAdapter(
+      id: 'leercapitulo',
+      catalogRequest: (p, n, q) => LeerCapituloService.fetchCatalogPage(
+        page: p,
+        postsPerPage: n,
+        search: q,
+      ),
+      feedRequest: LeerCapituloService.fetchUpdated,
+      detailRequest: LeerCapituloService.fetchMangaDetail,
+      pagesRequest: LeerCapituloService.fetchChapterPages,
+      capabilities: const SourceCapabilities(
+        feedLabel: 'Tendencias',
+        statusFilter: false,
+      ),
+    ),
+    'mangaoni': CallbackSourceAdapter(
+      id: 'mangaoni',
+      catalogRequest: (p, n, q) =>
+          MangaOniService.fetchCatalogPage(page: p, postsPerPage: n, search: q),
+      feedRequest: MangaOniService.fetchUpdated,
+      detailRequest: MangaOniService.fetchMangaDetail,
+      pagesRequest: MangaOniService.fetchChapterPages,
+      capabilities: const SourceCapabilities(
+        feedLabel: 'Nuevas obras',
+        statusFilter: false,
+      ),
+    ),
     'hitomi': CallbackSourceAdapter(
       id: 'hitomi',
       catalogRequest: (p, n, q) =>
@@ -121,6 +150,7 @@ class OnlineCatalogService {
     if (['inmanga', 'manhwaweb', 'zonatmo_to', 'zonatmoto'].contains(scheme)) {
       return scheme == 'zonatmoto' ? 'zonatmo_to' : scheme;
     }
+    if (['leercapitulo', 'mangaoni'].contains(scheme)) return scheme;
     final host = uri.host.toLowerCase();
     bool domain(String name) => host == name || host.endsWith('.$name');
     if (domain('hitomi.la')) return 'hitomi';
@@ -132,6 +162,10 @@ class OnlineCatalogService {
       return 'manhwaweb';
     }
     if (domain('zonatmo.to')) return 'zonatmo_to';
+    if (domain('leercapitulo.co')) return 'leercapitulo';
+    if (domain('manga-oni.com') || domain('ntr-files.online')) {
+      return 'mangaoni';
+    }
     if ([
       'zonatmo.org',
       'zonatmo.com',
@@ -384,6 +418,11 @@ class OnlineCatalogService {
       'inmanga' => InMangaService.downloadBytes(url, referer: referer),
       'manhwaweb' => ManhwaWebService.downloadBytes(url, referer: referer),
       'zonatmo_to' => ZonatmoToService.downloadBytes(url, referer: referer),
+      'leercapitulo' => LeerCapituloService.downloadBytes(
+        url,
+        referer: referer,
+      ),
+      'mangaoni' => MangaOniService.downloadBytes(url, referer: referer),
       _ => TmoService.downloadBytes(url, referer: referer),
     };
   }

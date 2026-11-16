@@ -66,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Esta fuente está seleccionada pero aún no tiene conector. '
-                  'Cambia a MangaDex, InManga, ManhwaWeb o Lectortmo en Fuentes.',
+                  'Cambia a MangaDex, InManga, ManhwaWeb, LeerCapitulo, MangaOni o Lectortmo en Fuentes.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurface.withAlpha(170),
                     height: 1.4,

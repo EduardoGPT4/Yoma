@@ -88,6 +88,8 @@ void main() {
           'mangadex',
           'inmanga',
           'manhwaweb',
+          'leercapitulo',
+          'mangaoni',
         ]),
       );
     });

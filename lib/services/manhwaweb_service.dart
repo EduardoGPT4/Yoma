@@ -9,7 +9,8 @@ import '../models/catalog_page.dart';
 
 /// Cliente de ManhwaWeb (https://www.manhwaweb.com).
 ///
-/// Usa el backend JSON público (mismo que la extensión Mihon/Keiyoushi):
+/// Usa el backend JSON público del propio sitio (`api.manhwaweb.com`; el
+/// anterior, alojado en Railway, dejó de existir y respondía 404):
 /// - Catálogo / búsqueda: `GET /manhwa/library`
 /// - Recientes: `GET /latest/new-manhwa`
 /// - Detalle + capítulos: `GET /manhwa/see/{slug}`
@@ -18,8 +19,7 @@ import '../models/catalog_page.dart';
 /// Las imágenes en `img1mw.xyz` / `img2mw.xyz` exigen Referer del sitio.
 class ManhwaWebService {
   static const String siteUrl = 'https://www.manhwaweb.com';
-  static const String apiUrl =
-      'https://manhwawebbackend-production.up.railway.app';
+  static const String apiUrl = 'https://api.manhwaweb.com';
 
   static const Map<String, String> imageHeaders = <String, String>{
     'User-Agent':
@@ -468,7 +468,10 @@ class ManhwaWebService {
             alt.toLowerCase() != title.toLowerCase())
         ? <String>[alt]
         : const <String>[];
-    final authors = _parseAuthors(map['_extras']);
+    var authors = _parseAuthors(map['_extras']);
+    if (authors.isEmpty) {
+      authors = _parseNamedList(map['autor']);
+    }
 
     return OnlineMangaDetail(
       title: title.isEmpty ? 'Manga' : title,
@@ -501,8 +504,13 @@ class ManhwaWebService {
     final seen = <String>{};
     for (final item in raw.whereType<Map>()) {
       final map = item.cast<String, dynamic>();
-      final esp = map['link']?.toString().trim();
       final rawLink = map['link_raw']?.toString().trim();
+      var esp = map['link']?.toString().trim();
+      if ((esp == null || esp.isEmpty) &&
+          (rawLink == null || rawLink.isEmpty)) {
+        // Los capítulos recientes ya no traen `link`: solo `versions[].link`.
+        esp = _firstVersionLink(map['versions']);
+      }
       var href = (esp != null && esp.isNotEmpty)
           ? esp
           : (rawLink != null && rawLink.isNotEmpty ? rawLink : '');
@@ -533,6 +541,9 @@ class ManhwaWebService {
 
       chapters.add(
         Chapter(
+          number: numberLabel == null || numberLabel.isEmpty
+              ? null
+              : numberLabel,
           title: title,
           path: href,
           pages: const <String>[],
@@ -543,6 +554,19 @@ class ManhwaWebService {
 
     chapters.sort((a, b) => _chapterSortKey(a).compareTo(_chapterSortKey(b)));
     return chapters;
+  }
+
+  static String? _firstVersionLink(dynamic versions) {
+    if (versions is! List) {
+      return null;
+    }
+    for (final version in versions.whereType<Map>()) {
+      final link = version['link']?.toString().trim() ?? '';
+      if (link.isNotEmpty) {
+        return link;
+      }
+    }
+    return null;
   }
 
   static double _chapterSortKey(Chapter chapter) {
@@ -758,6 +782,18 @@ class ManhwaWebService {
       }
     }
     return names;
+  }
+
+  /// `autor` / `artista`: lista de `{_id, name}`.
+  static List<String> _parseNamedList(dynamic raw) {
+    if (raw is! List) {
+      return <String>[];
+    }
+    return raw
+        .map((item) => (item is Map ? item['name'] : item)?.toString().trim())
+        .whereType<String>()
+        .where((name) => name.isNotEmpty)
+        .toList();
   }
 
   static List<String> _parseAuthors(dynamic extras) {

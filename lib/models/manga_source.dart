@@ -81,6 +81,24 @@ class MangaSources {
       implemented: true,
       icon: Icons.travel_explore_rounded,
     ),
+    MangaSource(
+      id: 'leercapitulo',
+      name: 'LeerCapitulo',
+      subtitle: 'Catálogo en español (leercapitulo.co)',
+      kind: MangaSourceKind.scraping,
+      languageLabel: 'Español',
+      implemented: true,
+      icon: Icons.auto_stories_rounded,
+    ),
+    MangaSource(
+      id: 'mangaoni',
+      name: 'MangaOni',
+      subtitle: 'Catálogo en español (manga-oni.com)',
+      kind: MangaSourceKind.scraping,
+      languageLabel: 'Español',
+      implemented: true,
+      icon: Icons.local_library_rounded,
+    ),
   ];
 
   /// No forma parte de [all]: el apartado +18 no es una fuente del catálogo normal.
@@ -108,6 +126,10 @@ class MangaSources {
       case 'manhwaweb':
       case 'yupmanga':
         return 'ManhwaWeb';
+      case 'leercapitulo':
+        return 'LeerCapitulo';
+      case 'mangaoni':
+        return 'MangaOni';
       case 'hitomi':
         return 'Hitomi.la';
       default:

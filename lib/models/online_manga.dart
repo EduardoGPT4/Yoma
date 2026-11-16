@@ -15,7 +15,7 @@ class OnlineMangaSummary {
   final String? type;
   final String? status;
 
-  /// Fuente del resultado (`lectortmo`, `mangadex`, `inmanga`, `manhwaweb`).
+  /// Fuente del resultado (`lectortmo`, `mangadex`, `inmanga`, `manhwaweb`, `leercapitulo`, `mangaoni`...).
   final String? sourceId;
 
   const OnlineMangaSummary({

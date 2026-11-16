@@ -1,7 +1,7 @@
 name: yomashi
 description: "lector de manga"
 publish_to: 'none'
-version: 3.2.27+52
+version: 3.2.28+53
 
 environment:
   sdk: ^3.10.7
