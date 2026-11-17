@@ -165,6 +165,18 @@ ThemeData buildYomaTheme(Color accent, AppMetrics metrics) {
     visualDensity: VisualDensity.standard,
     materialTapTargetSize: MaterialTapTargetSize.padded,
     splashFactory: InkSparkle.splashFactory,
+    // Sin la animación del «atrás predictivo» de Android 16: con ella, cada
+    // Navigator de sección atiende el gesto por su cuenta aunque otra página
+    // lo tape (el video a pantalla completa va en el raíz), y hacían falta
+    // tres gestos para salir de un episodio. Así el «atrás» pasa siempre por
+    // YomaShell. Fuera del gesto, la transición es la misma de antes.
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+        TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+      },
+    ),
     iconTheme: const IconThemeData(
       size: YomaSizes.icon,
       color: YomaColors.textPrimary,
