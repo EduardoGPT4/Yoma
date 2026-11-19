@@ -6,6 +6,7 @@ import 'package:yomashi/models/content_identity.dart';
 import 'package:yomashi/models/manga_source.dart';
 import 'package:yomashi/services/leercapitulo_service.dart';
 import 'package:yomashi/services/mal_source_matcher.dart';
+import 'package:yomashi/services/mangalect_service.dart';
 import 'package:yomashi/services/mangaoni_service.dart';
 import 'package:yomashi/services/manhwaweb_service.dart';
 import 'package:yomashi/services/myanimelist_client.dart';
@@ -174,6 +175,119 @@ const _manhwaDetail = <String, dynamic>{
   ],
 };
 
+const _lectCatalog = <String, Object>{
+  'resultados': [
+    {
+      'id': 1605,
+      'slug': 'kijin-gentoushou',
+      'titulo': 'Kijin Gentoushou',
+      'portada': 'portadas/Kijin_Gentoushou.webp',
+      'tipo': 'manga',
+      'generos': ['Acción', 'Accion', 'acción', 'Samurai', 'Manga'],
+      'ultimo_capitulo': 62.0,
+      'demografia': 'seinen',
+    },
+    {
+      'id': 9,
+      'slug': 'oculta',
+      'titulo': 'Oculta',
+      'portada': 'portadas/oculta.webp',
+      'tipo': 'manga',
+      'generos': ['Comedia', 'Loli'],
+    },
+    {
+      'id': 7544,
+      'slug': 'the-war-of-corpses',
+      'titulo': 'The War Of Corpses',
+      'portada':
+          'https://images.mangalect.org/file/leermangaesp/portadas/war.webp',
+      'tipo': 'manhwa',
+      'generos': ['Acción'],
+    },
+    {'slug': 'kijin-gentoushou', 'titulo': 'Repetida', 'tipo': 'manga'},
+  ],
+  'page': 2,
+  'page_size': 24,
+  'total_pages': 3,
+  'total_results': 60,
+};
+
+const _lectLatest = [
+  {
+    'slug': 'sanda',
+    'titulo': 'SANDA',
+    'portada': 'portadas/SANDA.webp',
+    'tipo': 'manga',
+    'genero': 'manga',
+    'ultimo_capitulo': 88.0,
+  },
+  {'slug': 'sanda', 'titulo': 'SANDA', 'tipo': 'manga'},
+];
+
+String _lectChapterCard(String number) =>
+    '''
+<div class="chapter-card">
+  <a href="/lectura/kijin-gentoushou/$number/" class="chapter-link" data-chapter="$number" data-manga-slug="kijin-gentoushou">
+    <div class="chapter-title">Capítulo $number</div>
+    <div class="chapter-date">November 19, 2026</div>
+  </a>
+</div>''';
+
+String _lectDetail({required List<String> chapters, String? before}) =>
+    '''
+<div class="manga-page" data-manga-id="1605" data-portada-rel="portadas/Kijin_Gentoushou.webp" data-manga-tipo="manga" data-manga-demografia="seinen">
+  <div class="manga-info" id="manga-info">
+    <h1 class="manga-title">Kijin Gentoushou</h1>
+    <ul class="info-value alternate-titles">
+      <li>Sword of the Demon Hunter: Kijin Gentōshō</li>
+      <li>鬼人幻燈抄, Kijin Gentosho, Demon Person, Kijin Gentoushou</li>
+    </ul>
+  </div>
+  <div class="info-generos" id="info-generos">
+    <a href="/biblioteca/?generos=Acci%C3%B3n" class="genero-item"> Acción </a>
+    <a href="/biblioteca/?generos=Accion" class="genero-item"> Accion </a>
+    <a href="/biblioteca/?generos=Samurai" class="genero-item"> Samurai </a>
+  </div>
+  <div class="info-block status-badge-row" id="info-block">
+    <span class="info-value status-text">
+      En curso
+    </span>
+  </div>
+  <p id="synopsis-text"> En el período Edo, Jinta protege a la doncella. </p>
+  <div class="chapter-scroll" id="chapter-list">
+    <div id="continue-reading" class="chapter-card continue-card" hidden>
+      <a id="continue-link" class="chapter-link" href="#">Continuar</a>
+    </div>
+    ${chapters.map(_lectChapterCard).join()}
+    ${before == null ? '' : '<div class="chapter-card chapter-card-full"><a id="more-link" class="btn-ver-mas" href="?before=$before">Ver más</a></div>'}
+  </div>
+</div>
+''';
+
+const _lectChapter = '''
+<link rel="preload" as="image" href="https://images.mangalect.org/file/leermangaesp/mangas/66237/capitulo_62.00/pagina_001.webp">
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const Config = {
+    B2_URL: "https://images.mangalect.org/file/leermangaesp",
+    capituloId: "353083",
+    paginasRutas: ["mangas/66237/capitulo_62.00/pagina_001.webp", "mangas/66237/capitulo_62.00/pagina_002.webp"],
+  };
+});
+</script>
+''';
+
+const _lectCascade = '''
+<div id="cascade-view" class="chapter-container">
+  <div class="manga-image-container" data-page-index="0">
+    <img src="https://images.mangalect.org/file/leermangaesp/mangas/66237/capitulo_1.00/pagina_001.webp" class="manga-image">
+  </div>
+  <div class="manga-image-container" data-page-index="1">
+    <img src="https://images.mangalect.org/file/leermangaesp/mangas/66237/capitulo_1.00/pagina_002.webp" class="manga-image">
+  </div>
+</div>
+''';
+
 void main() {
   late HttpServer server;
   late HttpClient raw;
@@ -213,6 +327,29 @@ void main() {
         body = _oniChapter;
       } else if (path == '/lector/dandadan/824289/') {
         body = '<script>var otra = 1;</script>';
+      } else if (path == '/api/buscar_mangas/' && query['query'] == 'nada') {
+        body = <String, Object>{'resultados': <Object>[], 'total_pages': 0};
+      } else if (path == '/api/buscar_mangas/') {
+        body = _lectCatalog;
+      } else if (path == '/api/latest_chapters_with_dates/') {
+        body = _lectLatest;
+      } else if (path == '/info/kijin-gentoushou/' &&
+          query['before'] == '61.50') {
+        // Repite el enlace: el cliente no debe volver a pedirlo.
+        body = _lectDetail(
+          chapters: ['61.50', '1.00', '10.00'],
+          before: '61.50',
+        );
+      } else if (path == '/info/kijin-gentoushou/') {
+        body = _lectDetail(chapters: ['62.00', '61.50'], before: '61.50');
+      } else if (path == '/info/oculta/') {
+        body = _lectDetail(chapters: ['1.00']).replaceAll('Samurai', 'Shota');
+      } else if (path == '/lectura/kijin-gentoushou/62/') {
+        body = _lectChapter;
+      } else if (path == '/lectura/kijin-gentoushou/1/') {
+        body = _lectCascade;
+      } else if (path == '/lectura/kijin-gentoushou/2/') {
+        body = '<div id="cascade-view"></div>';
       } else if (path == '/manhwa/see/solo-leveling-ragnarok_1783909089054') {
         body = _manhwaDetail;
       } else {
@@ -454,6 +591,131 @@ void main() {
     });
   });
 
+  group('MangaLect', () {
+    test('catálogo paginado sin repetidos ni obras excluidas', () async {
+      final page = await OnlineCatalogService.fetchCatalogPageForSource(
+        'mangalect',
+        page: 2,
+      );
+      expect(requested.single.path, '/api/buscar_mangas/');
+      expect(requested.single.queryParameters['page'], '2');
+      expect(requested.single.queryParameters['page_size'], '24');
+      expect(requested.single.queryParameters.containsKey('query'), isFalse);
+      expect(page.items.map((item) => item.title), [
+        'Kijin Gentoushou',
+        'The War Of Corpses',
+      ]);
+      final first = page.items.first;
+      expect(first.url, 'https://mangalect.org/info/kijin-gentoushou/');
+      expect(
+        first.coverUrl,
+        'https://images.mangalect.org/file/leermangaesp/portadas/Kijin_Gentoushou.webp',
+      );
+      expect(first.type, 'Manga');
+      expect(first.genres, ['Acción', 'Samurai']);
+      expect(page.items.last.type, 'Manhwa');
+      expect(page.items.last.coverUrl, endsWith('/portadas/war.webp'));
+      expect(page.hasNext, isTrue);
+    });
+
+    test('búsqueda y novedades', () async {
+      final empty = await MangaLectService.fetchCatalogPage(search: ' nada ');
+      expect(requested.single.queryParameters['query'], 'nada');
+      expect(empty.items, isEmpty);
+      expect(empty.hasNext, isFalse);
+
+      final feed = await MangaLectService.fetchUpdated();
+      expect(feed.single.title, 'SANDA');
+      expect(feed.single.url, 'https://mangalect.org/info/sanda/');
+      expect(feed.single.genres, isEmpty);
+    });
+
+    test('ficha con todos los capítulos en orden ascendente', () async {
+      final detail = await OnlineCatalogService.fetchMangaDetail(
+        'https://mangalect.org/lectura/kijin-gentoushou/62/',
+      );
+      expect(requested.map((uri) => uri.queryParameters['before']).toList(), [
+        null,
+        '61.50',
+      ]);
+      expect(detail.url, 'https://mangalect.org/info/kijin-gentoushou/');
+      expect(detail.title, 'Kijin Gentoushou');
+      expect(detail.type, 'Manga');
+      expect(detail.status, 'Publicándose');
+      expect(detail.genres, ['Acción', 'Samurai']);
+      expect(
+        detail.description,
+        'En el período Edo, Jinta protege a la doncella.',
+      );
+      expect(detail.altTitles, [
+        'Sword of the Demon Hunter: Kijin Gentōshō',
+        '鬼人幻燈抄',
+        'Kijin Gentosho',
+        'Demon Person',
+      ]);
+      expect(detail.coverUrl, endsWith('/portadas/Kijin_Gentoushou.webp'));
+      expect(detail.chapters.map((c) => c.number), ['1', '10', '61.5', '62']);
+      expect(
+        detail.chapters.last.path,
+        'https://mangalect.org/lectura/kijin-gentoushou/62/',
+      );
+      expect(detail.chapters[2].title, 'Capítulo 61.5');
+      expect(detail.hasMoreChapters, isFalse);
+      expect(MyAnimeListService.chapterNumber(detail.chapters.last), 62);
+    });
+
+    test('una ficha excluida no se abre', () async {
+      await expectLater(
+        MangaLectService.fetchMangaDetail('https://mangalect.org/info/oculta/'),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test('páginas del lector', () async {
+      final pages = await OnlineCatalogService.fetchChapterPages(
+        'https://mangalect.org/lectura/kijin-gentoushou/62.00/',
+      );
+      expect(requested.single.path, '/lectura/kijin-gentoushou/62/');
+      expect(pages, [
+        'https://images.mangalect.org/file/leermangaesp/mangas/66237/capitulo_62.00/pagina_001.webp',
+        'https://images.mangalect.org/file/leermangaesp/mangas/66237/capitulo_62.00/pagina_002.webp',
+      ]);
+      final cascade = await MangaLectService.fetchChapterPages(
+        'https://mangalect.org/lectura/kijin-gentoushou/1/',
+      );
+      expect(cascade, hasLength(2));
+      expect(cascade.last, endsWith('/capitulo_1.00/pagina_002.webp'));
+      await expectLater(
+        MangaLectService.fetchChapterPages(
+          'https://mangalect.org/lectura/kijin-gentoushou/2/',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test('referencias y números de capítulo', () {
+      expect(MangaLectService.chapterNumber('62.00'), '62');
+      expect(MangaLectService.chapterNumber('90.50'), '90.5');
+      expect(MangaLectService.chapterNumber('6.2'), '6.2');
+      expect(MangaLectService.chapterNumber('007'), '7');
+      expect(MangaLectService.chapterNumber('0.50'), '0.5');
+      expect(MangaLectService.chapterNumber('extra'), isNull);
+      expect(
+        MangaLectService.mangaUrl('https://www.mangalect.org/info/sanda'),
+        'https://mangalect.org/info/sanda/',
+      );
+      expect(MangaLectService.mangaUrl('https://mangalect.org/dmca/'), isNull);
+      expect(
+        MangaLectService.mangaUrl('https://manga-oni.com/info/x/'),
+        isNull,
+      );
+      expect(
+        MangaLectService.chapterUrl('/lectura/sanda/88.00/'),
+        'https://mangalect.org/lectura/sanda/88/',
+      );
+    });
+  });
+
   group('Integración con el resto de la app', () {
     test('las referencias se atribuyen a su fuente', () {
       const refs = {
@@ -466,6 +728,9 @@ void main() {
         'https://oni.ntr-files.online/public/archivos/mangas/a/1/001.webp':
             'mangaoni',
         'https://www.manhwaweb.com/manhwa/x_1783909089054': 'manhwaweb',
+        'https://mangalect.org/info/sanda/': 'mangalect',
+        'https://images.mangalect.org/file/leermangaesp/mangas/1/a.webp':
+            'mangalect',
       };
       refs.forEach(
         (ref, id) => expect(OnlineCatalogService.sourceIdForRef(ref), id),
@@ -480,7 +745,7 @@ void main() {
     });
 
     test('aparecen en Fuentes, en la búsqueda global y en Mangas MAL', () {
-      for (final id in ['leercapitulo', 'mangaoni']) {
+      for (final id in ['leercapitulo', 'mangaoni', 'mangalect']) {
         expect(MangaSources.all.map((source) => source.id), contains(id));
         expect(MangaSources.byId(id).id, id);
         expect(MangaSources.shortLabel(id), MangaSources.byId(id).name);

@@ -90,6 +90,7 @@ void main() {
           'manhwaweb',
           'leercapitulo',
           'mangaoni',
+          'mangalect',
         ]),
       );
     });

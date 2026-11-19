@@ -99,6 +99,15 @@ class MangaSources {
       implemented: true,
       icon: Icons.local_library_rounded,
     ),
+    MangaSource(
+      id: 'mangalect',
+      name: 'MangaLect',
+      subtitle: 'Catálogo en español (mangalect.org)',
+      kind: MangaSourceKind.scraping,
+      languageLabel: 'Español',
+      implemented: true,
+      icon: Icons.import_contacts_rounded,
+    ),
   ];
 
   /// No forma parte de [all]: el apartado +18 no es una fuente del catálogo normal.
@@ -130,6 +139,8 @@ class MangaSources {
         return 'LeerCapitulo';
       case 'mangaoni':
         return 'MangaOni';
+      case 'mangalect':
+        return 'MangaLect';
       case 'hitomi':
         return 'Hitomi.la';
       default:

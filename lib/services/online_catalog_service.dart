@@ -7,6 +7,7 @@ import 'hitomi_service.dart';
 import 'inmanga_service.dart';
 import 'leercapitulo_service.dart';
 import 'mangadex_service.dart';
+import 'mangalect_service.dart';
 import 'mangaoni_service.dart';
 import 'manhwaweb_service.dart';
 import 'tmo_service.dart';
@@ -113,6 +114,21 @@ class OnlineCatalogService {
         statusFilter: false,
       ),
     ),
+    'mangalect': CallbackSourceAdapter(
+      id: 'mangalect',
+      catalogRequest: (p, n, q) => MangaLectService.fetchCatalogPage(
+        page: p,
+        postsPerPage: n,
+        search: q,
+      ),
+      feedRequest: MangaLectService.fetchUpdated,
+      detailRequest: MangaLectService.fetchMangaDetail,
+      pagesRequest: MangaLectService.fetchChapterPages,
+      capabilities: const SourceCapabilities(
+        feedLabel: 'Novedades',
+        statusFilter: false,
+      ),
+    ),
     'hitomi': CallbackSourceAdapter(
       id: 'hitomi',
       catalogRequest: (p, n, q) =>
@@ -150,7 +166,9 @@ class OnlineCatalogService {
     if (['inmanga', 'manhwaweb', 'zonatmo_to', 'zonatmoto'].contains(scheme)) {
       return scheme == 'zonatmoto' ? 'zonatmo_to' : scheme;
     }
-    if (['leercapitulo', 'mangaoni'].contains(scheme)) return scheme;
+    if (['leercapitulo', 'mangaoni', 'mangalect'].contains(scheme)) {
+      return scheme;
+    }
     final host = uri.host.toLowerCase();
     bool domain(String name) => host == name || host.endsWith('.$name');
     if (domain('hitomi.la')) return 'hitomi';
@@ -166,6 +184,7 @@ class OnlineCatalogService {
     if (domain('manga-oni.com') || domain('ntr-files.online')) {
       return 'mangaoni';
     }
+    if (domain('mangalect.org')) return 'mangalect';
     if ([
       'zonatmo.org',
       'zonatmo.com',
@@ -423,6 +442,7 @@ class OnlineCatalogService {
         referer: referer,
       ),
       'mangaoni' => MangaOniService.downloadBytes(url, referer: referer),
+      'mangalect' => MangaLectService.downloadBytes(url, referer: referer),
       _ => TmoService.downloadBytes(url, referer: referer),
     };
   }
