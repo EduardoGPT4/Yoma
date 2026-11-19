@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../design/yoma_tokens.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +10,8 @@ import '../utils/time_format.dart';
 import '../widgets/cached_thumbnail.dart';
 import 'reader_screen.dart';
 import '../models/manga.dart';
+import '../models/reading_progress.dart';
+import '../utils/network_errors.dart';
 import '../services/online_catalog_service.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -19,6 +23,66 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   bool _adult = false;
+
+  /// Lectura que se está abriendo: los toques repetidos no apilan lectores.
+  String? _opening;
+
+  Future<void> _open(LibraryProvider library, ReadingProgress progress) async {
+    if (_opening != null) return;
+    setState(() => _opening = progress.mangaPath);
+    try {
+      final path = progress.mangaPath;
+      Manga? local;
+      for (final manga in library.mangas) {
+        if (manga.path == path) {
+          local = manga;
+          break;
+        }
+      }
+      if (local != null) {
+        final chapterIndex = local.chapters.indexWhere(
+          (c) => c.path == progress.chapterPath,
+        );
+        unawaited(
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ReaderScreen(
+                manga: local!,
+                initialChapterIndex: chapterIndex < 0 ? 0 : chapterIndex,
+                initialPageIndex: progress.pageIndex,
+              ),
+            ),
+          ),
+        );
+        return;
+      }
+      if (!path.startsWith('http')) return;
+      final detail = await OnlineCatalogService.fetchMangaDetail(path);
+      if (!mounted) return;
+      final chapterIndex = detail.chapters.indexWhere(
+        (c) => c.path == progress.chapterPath,
+      );
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ReaderScreen(
+              manga: detail.toOfflineManga(),
+              initialChapterIndex: chapterIndex < 0 ? 0 : chapterIndex,
+              initialPageIndex: progress.pageIndex,
+            ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(NetworkErrors.friendly(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _opening = null);
+    }
+  }
 
   bool _isHitomi(dynamic progress) =>
       progress.sourceId == 'hitomi' ||
@@ -149,68 +213,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           '${formatTimeAgo(progress.updatedAt)}',
                         ),
                         isThreeLine: true,
-                        onTap: () async {
-                          final path = progress.mangaPath;
-                          Manga? local;
-                          for (final manga in library.mangas) {
-                            if (manga.path == path) {
-                              local = manga;
-                              break;
-                            }
-                          }
-                          if (local != null) {
-                            final chapterIndex = local.chapters.indexWhere(
-                              (c) => c.path == progress.chapterPath,
-                            );
-                            if (!context.mounted) {
-                              return;
-                            }
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ReaderScreen(
-                                  manga: local!,
-                                  initialChapterIndex: chapterIndex < 0
-                                      ? 0
-                                      : chapterIndex,
-                                  initialPageIndex: progress.pageIndex,
+                        trailing: _opening == progress.mangaPath
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
                                 ),
-                              ),
-                            );
-                            return;
-                          }
-                          if (path.startsWith('http')) {
-                            try {
-                              final detail =
-                                  await OnlineCatalogService.fetchMangaDetail(
-                                    path,
-                                  );
-                              if (!context.mounted) {
-                                return;
-                              }
-                              final chapterIndex = detail.chapters.indexWhere(
-                                (c) => c.path == progress.chapterPath,
-                              );
-                              await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => ReaderScreen(
-                                    manga: detail.toOfflineManga(),
-                                    initialChapterIndex: chapterIndex < 0
-                                        ? 0
-                                        : chapterIndex,
-                                    initialPageIndex: progress.pageIndex,
-                                  ),
-                                ),
-                              );
-                            } catch (error) {
-                              if (!context.mounted) {
-                                return;
-                              }
-                              ScaffoldMessenger.of(
-                                context,
-                              ).showSnackBar(SnackBar(content: Text('$error')));
-                            }
-                          }
-                        },
+                              )
+                            : null,
+                        onTap: () => _open(library, progress),
                       );
                     },
                   ),

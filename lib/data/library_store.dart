@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/favorite_entry.dart';
@@ -38,6 +39,32 @@ class LibraryStore {
   }
 
   static Future<LibraryStore> ensureInitialized() => initialize();
+
+  /// Reintenta una escritura que chocó con la otra conexión (el motor de
+  /// descargas en segundo plano) aunque ya esperó el `busy_timeout`. Sin esto
+  /// se perdía, por ejemplo, el progreso de lectura.
+  @visibleForTesting
+  static Future<T> retryBusy<T>(
+    Future<T> Function() write, {
+    List<Duration> delays = const [
+      Duration(milliseconds: 150),
+      Duration(milliseconds: 400),
+      Duration(seconds: 1),
+      Duration(seconds: 2),
+    ],
+  }) async {
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await write();
+      } catch (error) {
+        final text = error.toString().toLowerCase();
+        final busy =
+            text.contains('database is locked') || text.contains('sqlite_busy');
+        if (!busy || attempt >= delays.length) rethrow;
+        await Future<void>.delayed(delays[attempt]);
+      }
+    }
+  }
 
   static const _migrationFlag = 'library_store_migrated_v1';
 
@@ -216,20 +243,22 @@ class LibraryStore {
     );
     return action();
   });
-  Future<void> upsertProgress(ReadingProgress entry) => _db
-      .into(_db.readingProgressRows)
-      .insertOnConflictUpdate(
-        ReadingProgressRowsCompanion.insert(
-          mangaPath: entry.mangaPath,
-          mangaTitle: entry.mangaTitle,
-          coverPath: Value(entry.coverPath),
-          chapterPath: entry.chapterPath,
-          chapterTitle: entry.chapterTitle,
-          pageIndex: entry.pageIndex,
-          updatedAt: entry.updatedAt,
-          sourceId: Value(entry.sourceId),
+  Future<void> upsertProgress(ReadingProgress entry) => retryBusy(
+    () => _db
+        .into(_db.readingProgressRows)
+        .insertOnConflictUpdate(
+          ReadingProgressRowsCompanion.insert(
+            mangaPath: entry.mangaPath,
+            mangaTitle: entry.mangaTitle,
+            coverPath: Value(entry.coverPath),
+            chapterPath: entry.chapterPath,
+            chapterTitle: entry.chapterTitle,
+            pageIndex: entry.pageIndex,
+            updatedAt: entry.updatedAt,
+            sourceId: Value(entry.sourceId),
+          ),
         ),
-      );
+  );
 
   /// Cambios de YomaShi (manga online) pendientes de sincronizar con la
   /// cuenta: [kind] `manga` (biblioteca) o `manga_read`. El progreso no se
@@ -260,15 +289,17 @@ class LibraryStore {
 
   /// [sync]: false cuando el cambio viene de la propia sincronización.
   Future<void> setFavorite(FavoriteEntry entry, {bool sync = true}) async {
-    await _db
-        .into(_db.favoriteRows)
-        .insertOnConflictUpdate(
-          FavoriteRowsCompanion.insert(
-            mangaKey: entry.key,
-            title: entry.title,
-            coverPath: Value(entry.coverPath),
+    await retryBusy(
+      () => _db
+          .into(_db.favoriteRows)
+          .insertOnConflictUpdate(
+            FavoriteRowsCompanion.insert(
+              mangaKey: entry.key,
+              title: entry.title,
+              coverPath: Value(entry.coverPath),
+            ),
           ),
-        );
+    );
     if (sync) {
       await noteMangaChange(
         'manga',
@@ -280,9 +311,11 @@ class LibraryStore {
   }
 
   Future<void> removeFavorite(String key, {bool sync = true}) async {
-    await (_db.delete(
-      _db.favoriteRows,
-    )..where((row) => row.mangaKey.equals(key))).go();
+    await retryBusy(
+      () => (_db.delete(
+        _db.favoriteRows,
+      )..where((row) => row.mangaKey.equals(key))).go(),
+    );
     if (sync) await noteMangaChange('manga', key, deleted: true);
   }
 
@@ -290,17 +323,19 @@ class LibraryStore {
   /// otro dispositivo): cada dispositivo ya lo recibe por su cuenta.
   Future<void> setChapterRead(String key, bool read, {bool sync = true}) async {
     if (sync) await noteMangaChange('manga_read', key, deleted: !read);
-    if (read) {
-      await _db
-          .into(_db.readChapterRows)
-          .insertOnConflictUpdate(
-            ReadChapterRowsCompanion.insert(chapterPath: key),
-          );
-    } else {
-      await (_db.delete(
-        _db.readChapterRows,
-      )..where((row) => row.chapterPath.equals(key))).go();
-    }
+    await retryBusy(() async {
+      if (read) {
+        await _db
+            .into(_db.readChapterRows)
+            .insertOnConflictUpdate(
+              ReadChapterRowsCompanion.insert(chapterPath: key),
+            );
+      } else {
+        await (_db.delete(
+          _db.readChapterRows,
+        )..where((row) => row.chapterPath.equals(key))).go();
+      }
+    });
   }
 
   Future<dynamic> getRecord(String namespace, String key) async {
@@ -313,19 +348,22 @@ class LibraryStore {
     return row == null ? null : jsonDecode(row.read<String>('payload'));
   }
 
-  Future<void> putRecord(
-    String namespace,
-    String key,
-    Object? value,
-  ) => _db.customStatement(
-    'INSERT INTO app_records(namespace,record_key,payload) VALUES(?,?,?) ON CONFLICT(namespace,record_key) DO UPDATE SET payload=excluded.payload',
-    [namespace, key, jsonEncode(value)],
+  Future<void> putRecord(String namespace, String key, Object? value) {
+    final payload = jsonEncode(value);
+    return retryBusy(
+      () => _db.customStatement(
+        'INSERT INTO app_records(namespace,record_key,payload) VALUES(?,?,?) ON CONFLICT(namespace,record_key) DO UPDATE SET payload=excluded.payload',
+        [namespace, key, payload],
+      ),
+    );
+  }
+
+  Future<void> deleteRecord(String namespace, String key) => retryBusy(
+    () => _db.customStatement(
+      'DELETE FROM app_records WHERE namespace=? AND record_key=?',
+      [namespace, key],
+    ),
   );
-  Future<void> deleteRecord(String namespace, String key) =>
-      _db.customStatement(
-        'DELETE FROM app_records WHERE namespace=? AND record_key=?',
-        [namespace, key],
-      );
 
   /// Conserva solo los [keep] registros más recientes (`savedAt`) del espacio
   /// [namespace] cuyo id empieza por [prefix].

@@ -120,7 +120,7 @@ class _DetailErrorView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              message ?? 'Revisa tu conexion e intenta de nuevo.',
+              message ?? 'Revisa tu conexión e inténtalo de nuevo.',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface.withAlpha(160),
               ),

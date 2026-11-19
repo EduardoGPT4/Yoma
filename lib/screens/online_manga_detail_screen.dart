@@ -328,7 +328,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
             content: Text(
               chapterIndexes == null
                   ? 'Manga agregado a la cola de descargas.'
-                  : '$count capitulo(s) agregados a la cola.',
+                  : '$count capítulo(s) agregados a la cola.',
             ),
           ),
         );

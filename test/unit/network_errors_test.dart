@@ -19,14 +19,14 @@ void main() {
     final msg = NetworkErrors.friendly(
       Exception('SocketException: Failed host lookup'),
     );
-    expect(msg.toLowerCase(), contains('conexion'));
+    expect(msg.toLowerCase(), contains('conexión'));
   });
 
   test('friendly maps timeout', () {
     final msg = NetworkErrors.friendly(
       Exception('TimeoutException: timed out'),
     );
-    expect(msg.toLowerCase(), contains('tardo'));
+    expect(msg.toLowerCase(), contains('tardó'));
   });
 
   test('friendly maps http 403', () {

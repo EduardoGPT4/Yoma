@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import '../../../utils/network_errors.dart';
 import '../models/anime_models.dart';
 
 /// Texto de un error para mostrarlo en pantalla. Los fallos del reproductor
@@ -13,7 +14,12 @@ String animeErrorText(Object error) {
         ? 'No se pudo completar la operación en el dispositivo.'
         : message;
   }
-  return error.toString();
+  // Los fallos propios ya traen un texto pensado para la persona; los del
+  // sistema («SocketException…») se traducen a un mensaje claro.
+  final text = error.toString();
+  return text.contains('Exception') || text.contains('Error')
+      ? NetworkErrors.friendly(error)
+      : text;
 }
 
 class LocalAnimeDownloads {

@@ -35,6 +35,7 @@ import 'myanimelist_screen.dart';
 import 'dart:convert';
 import '../services/diagnostics.dart';
 import '../utils/app_failure.dart';
+import '../utils/network_errors.dart';
 
 /// Perfil personal y ajustes separados, con las mismas acciones de configuración.
 class ProfileScreen extends StatefulWidget {
@@ -149,7 +150,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       messenger.showSnackBar(
-        SnackBar(content: Text('No se pudo usar la imagen: $error')),
+        SnackBar(
+          content: Text(
+            'No se pudo usar la imagen. ${NetworkErrors.friendly(error)}',
+          ),
+        ),
       );
     }
   }
@@ -273,7 +278,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
       messenger.showSnackBar(
-        SnackBar(content: Text('No se pudo importar: $error')),
+        SnackBar(
+          content: Text(
+            'No se pudo importar. ${NetworkErrors.friendly(error)}',
+          ),
+        ),
       );
     }
   }

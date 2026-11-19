@@ -35,7 +35,20 @@ class FavoriteRows extends Table {
 
 @DriftDatabase(tables: [ReadingProgressRows, ReadChapterRows, FavoriteRows])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(driftDatabase(name: 'yomashi'));
+  AppDatabase()
+    : super(
+        driftDatabase(
+          name: 'yomashi',
+          native: const DriftNativeOptions(setup: _configureConnection),
+        ),
+      );
+
+  /// Las descargas en segundo plano usan otro motor de Flutter con su propia
+  /// conexión a este archivo. La espera ante bloqueos rige desde que se abre
+  /// la conexión, antes de las migraciones y de `beforeOpen`.
+  static void _configureConnection(dynamic database) {
+    database.execute('PRAGMA busy_timeout = 15000');
+  }
 
   AppDatabase.forTesting(super.executor);
 
@@ -54,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
       if (from < 2) await _records();
     },
     beforeOpen: (_) async {
-      await customStatement('PRAGMA busy_timeout = 5000');
+      await customStatement('PRAGMA busy_timeout = 15000');
       await customStatement('PRAGMA journal_mode = WAL');
       await _records();
     },

@@ -325,7 +325,20 @@ class _AnimeDownloadedPageState extends State<_AnimeDownloadedPage> {
     }
   }
 
+  /// Mientras se prepara un episodio: un doble toque no abre dos reproductores.
+  bool _starting = false;
+
   Future<void> _play(AnimeDownload d) async {
+    if (_starting) return;
+    _starting = true;
+    try {
+      await _start(d);
+    } finally {
+      _starting = false;
+    }
+  }
+
+  Future<void> _start(AnimeDownload d) async {
     final app = widget.app;
     final cache = await app.store.cache('detail:${d.slug}');
     final data = cache == null

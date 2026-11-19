@@ -12,7 +12,8 @@ if(!$Device) { throw 'Indica -Device con el identificador de un teléfono o emul
 flutter build apk "--$Mode" --target=integration_test/device_test.dart --dart-define=YOMASHI_QA=true
 if($LASTEXITCODE) { throw 'Falló la compilación QA' }
 $sdk=if($env:ANDROID_HOME) {$env:ANDROID_HOME} elseif($env:ANDROID_SDK_ROOT) {$env:ANDROID_SDK_ROOT} else {Join-Path $env:LOCALAPPDATA 'Android\Sdk'}
-$binary=if($IsWindows) {'aapt.exe'} else {'aapt'}
+# Windows PowerShell 5.1 no define $IsWindows.
+$binary=if($IsWindows -or $env:OS -eq 'Windows_NT') {'aapt.exe'} else {'aapt'}
 $aapt=Get-ChildItem (Join-Path (Join-Path $sdk 'build-tools') "*/$binary") | Sort-Object FullName -Descending | Select-Object -First 1
 if(!$aapt) { throw 'No se encontró aapt para verificar el APK antes de instalar' }
 $apk="build/app/outputs/flutter-apk/app-$Mode.apk"

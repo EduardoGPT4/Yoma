@@ -4,6 +4,7 @@ import 'dart:io';
 import '../../../config/yoma_certificates.dart';
 import '../../../config/yoma_web.dart';
 import '../../../services/myanimelist_client.dart';
+import '../../../utils/network_errors.dart';
 import '../models/anime_models.dart';
 
 class AnimeSourceFailure implements Exception {
@@ -108,7 +109,8 @@ class YomaTvSource {
       rethrow;
     } catch (error) {
       throw AnimeSourceFailure(
-        'No se pudo conectar con YomaTV. Los datos guardados siguen disponibles. ($error)',
+        'No se pudo conectar con YomaTV. ${NetworkErrors.friendly(error)} '
+        'Los datos guardados siguen disponibles.',
       );
     }
   }

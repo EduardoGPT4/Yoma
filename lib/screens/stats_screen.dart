@@ -43,7 +43,7 @@ class StatsScreen extends StatelessWidget {
             icon: Icons.done_all_rounded,
             label: 'Capitulos marcados leidos',
             value: '${chapterRead.totalReadChapters}',
-            subtitle: 'Mantén pulsado un capitulo para marcarlo',
+            subtitle: 'Mantén pulsado un capítulo para marcarlo',
           ),
           const SizedBox(height: 12),
           _StatCard(

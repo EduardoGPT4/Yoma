@@ -65,7 +65,7 @@ python3 test/backend/test_yoma_sync.py               # y el resto de test/backen
 
 - **Nunca `flutter drive` ni `flutter run` contra el teléfono personal.** Una vez desinstaló `app.yomashi.reader` y borró los datos.
   - Las pruebas instrumentadas solo van en el emulador `SeasonAV1_QA`, con `tools/verify_android.ps1`, que compila el APK QA (`app.yomashi.reader.qa`) y verifica su paquete antes de instalarlo.
-  - Copia `/sdcard/YomaShi/Backups` antes de tocar la app del teléfono.
+  - Copia `/sdcard/Yoma/YomaShi/Backups` antes de tocar la app del teléfono.
 - **Secretos fuera de Git:** `lib/config/app_secrets.dart` y `lib/models/tmo_manga.dart` están en `.git/info/exclude`. Añade archivos uno por uno, nunca `git add -A`.
 - **Credenciales:**
   - no leas, imprimas ni empaquetes `config.local.php` ni `access.local.php`;

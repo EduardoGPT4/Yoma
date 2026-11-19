@@ -63,6 +63,9 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
   Timer? _debounce;
   bool _loadingHome = true;
   bool _refreshing = false;
+
+  /// Mientras se abre una lectura: los toques repetidos no apilan lectores.
+  bool _continuing = false;
   bool _loadingSearch = false;
   bool _loadingMore = false;
   String? _error;
@@ -662,6 +665,8 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
   }
 
   Future<void> _continueReading(ReadingProgress progress) async {
+    if (_continuing) return;
+    setState(() => _continuing = true);
     try {
       var detail = await OnlineCatalogService.fetchMangaDetail(
         progress.mangaPath,
@@ -679,12 +684,14 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
       );
 
       final safeChapterIndex = chapterIndex < 0 ? 0 : chapterIndex;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ReaderScreen(
-            manga: detail.toOfflineManga(),
-            initialChapterIndex: safeChapterIndex,
-            initialPageIndex: progress.pageIndex,
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ReaderScreen(
+              manga: detail.toOfflineManga(),
+              initialChapterIndex: safeChapterIndex,
+              initialPageIndex: progress.pageIndex,
+            ),
           ),
         ),
       );
@@ -693,8 +700,14 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo continuar la lectura: $error')),
+        SnackBar(
+          content: Text(
+            'No se pudo continuar la lectura. ${NetworkErrors.friendly(error)}',
+          ),
+        ),
       );
+    } finally {
+      if (mounted) setState(() => _continuing = false);
     }
   }
 
@@ -724,7 +737,8 @@ class OnlineBrowserScreenState extends State<OnlineBrowserScreen> {
     // los mangas nuevos entraban por arriba.
     return Column(
       children: [
-        if (_refreshing) const LinearProgressIndicator(minHeight: 2),
+        if (_refreshing || _continuing)
+          const LinearProgressIndicator(minHeight: 2),
         Expanded(
           child: RefreshIndicator(
             onRefresh: refresh,

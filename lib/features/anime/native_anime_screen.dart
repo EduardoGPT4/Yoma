@@ -125,7 +125,9 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen>
       );
     } catch (e) {
       messenger?.showSnackBar(
-        SnackBar(content: Text('No se pudo abrir el episodio: $e')),
+        SnackBar(
+          content: Text('No se pudo abrir el episodio. ${animeErrorText(e)}'),
+        ),
       );
     }
   }
@@ -187,7 +189,11 @@ class NativeAnimeScreenState extends State<NativeAnimeScreen>
       }
     } catch (e) {
       messenger?.showSnackBar(
-        SnackBar(content: Text('No se pudo vincular con MyAnimeList: $e')),
+        SnackBar(
+          content: Text(
+            'No se pudo vincular con MyAnimeList. ${animeErrorText(e)}',
+          ),
+        ),
       );
     }
   }
