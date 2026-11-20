@@ -51,11 +51,9 @@ class LibraryFake extends MyAnimeListClient {
   }
 }
 
-class _UnavailableSource extends SourceProvider {
+class _LoadedSource extends SourceProvider {
   @override
   bool get isLoaded => true;
-  @override
-  bool get isActiveImplemented => false;
 }
 
 class _HomeLibrary extends LibraryProvider {
@@ -256,10 +254,13 @@ void main() {
               create: (_) => _HomeLibrary(),
             ),
             ChangeNotifierProvider<SourceProvider>(
-              create: (_) => _UnavailableSource(),
+              create: (_) => _LoadedSource(),
             ),
           ],
-          child: malApp(HomeScreen(malClient: client), scale: 1.6),
+          child: malApp(
+            HomeScreen(malClient: client, catalog: const SizedBox()),
+            scale: 1.6,
+          ),
         ),
       );
       await tester.pumpAndSettle();

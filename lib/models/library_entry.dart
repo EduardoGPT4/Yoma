@@ -1,3 +1,4 @@
+import '../utils/title_sanitizer.dart';
 import 'content_identity.dart';
 import 'favorite_entry.dart';
 import 'manga.dart';
@@ -101,9 +102,9 @@ class LibraryEntry {
         ),
       );
     }
-    entries.sort(
-      (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
-    );
+    String key(LibraryEntry entry) =>
+        TitleSanitizer.clean(entry.title).toLowerCase();
+    entries.sort((a, b) => key(a).compareTo(key(b)));
     return entries;
   }
 }

@@ -263,6 +263,9 @@ class _Selector extends StatefulWidget {
 /// cambiar de sección, así que volver a él no la repite.
 class _SelectorState extends State<_Selector>
     with SingleTickerProviderStateMixin {
+  static const double _logoSize = 84;
+  static const double _logoRadius = 24;
+
   late final AnimationController _intro = AnimationController(
     vsync: this,
     duration: SelectorIntro.duration,
@@ -347,11 +350,11 @@ class _SelectorState extends State<_Selector>
     final avatar = profile.myAnimeListAvatarUrl;
     final done = intro.done;
     final logo = ClipRRect(
-      borderRadius: BorderRadius.circular(30),
+      borderRadius: BorderRadius.circular(_logoRadius),
       child: Image.asset(
         'assets/branding/3-AniManga.png',
-        width: 104,
-        height: 104,
+        width: _logoSize,
+        height: _logoSize,
       ),
     );
     final title = Text(
@@ -400,58 +403,77 @@ class _SelectorState extends State<_Selector>
       style: Theme.of(context).textTheme.bodySmall,
     );
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const SizedBox(height: 18),
-          Center(child: done ? logo : _introLogo(intro, logo)),
-          const SizedBox(height: 16),
-          if (done)
-            title
-          else
-            Center(
-              child: TypedReveal(
-                progress: intro.at(.75, 1.07),
-                steps: 4,
-                caret: intro.t > .7 && intro.t < 1.25 && intro.caretOn,
-                child: title,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          // Las dos experiencias ocupan media pantalla cada una: YomaTV a la
+          // izquierda y YomaShi a la derecha. Con poca altura o letra muy
+          // grande, la página se desplaza en vez de aplastarlas.
+          final halves = (box.maxHeight * .56).clamp(300.0, 640.0);
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            children: [
+              Center(child: done ? logo : _introLogo(intro, logo)),
+              const SizedBox(height: 10),
+              if (done)
+                title
+              else
+                Center(
+                  child: TypedReveal(
+                    progress: intro.at(.75, 1.07),
+                    steps: 4,
+                    caret: intro.t > .7 && intro.t < 1.25 && intro.caretOn,
+                    child: title,
+                  ),
+                ),
+              const SizedBox(height: 4),
+              introReveal(intro.at(1.04, 1.34, Curves.easeOut), tagline, dy: 6),
+              const SizedBox(height: 20),
+              SizedBox(
+                height: halves,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _experience(
+                        context,
+                        2,
+                        'Anime',
+                        'YomaTV',
+                        'Explora el catálogo y continúa tu anime.',
+                        'assets/branding/1-Anime.png',
+                        Icons.play_circle_fill_rounded,
+                        YomaColors.animeTint,
+                        done ? null : intro.card(SelectorIntro.animeStart),
+                        TypedCode.tag('YomaTV', 'type', 'anime'),
+                        '02 / mount(<Anime />)',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _experience(
+                        context,
+                        1,
+                        'Manga',
+                        'YomaShi',
+                        'Tu biblioteca, tus fuentes y tu lector offline.',
+                        'assets/branding/2-Manga.png',
+                        Icons.menu_book_rounded,
+                        YomaColors.mangaTint,
+                        done ? null : intro.card(SelectorIntro.mangaStart),
+                        TypedCode.tag('YomaShi', 'type', 'manga'),
+                        '01 / mount(<Manga />)',
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          const SizedBox(height: 8),
-          introReveal(intro.at(1.04, 1.34, Curves.easeOut), tagline, dy: 6),
-          const SizedBox(height: 28),
-          _experience(
-            context,
-            1,
-            'Manga',
-            'YomaShi',
-            'Tu biblioteca, tus fuentes y tu lector offline.',
-            'assets/branding/2-Manga.png',
-            Icons.menu_book_rounded,
-            YomaColors.mangaTint,
-            done ? null : intro.card(SelectorIntro.mangaStart),
-            TypedCode.tag('YomaShi', 'type', 'manga'),
-            '01 / mount(<Manga />)',
-          ),
-          const SizedBox(height: 16),
-          _experience(
-            context,
-            2,
-            'Anime',
-            'YomaTV',
-            'Explora el catálogo y continúa tu anime.',
-            'assets/branding/1-Anime.png',
-            Icons.play_circle_fill_rounded,
-            YomaColors.animeTint,
-            done ? null : intro.card(SelectorIntro.animeStart),
-            TypedCode.tag('YomaTV', 'type', 'anime'),
-            '02 / mount(<Anime />)',
-          ),
-          const SizedBox(height: 24),
-          if (done) mal else _introMal(intro, mal),
-          const SizedBox(height: 12),
-          introReveal(intro.at(2.55, 2.9, Curves.easeOut), footer, dy: 8),
-        ],
+              const SizedBox(height: 20),
+              if (done) mal else _introMal(intro, mal),
+              const SizedBox(height: 12),
+              introReveal(intro.at(2.55, 2.9, Curves.easeOut), footer, dy: 8),
+            ],
+          );
+        },
       ),
     );
   }
@@ -462,8 +484,8 @@ class _SelectorState extends State<_Selector>
     final image = intro.at(.5, .86, Curves.easeOutCubic);
     final hint = intro.pulse(.17, .85, hold: .6);
     return SizedBox(
-      width: 104,
-      height: 104,
+      width: _logoSize,
+      height: _logoSize,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -473,7 +495,7 @@ class _SelectorState extends State<_Selector>
               child: CustomPaint(
                 painter: TracePainter(
                   progress: intro.at(.11, .65),
-                  radius: 30,
+                  radius: _logoRadius,
                   color: YomaColors.mangaTint,
                   opacity: 1 - intro.at(.8, 1.15),
                 ),
@@ -573,82 +595,120 @@ class _SelectorState extends State<_Selector>
     // Sin animación (o al terminar) se devuelve exactamente la tarjeta original.
     double v(double Function(CardIntro) value) =>
         intro == null ? 1 : value(intro);
+    final text = Theme.of(context).textTheme;
+    // Media pantalla con la ilustración de fondo; abajo, una capa oscura con
+    // el tinte de la sección deja leer el texto sobre cualquier zona.
     final card = Card(
       clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
       child: InkWell(
         onTap: () => _open(section),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [accent.withValues(alpha: .18), YomaColors.surface],
-            ),
-          ),
-          padding: const EdgeInsets.all(20),
-          child: Row(
-            children: [
-              introReveal(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            introReveal(
+              v((c) => c.thumb),
+              introColorize(
                 v((c) => c.thumb),
-                introColorize(
-                  v((c) => c.thumb),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(YomaRadii.lg),
-                    child: Image.asset(
-                      image,
-                      width: 76,
-                      height: 90,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
+                Image.asset(
+                  image,
+                  fit: BoxFit.cover,
+                  alignment: const Alignment(0, -.35),
+                  cacheWidth: 720,
+                  filterQuality: FilterQuality.medium,
                 ),
-                dx: -12,
               ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    introReveal(
-                      v((c) => c.brand),
-                      Text(
-                        brand,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelLarge?.copyWith(color: accent),
-                      ),
-                      dx: -8,
-                    ),
-                    introReveal(
-                      v((c) => c.title),
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      dx: -8,
-                    ),
-                    const SizedBox(height: 6),
-                    introReveal(
-                      v((c) => c.detail),
-                      Text(
-                        detail,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: YomaColors.textSecondary,
-                        ),
-                      ),
-                      dy: 7,
-                    ),
+              scaleFrom: 1.06,
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withAlpha(25),
+                    accent.withAlpha(60),
+                    Colors.black.withAlpha(215),
+                    Colors.black.withAlpha(240),
                   ],
+                  stops: const [0, .42, .78, 1],
                 ),
               ),
-              introReveal(
+            ),
+            Positioned(
+              top: 12,
+              right: 12,
+              child: introReveal(
                 v((c) => c.icon),
                 Transform.rotate(
                   angle: -.31 * (1 - v((c) => c.icon)),
-                  child: Icon(icon, color: accent, size: 30),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(150),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(icon, color: accent, size: 26),
+                    ),
+                  ),
                 ),
                 scaleFrom: .4,
               ),
-            ],
-          ),
+            ),
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: 16,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  introReveal(
+                    v((c) => c.brand),
+                    Text(
+                      brand,
+                      style: text.labelLarge?.copyWith(
+                        color: accent,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .4,
+                      ),
+                    ),
+                    dx: -8,
+                  ),
+                  introReveal(
+                    v((c) => c.title),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        title,
+                        style: text.headlineMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    dx: -8,
+                  ),
+                  const SizedBox(height: 6),
+                  introReveal(
+                    v((c) => c.detail),
+                    Text(
+                      detail,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: text.bodyMedium?.copyWith(
+                        color: Colors.white.withAlpha(215),
+                        height: 1.3,
+                      ),
+                    ),
+                    dy: 7,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

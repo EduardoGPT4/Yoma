@@ -139,6 +139,44 @@ class _DetailErrorView extends StatelessWidget {
   }
 }
 
+/// Logotipo de YomaShi en blanco sobre la portada oscurecida, con una sombra
+/// suave para que se lea también sobre zonas claras de la imagen.
+class _BrandWordmark extends StatelessWidget {
+  const _BrandWordmark();
+
+  static const _asset = 'assets/brand/yomashi_wordmark.png';
+
+  @override
+  Widget build(BuildContext context) {
+    Widget mark(Color color) => Image.asset(
+      _asset,
+      fit: BoxFit.contain,
+      color: color,
+      colorBlendMode: BlendMode.srcIn,
+      cacheWidth: 512,
+      filterQuality: FilterQuality.medium,
+      excludeFromSemantics: true,
+    );
+    return Semantics(
+      label: 'YomaShi',
+      image: true,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Transform.translate(
+            offset: const Offset(0, 2),
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+              child: mark(Colors.black.withAlpha(170)),
+            ),
+          ),
+          mark(Colors.white),
+        ],
+      ),
+    );
+  }
+}
+
 class _CoverCard extends StatelessWidget {
   final String? coverUrl;
 

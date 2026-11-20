@@ -15,7 +15,11 @@ import 'sources_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final MyAnimeListClient? malClient;
-  const HomeScreen({super.key, this.malClient});
+
+  /// Sustituye el catálogo en las pruebas, para no salir a la red.
+  @visibleForTesting
+  final Widget? catalog;
+  const HomeScreen({super.key, this.malClient, this.catalog});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -24,81 +28,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<OnlineBrowserScreenState> _onlineBrowserKey =
       GlobalKey<OnlineBrowserScreenState>();
-
-  Widget _buildSourceUnavailable(ThemeData theme, SourceProvider source) {
-    return Center(
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: YomaRadii.lgAll,
-              border: Border.all(color: YomaColors.borderSubtle),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withAlpha(36),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    source.active.icon,
-                    size: 32,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  source.active.name,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Esta fuente está seleccionada pero aún no tiene conector. '
-                  'Cambia a MangaDex, InManga, ManhwaWeb, LeerCapitulo, MangaOni, MangaLect o Lectortmo en Fuentes.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withAlpha(170),
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  source.active.detailLine,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SourcesScreen()),
-                    );
-                  },
-                  icon: const Icon(Icons.hub_rounded),
-                  label: const Text('Elegir fuente'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   void _showQuickStatsSheet(ThemeData theme, LibraryProvider library) {
     final stats = library.readingStats;
@@ -371,9 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: !source.isLoaded
             ? const Center(child: CircularProgressIndicator())
-            : source.isActiveImplemented
-            ? OnlineBrowserScreen(key: _onlineBrowserKey)
-            : _buildSourceUnavailable(theme, source),
+            : widget.catalog ?? OnlineBrowserScreen(key: _onlineBrowserKey),
       ),
     );
   }

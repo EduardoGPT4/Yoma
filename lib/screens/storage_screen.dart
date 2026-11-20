@@ -194,7 +194,9 @@ class _StorageScreenState extends State<StorageScreen> {
               );
               if (bySize != 0) return bySize;
             }
-            return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+            return TitleSanitizer.clean(a.title).toLowerCase().compareTo(
+              TitleSanitizer.clean(b.title).toLowerCase(),
+            );
           });
     final measured = _hasMeasurement && !_busy;
     String sizeLabel(int bytes) =>

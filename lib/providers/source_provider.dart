@@ -35,9 +35,6 @@ class SourceProvider extends ChangeNotifier {
   List<String> get mangaDexLanguages =>
       List<String>.unmodifiable(_mangaDexLanguages);
 
-  /// True si la fuente actual puede usarse para explorar/descargar.
-  bool get isActiveImplemented => _active.implemented;
-
   Future<void> load() async {
     _dataSaver =
         (await SharedPreferences.getInstance()).getBool(

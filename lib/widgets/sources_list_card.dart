@@ -84,16 +84,6 @@ class SourcesListCard extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      if (!source.implemented) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          'Próximamente',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurface.withAlpha(140),
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),

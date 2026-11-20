@@ -5,6 +5,7 @@ import '../widgets/contextual_tip.dart';
 import '../data/download_storage.dart';
 import '../services/download_events.dart';
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -498,19 +499,29 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                           color: theme.colorScheme.surfaceContainerHighest,
                         ),
                       ),
+                      // Capa oscura sobre la portada: el texto encima se lee
+                      // con cualquier imagen.
+                      ColoredBox(color: Colors.black.withAlpha(115)),
                       DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.black.withAlpha(40),
-                              Colors.black.withAlpha(140),
+                              Colors.black.withAlpha(70),
+                              Colors.black.withAlpha(150),
                               theme.colorScheme.surface,
                             ],
                             stops: const [0.0, 0.55, 1.0],
                           ),
                         ),
+                      ),
+                      Positioned(
+                        top: MediaQuery.paddingOf(context).top + 12,
+                        left: 72,
+                        right: 72,
+                        height: 32,
+                        child: const _BrandWordmark(),
                       ),
                       Positioned(
                         left: 20,

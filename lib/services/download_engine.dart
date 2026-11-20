@@ -12,6 +12,7 @@ import '../utils/connectivity_helper.dart';
 import '../utils/download_rate_limiter.dart';
 import '../utils/manga_storage.dart';
 import '../utils/preferences.dart';
+import '../utils/title_sanitizer.dart';
 import 'download_events.dart';
 import 'diagnostics.dart';
 import 'download_notification_service.dart';
@@ -664,7 +665,7 @@ class DownloadEngine extends ChangeNotifier {
       unawaited(
         DownloadNotificationService.showCompleted(
           jobId: job.id,
-          title: job.manga.title,
+          title: TitleSanitizer.clean(job.manga.title),
           coverUrl: job.manga.coverUrl,
         ),
       );
@@ -691,7 +692,7 @@ class DownloadEngine extends ChangeNotifier {
         unawaited(
           DownloadNotificationService.showFailed(
             jobId: job.id,
-            title: job.manga.title,
+            title: TitleSanitizer.clean(job.manga.title),
             error: job.error,
           ),
         );
@@ -739,7 +740,7 @@ class DownloadEngine extends ChangeNotifier {
   Future<void> _notifyProgress(DownloadJob job) =>
       DownloadNotificationService.showProgress(
         jobId: job.id,
-        title: job.manga.title,
+        title: TitleSanitizer.clean(job.manga.title),
         completedChapters: job.completedChapters,
         totalChapters: job.totalChapters,
         chapter: job.currentChapter,
@@ -758,7 +759,7 @@ class DownloadEngine extends ChangeNotifier {
       0,
       DownloadArchiveEntry(
         id: job.id,
-        title: job.manga.title,
+        title: TitleSanitizer.clean(job.manga.title),
         coverUrl: job.manga.coverUrl,
         reason: reason,
         completedTitles: confirmed

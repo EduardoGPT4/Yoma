@@ -10,7 +10,6 @@ class MangaSource {
   final String subtitle;
   final MangaSourceKind kind;
   final String languageLabel;
-  final bool implemented;
   final IconData icon;
 
   const MangaSource({
@@ -19,7 +18,6 @@ class MangaSource {
     required this.subtitle,
     required this.kind,
     required this.languageLabel,
-    required this.implemented,
     required this.icon,
   });
 
@@ -42,7 +40,6 @@ class MangaSources {
       subtitle: 'Catálogo global con API oficial',
       kind: MangaSourceKind.api,
       languageLabel: 'Varios idiomas · Seleccionables',
-      implemented: true,
       icon: Icons.menu_book_rounded,
     ),
     MangaSource(
@@ -51,7 +48,6 @@ class MangaSources {
       subtitle: 'Catálogo en español (inmanga.com)',
       kind: MangaSourceKind.scraping,
       languageLabel: 'Español',
-      implemented: true,
       icon: Icons.language_rounded,
     ),
     MangaSource(
@@ -60,7 +56,6 @@ class MangaSources {
       subtitle: 'Catálogo en español (zonatmo.org)',
       kind: MangaSourceKind.scraping,
       languageLabel: 'Español',
-      implemented: true,
       icon: Icons.public_rounded,
     ),
     MangaSource(
@@ -69,7 +64,6 @@ class MangaSources {
       subtitle: 'Catálogo en español (zonatmo.to)',
       kind: MangaSourceKind.scraping,
       languageLabel: 'Español',
-      implemented: true,
       icon: Icons.language_rounded,
     ),
     MangaSource(
@@ -78,7 +72,6 @@ class MangaSources {
       subtitle: 'Catálogo en español (manhwaweb.com)',
       kind: MangaSourceKind.scraping,
       languageLabel: 'Español',
-      implemented: true,
       icon: Icons.travel_explore_rounded,
     ),
     MangaSource(
@@ -87,7 +80,6 @@ class MangaSources {
       subtitle: 'Catálogo en español (leercapitulo.co)',
       kind: MangaSourceKind.scraping,
       languageLabel: 'Español',
-      implemented: true,
       icon: Icons.auto_stories_rounded,
     ),
     MangaSource(
@@ -96,7 +88,6 @@ class MangaSources {
       subtitle: 'Catálogo en español (manga-oni.com)',
       kind: MangaSourceKind.scraping,
       languageLabel: 'Español',
-      implemented: true,
       icon: Icons.local_library_rounded,
     ),
     MangaSource(
@@ -105,7 +96,6 @@ class MangaSources {
       subtitle: 'Catálogo en español (mangalect.org)',
       kind: MangaSourceKind.scraping,
       languageLabel: 'Español',
-      implemented: true,
       icon: Icons.import_contacts_rounded,
     ),
   ];
@@ -117,7 +107,6 @@ class MangaSources {
     subtitle: 'Galerías +18',
     kind: MangaSourceKind.scraping,
     languageLabel: 'Varios idiomas',
-    implemented: true,
     icon: Icons.eighteen_up_rating_rounded,
   );
 

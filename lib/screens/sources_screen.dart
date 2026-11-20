@@ -202,9 +202,8 @@ class SourcesScreen extends StatelessWidget {
     if (!context.mounted) {
       return;
     }
-    final label = source.implemented
-        ? 'Fuente activa: ${source.name}'
-        : '${source.name} seleccionada (próximamente)';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(label)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Fuente activa: ${source.name}')));
   }
 }

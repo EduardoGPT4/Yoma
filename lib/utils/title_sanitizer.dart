@@ -43,14 +43,73 @@ class TitleSanitizer {
       result = result.replaceAll(pattern, ' ');
     }
 
-    result = result
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .replaceAll(RegExp(r'^[\[\(\{]+|[\]\)\}]+$'), '')
+    result = _stripSeo(result.replaceAll(RegExp(r'\s+'), ' ').trim());
+    result = _trimStrayBrackets(result)
         .replaceAll(RegExp(r'\s*[-–—]\s*\d+\s*$'), '')
         .replaceAll(RegExp(r'^\d+\s*[-–—]\s*'), '')
         .trim();
 
     return result.isEmpty ? title.trim() : result;
+  }
+
+  /// Envoltorios de buscador que algunas fuentes ponen en el título de la
+  /// página: «Ver X Online Gratis», «Leer X Manga Online», «X - Leer Online».
+  /// «Online» suelto se respeta: forma parte de títulos como «Sword Art Online».
+  static final RegExp _seoWrapped = RegExp(
+    r'^(?:ver|leer)\s+(.+?)\s+(?:(?:manga|manhwa|manhua)\s+)?(?:online|en\s+l[ií]nea)'
+    r'(?:\s+gratis)?(?:\s+en\s+español)?$',
+    caseSensitive: false,
+  );
+  static final List<RegExp> _seoSuffixes = <RegExp>[
+    RegExp(
+      r'\s*[-–—:]\s*(?:ver|leer)\s+(?:(?:manga|manhwa|manhua)\s+)?'
+      r'(?:online|gratis|en\s+español).*$',
+      caseSensitive: false,
+    ),
+    RegExp(r'\s+online\s+gratis(?:\s+en\s+español)?$', caseSensitive: false),
+    RegExp(
+      r'\s+(?:manga|manhwa|manhua)\s+online(?:\s+gratis)?(?:\s+en\s+español)?$',
+      caseSensitive: false,
+    ),
+    RegExp(r'\s+gratis\s+en\s+español$', caseSensitive: false),
+  ];
+
+  static String _stripSeo(String value) {
+    final wrapped = _seoWrapped.firstMatch(value);
+    var result = wrapped == null ? value : wrapped.group(1)!.trim();
+    for (final pattern in _seoSuffixes) {
+      result = result.replaceFirst(pattern, '').trim();
+    }
+    return result.isEmpty ? value : result;
+  }
+
+  /// Quita corchetes o paréntesis sueltos que dejan los metadatos, pero no
+  /// los que cierran parte del título, como «Choujin X (Reedición)».
+  static String _trimStrayBrackets(String value) {
+    const pairs = {'(': ')', '[': ']', '{': '}'};
+    int count(String text, String char) => char.allMatches(text).length;
+    var result = value;
+    var changed = true;
+    while (changed && result.isNotEmpty) {
+      changed = false;
+      final first = result[0];
+      final closer = pairs[first];
+      if (closer != null && count(result, first) > count(result, closer)) {
+        result = result.substring(1).trim();
+        changed = true;
+        continue;
+      }
+      final last = result[result.length - 1];
+      for (final pair in pairs.entries) {
+        if (last == pair.value &&
+            count(result, pair.value) > count(result, pair.key)) {
+          result = result.substring(0, result.length - 1).trim();
+          changed = true;
+          break;
+        }
+      }
+    }
+    return result;
   }
 
   static String chapterLabel(String raw) {

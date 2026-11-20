@@ -1,3 +1,4 @@
+import 'title_sanitizer.dart';
 import '../models/manga.dart';
 import '../models/manga_list_filters.dart';
 import '../models/reading_progress.dart';
@@ -103,13 +104,9 @@ class MangaFilterUtils {
         // Conservar el orden de la biblioteca (ya natural-sorted al escanear).
         break;
       case MangaSortOption.titleAsc:
-        result.sort(
-          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
-        );
+        result.sort((a, b) => _sortKey(a.title).compareTo(_sortKey(b.title)));
       case MangaSortOption.titleDesc:
-        result.sort(
-          (a, b) => b.title.toLowerCase().compareTo(a.title.toLowerCase()),
-        );
+        result.sort((a, b) => _sortKey(b.title).compareTo(_sortKey(a.title)));
       case MangaSortOption.chaptersDesc:
         result.sort((a, b) => b.chapterCount.compareTo(a.chapterCount));
       case MangaSortOption.recentProgress:
@@ -122,6 +119,11 @@ class MangaFilterUtils {
 
     return result;
   }
+
+  /// Ordena por el título que se ve, no por el que guardó la fuente
+  /// (descargas viejas pueden tener «Ver … Online Gratis»).
+  static String _sortKey(String title) =>
+      TitleSanitizer.clean(title).toLowerCase();
 
   /// Búsqueda offline ampliada: título, path y nombre de carpeta.
   static List<Manga> searchOffline(List<Manga> mangas, String query) {
