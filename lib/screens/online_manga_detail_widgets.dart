@@ -139,39 +139,57 @@ class _DetailErrorView extends StatelessWidget {
   }
 }
 
-/// Logotipo de YomaShi en blanco sobre la portada oscurecida, con una sombra
-/// suave para que se lea también sobre zonas claras de la imagen.
-class _BrandWordmark extends StatelessWidget {
-  const _BrandWordmark();
-
-  static const _asset = 'assets/brand/yomashi_wordmark.png';
+/// Capa oscura uniforme sobre la portada con «YomaShi» recortado: por las
+/// letras se ve la imagen con su brillo original.
+///
+/// La letra es Dancing Script, la cursiva de pincel que trae Android
+/// (familia «cursive»); donde no exista se usa la letra del sistema.
+class _BrandCutout extends StatelessWidget {
+  const _BrandCutout();
 
   @override
   Widget build(BuildContext context) {
-    Widget mark(Color color) => Image.asset(
-      _asset,
-      fit: BoxFit.contain,
-      color: color,
-      colorBlendMode: BlendMode.srcIn,
-      cacheWidth: 512,
-      filterQuality: FilterQuality.medium,
-      excludeFromSemantics: true,
-    );
+    final top = MediaQuery.paddingOf(context).top + kToolbarHeight - 8;
     return Semantics(
       label: 'YomaShi',
-      image: true,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Transform.translate(
-            offset: const Offset(0, 2),
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-              child: mark(Colors.black.withAlpha(170)),
+      child: ColorFiltered(
+        colorFilter: ColorFilter.mode(
+          Colors.black.withAlpha(200),
+          BlendMode.srcOut,
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Vacía la capa: lo opaco de abajo se convierte en hueco.
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black,
+                backgroundBlendMode: BlendMode.dstOut,
+              ),
             ),
-          ),
-          mark(Colors.white),
-        ],
+            Positioned(
+              top: top,
+              left: 18,
+              right: 18,
+              height: 124,
+              child: const ExcludeSemantics(
+                child: FittedBox(
+                  child: Text(
+                    'YomaShi',
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontFamily: 'cursive',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 120,
+                      height: 1.1,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -481,11 +499,17 @@ class _ChapterTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Flexible(
+                // Sin flex: el título se queda con todo el espacio libre y el
+                // número (o «Leído · pág.») y el menú van al extremo derecho.
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * .42,
+                  ),
                   child: Text(
                     meta.isEmpty ? '${index + 1}' : meta,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: isCurrent
                           ? theme.colorScheme.primary
