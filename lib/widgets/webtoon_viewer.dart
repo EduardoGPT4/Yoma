@@ -25,6 +25,7 @@ class WebtoonViewer extends StatefulWidget {
 class _WebtoonViewerState extends State<WebtoonViewer> {
   final _center = GlobalKey();
   final Map<int, GlobalKey> _keys = {};
+  final Set<int> _reported = {};
   bool _scheduled = false;
   int _current = -1;
   void _measure() {
@@ -58,7 +59,9 @@ class _WebtoonViewerState extends State<WebtoonViewer> {
         image: widget.imageProvider(widget.pages[index]),
         fit: BoxFit.fitWidth,
         frameBuilder: (context, child, frame, sync) {
-          if (frame != null || sync) {
+          // frameBuilder corre en cada reconstrucción; avisar una sola vez
+          // por página evita repetir el trabajo del lector en cada desplazamiento.
+          if ((frame != null || sync) && _reported.add(index)) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) widget.onLoaded(index);
             });

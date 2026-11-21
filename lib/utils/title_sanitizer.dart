@@ -21,7 +21,21 @@ class TitleSanitizer {
     ),
   ];
 
+  /// La biblioteca ordena y filtra por el título limpio en cada reconstrucción;
+  /// sin caché, ordenar 300 títulos costaba cientos de milisegundos.
+  static final Map<String, String> _cache = <String, String>{};
+  static const int _cacheLimit = 4096;
+
   static String clean(String title) {
+    final cached = _cache[title];
+    if (cached != null) return cached;
+    final result = _clean(title);
+    if (_cache.length >= _cacheLimit) _cache.remove(_cache.keys.first);
+    _cache[title] = result;
+    return result;
+  }
+
+  static String _clean(String title) {
     var result = title.trim();
     // Decode source entities without treating angle brackets in a title as tags.
     for (var pass = 0; pass < 2 && result.contains('&'); pass++) {

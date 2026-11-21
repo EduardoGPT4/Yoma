@@ -53,6 +53,7 @@ class LibraryProvider extends ChangeNotifier {
   String? _error;
   StreamSubscription<String>? _downloadSubscription;
   Timer? _statsTimer;
+  Timer? _progressNotifyTimer;
   Completer<void>? _scanCompleter;
   Timer? _watchDebounceTimer;
   ReceivePort? _scanPort;
@@ -86,6 +87,7 @@ class LibraryProvider extends ChangeNotifier {
     MangaSync.changes.removeListener(_reloadProgress);
     _disposed = true;
     _statsTimer?.cancel();
+    _progressNotifyTimer?.cancel();
     unawaited(flushStats());
     unawaited(_downloadSubscription?.cancel());
     _watchDebounceTimer?.cancel();
@@ -536,11 +538,25 @@ class LibraryProvider extends ChangeNotifier {
     return value.toLowerCase();
   }
 
+  /// El lector guarda el progreso en cada página. Avisar a cada cambio de
+  /// página reconstruía la biblioteca, el inicio y la ficha que quedan debajo
+  /// del lector; dentro del mismo capítulo basta un aviso al detenerse.
   Future<void> updateProgress(ReadingProgress progress) async {
+    final previous = _progress[progress.mangaPath];
     _progress = Map<String, ReadingProgress>.from(_progress)
       ..[progress.mangaPath] = progress;
     await PreferencesService.saveProgress(progress);
-    notifyListeners();
+    if (_disposed) return;
+    _progressNotifyTimer?.cancel();
+    if (previous?.chapterPath == progress.chapterPath) {
+      _progressNotifyTimer = Timer(const Duration(milliseconds: 1500), () {
+        _progressNotifyTimer = null;
+        if (!_disposed) notifyListeners();
+      });
+    } else {
+      _progressNotifyTimer = null;
+      notifyListeners();
+    }
   }
 
   Future<void> recordMangaOpen(String mangaPath) async {
@@ -559,10 +575,11 @@ class LibraryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sin aviso propio: el progreso de la misma página ya avisa, y un segundo
+  /// aviso por página volvía a reconstruir todo lo que escucha la biblioteca.
   Future<void> recordPageRead() async {
     _readingStats = _readingStats.recordPageRead();
     _scheduleStats();
-    notifyListeners();
   }
 
   void _scheduleStats() {
