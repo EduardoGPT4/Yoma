@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import '../models/automation_settings.dart';
 import '../models/download_job.dart';
 import '../models/online_manga.dart';
 import '../services/download_engine.dart';
@@ -262,9 +263,26 @@ class DownloadQueueProvider extends ChangeNotifier {
   Future<void> runMaintenance({bool manual = false}) => _local != null
       ? MaintenanceService(_local).run(manual: manual)
       : _command('maintenance', {'manual': manual});
-  Future<void> prepareAhead(String manga, String chapter) => _local != null
-      ? MaintenanceService(_local).ahead(manga, chapter)
-      : _command('ahead', {'manga': manga, 'chapter': chapter});
+
+  /// El lector lo pide al abrir cada capítulo. En Android, la orden despierta
+  /// el servicio de descargas, que levanta un segundo motor Flutter: mientras
+  /// arrancaba, el lector daba tirones aunque no hubiera nada que descargar.
+  /// Por eso se comprueba aquí, antes de despertarlo, lo mismo que comprueba
+  /// el servicio.
+  Future<void> prepareAhead(String manga, String chapter) async {
+    final local = _local;
+    if (local != null) return MaintenanceService(local).ahead(manga, chapter);
+    final settings = await AutomationSettings.load();
+    if (settings.aheadCount == 0 ||
+        !MaintenancePlatform.allowed(
+          settings,
+          await MaintenancePlatform.conditions(),
+        )) {
+      return;
+    }
+    await _command('ahead', {'manga': manga, 'chapter': chapter});
+  }
+
   void setReaderActive(bool active) {
     if (_local != null) {
       _local.setReaderActive(active);
