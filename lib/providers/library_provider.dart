@@ -415,50 +415,95 @@ class LibraryProvider extends ChangeNotifier {
     return items;
   }
 
-  /// Progreso local (o el online del mismo título) para un manga de la biblioteca.
+  /// Clave con la que se reconoce el mismo manga en fuentes distintas:
+  /// título limpio, sin acentos, mayúsculas ni signos («Boku Girl» y
+  /// «Bokugirl!» coinciden).
+  static String titleKey(String title) =>
+      _titleKeys[title] ??= _buildTitleKey(title);
+  static final Map<String, String> _titleKeys = {};
+  static const Map<String, String> _accents = {
+    'á': 'a', 'à': 'a', 'ä': 'a', 'â': 'a', //
+    'é': 'e', 'è': 'e', 'ë': 'e', 'ê': 'e', //
+    'í': 'i', 'ì': 'i', 'ï': 'i', 'î': 'i', //
+    'ó': 'o', 'ò': 'o', 'ö': 'o', 'ô': 'o', //
+    'ú': 'u', 'ù': 'u', 'ü': 'u', 'û': 'u', 'ñ': 'n',
+  };
+  // Letras latinas, cifras, kana, kanji y hangul; el resto (espacios,
+  // signos) no cuenta.
+  static final RegExp _keyChar = RegExp(r'[a-z0-9぀-ヿ一-鿿가-힯]');
+  static String _buildTitleKey(String title) {
+    final lower = TitleSanitizer.clean(title).toLowerCase();
+    final buffer = StringBuffer();
+    for (final rune in lower.runes) {
+      final char = String.fromCharCode(rune);
+      final plain = _accents[char] ?? char;
+      if (_keyChar.hasMatch(plain)) buffer.write(plain);
+    }
+    return buffer.toString();
+  }
+
+  /// Progreso compartido de un manga: el suyo o el de ese mismo título en
+  /// otra fuente o en una descarga. Gana el más reciente, así que leer en
+  /// cualquiera de ellos sirve para seguir en los demás.
+  ReadingProgress? progressFor(String ref, String title) {
+    ReadingProgress? best = getProgress(ref);
+    final key = titleKey(title);
+    if (key.length >= 3) {
+      for (final entry in _progress.values) {
+        if ((best == null || entry.updatedAt > best.updatedAt) &&
+            titleKey(entry.mangaTitle) == key) {
+          best = entry;
+        }
+      }
+    }
+    return best;
+  }
+
+  /// Progreso de un manga de la biblioteca: el de su fuente, el de su
+  /// carpeta o el del mismo título en cualquier otra fuente.
   ReadingProgress? progressForManga(Manga manga) {
-    final direct = getProgress(manga.sourceUrl ?? manga.path);
-    if (direct != null) {
-      return direct;
-    }
-
+    var best = progressFor(manga.sourceUrl ?? manga.path, manga.title);
     final wantPath = _normalizeFsPath(manga.path);
-    final wantTitle = TitleSanitizer.clean(manga.title).toLowerCase();
-    ReadingProgress? byTitle;
-
-    for (final progress in getRecentProgress()) {
-      if (_normalizeFsPath(progress.mangaPath) == wantPath) {
-        return progress;
-      }
-      if (wantTitle.isEmpty) {
-        continue;
-      }
-      final progressTitle = TitleSanitizer.clean(
-        progress.mangaTitle,
-      ).toLowerCase();
-      if (progressTitle == wantTitle &&
-          manga.sourceUrl == null &&
-          _mangas
-                  .where(
-                    (m) =>
-                        TitleSanitizer.clean(m.title).toLowerCase() ==
-                        wantTitle,
-                  )
-                  .length ==
-              1) {
-        byTitle ??= progress;
+    for (final progress in _progress.values) {
+      if ((best == null || progress.updatedAt > best.updatedAt) &&
+          _normalizeFsPath(progress.mangaPath) == wantPath) {
+        best = progress;
       }
     }
-    return getRecentProgress()
-                .where(
-                  (p) =>
-                      TitleSanitizer.clean(p.mangaTitle).toLowerCase() ==
-                      wantTitle,
-                )
-                .length ==
-            1
-        ? byTitle
-        : null;
+    return best;
+  }
+
+  static final RegExp _chapterNumber = RegExp(r'(\d+(?:\.\d+)?)');
+
+  /// Número de capítulo de un título («Capítulo 012.5» → 12.5).
+  static double? chapterNumberOf(String title) {
+    final raw = _chapterNumber
+        .firstMatch(TitleSanitizer.chapterLabel(title))
+        ?.group(1);
+    return raw == null ? null : double.tryParse(raw);
+  }
+
+  /// Capítulo de [chapters] donde retomar [progress]: el mismo enlace, el
+  /// mismo título o, si viene de otra fuente, el mismo número. -1 si no está.
+  static int chapterIndexFor(
+    ReadingProgress progress,
+    List<({String ref, String title})> chapters,
+  ) {
+    final wantRef = _normalizeFsPath(progress.chapterPath);
+    var index = chapters.indexWhere(
+      (chapter) => _normalizeFsPath(chapter.ref) == wantRef,
+    );
+    if (index >= 0) return index;
+    final wantLabel = TitleSanitizer.chapterLabel(progress.chapterTitle);
+    index = chapters.indexWhere(
+      (chapter) => TitleSanitizer.chapterLabel(chapter.title) == wantLabel,
+    );
+    if (index >= 0) return index;
+    final number = chapterNumberOf(progress.chapterTitle);
+    if (number == null) return -1;
+    return chapters.indexWhere(
+      (chapter) => chapterNumberOf(chapter.title) == number,
+    );
   }
 
   /// Capítulo y página donde retomar un manga local. Si no hay progreso, (0, 0).
@@ -472,30 +517,10 @@ class LibraryProvider extends ChangeNotifier {
       return (chapterIndex: 0, pageIndex: 0);
     }
 
-    var chapterIndex = manga.chapters.indexWhere(
-      (chapter) =>
-          _normalizeFsPath(chapter.sourceUrl ?? chapter.path) ==
-          _normalizeFsPath(progress.chapterPath),
-    );
-    if (chapterIndex < 0) {
-      final wanted = TitleSanitizer.chapterLabel(progress.chapterTitle);
-      chapterIndex = manga.chapters.indexWhere(
-        (chapter) => TitleSanitizer.chapterLabel(chapter.title) == wanted,
-      );
-    }
-    if (chapterIndex < 0) {
-      final number = RegExp(r'(\d+(?:\.\d+)?)')
-          .firstMatch(TitleSanitizer.chapterLabel(progress.chapterTitle))
-          ?.group(1);
-      if (number != null) {
-        chapterIndex = manga.chapters.indexWhere((chapter) {
-          return RegExp(r'(\d+(?:\.\d+)?)')
-                  .firstMatch(TitleSanitizer.chapterLabel(chapter.title))
-                  ?.group(1) ==
-              number;
-        });
-      }
-    }
+    final chapterIndex = chapterIndexFor(progress, [
+      for (final chapter in manga.chapters)
+        (ref: chapter.sourceUrl ?? chapter.path, title: chapter.title),
+    ]);
     if (chapterIndex < 0) {
       return (chapterIndex: 0, pageIndex: 0);
     }

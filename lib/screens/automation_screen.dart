@@ -10,7 +10,6 @@ import '../providers/download_queue_provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/chapter_read_provider.dart';
-import '../providers/categories_provider.dart';
 import '../providers/reader_settings_provider.dart';
 import '../providers/source_provider.dart';
 import '../providers/theme_accent_provider.dart';
@@ -120,14 +119,12 @@ class _AutomationScreenState extends State<AutomationScreen> {
         profile = context.read<ProfileProvider>(),
         favorites = context.read<FavoritesProvider>(),
         reads = context.read<ChapterReadProvider>(),
-        categories = context.read<CategoriesProvider>(),
         settings = context.read<ReaderSettingsProvider>();
     await _run(() async {
       await BackupService.importFromFile(copy, merge: true);
       await library.load();
       await favorites.load();
       await reads.load();
-      await categories.load();
       await settings.load();
       await source.load();
       await accent.load();

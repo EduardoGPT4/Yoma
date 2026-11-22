@@ -6,7 +6,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 
 import '../models/manga.dart';
-import '../providers/categories_provider.dart';
 import '../providers/chapter_read_provider.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/library_provider.dart';
@@ -144,7 +143,6 @@ class _OfflineDeleteScreenState extends State<OfflineDeleteScreen> {
     setState(() => _deleting = true);
     final library = context.read<LibraryProvider>();
     final favorites = context.read<FavoritesProvider>();
-    final categories = context.read<CategoriesProvider>();
     final chapterRead = context.read<ChapterReadProvider>();
 
     final downloader = context.read<DownloadQueueProvider>();
@@ -155,7 +153,6 @@ class _OfflineDeleteScreenState extends State<OfflineDeleteScreen> {
     final removed = result.deletedPaths;
 
     await favorites.removeMany(removed);
-    await categories.removeMangaKeys(removed);
     await chapterRead.removeUnderPrefixes(removed);
 
     if (!mounted) {

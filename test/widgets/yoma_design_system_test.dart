@@ -21,7 +21,6 @@ import 'package:yomashi/features/anime/models/anime_models.dart';
 import 'package:yomashi/home/yoma_shell.dart';
 import 'package:yomashi/models/catalog_page.dart';
 import 'package:yomashi/models/online_manga.dart';
-import 'package:yomashi/providers/categories_provider.dart';
 import 'package:yomashi/providers/chapter_read_provider.dart';
 import 'package:yomashi/providers/density_provider.dart';
 import 'package:yomashi/providers/download_queue_provider.dart';
@@ -224,7 +223,6 @@ void main() {
               create: (_) => ReaderSettingsProvider()..load(),
             ),
             ChangeNotifierProvider(create: (_) => FavoritesProvider()..load()),
-            ChangeNotifierProvider(create: (_) => CategoriesProvider()..load()),
             ChangeNotifierProvider(
               create: (_) => ChapterReadProvider()..load(),
             ),

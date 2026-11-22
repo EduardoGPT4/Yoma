@@ -1,6 +1,5 @@
 import 'package:path/path.dart' as p;
 import '../design/yoma_tokens.dart';
-import '../providers/categories_provider.dart';
 import '../providers/reader_settings_provider.dart';
 import '../providers/source_provider.dart';
 import 'dart:async';
@@ -317,7 +316,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final library = context.read<LibraryProvider>();
     final favorites = context.read<FavoritesProvider>();
     final chapters = context.read<ChapterReadProvider>();
-    final categories = context.read<CategoriesProvider>();
     final reader = context.read<ReaderSettingsProvider>();
     final source = context.read<SourceProvider>();
     final accent = context.read<ThemeAccentProvider>();
@@ -362,7 +360,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         library.load(),
         favorites.load(),
         chapters.load(),
-        categories.load(),
         reader.load(),
         source.load(),
         accent.load(),

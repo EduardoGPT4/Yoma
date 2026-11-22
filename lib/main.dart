@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import 'providers/categories_provider.dart';
 import 'providers/chapter_read_provider.dart';
 import 'providers/download_queue_provider.dart';
 import 'providers/favorites_provider.dart';
@@ -20,6 +19,7 @@ import 'services/rotating_backup_service.dart';
 import 'services/diagnostics.dart';
 import 'services/yoma_storage_migration.dart';
 import 'services/mal_reading_sync.dart';
+import 'services/mal_auto_link.dart';
 import 'services/myanimelist_service.dart';
 import 'home/yoma_shell.dart';
 import 'design/yoma_tokens.dart';
@@ -117,7 +117,6 @@ class MangaReaderApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DownloadQueueProvider()..load()),
         ChangeNotifierProvider(create: (_) => ReaderSettingsProvider()..load()),
         ChangeNotifierProvider(create: (_) => FavoritesProvider()..load()),
-        ChangeNotifierProvider(create: (_) => CategoriesProvider()..load()),
         ChangeNotifierProvider(create: (_) => ChapterReadProvider()..load()),
       ],
       child: Consumer2<ThemeAccentProvider, DensityProvider>(
@@ -230,19 +229,27 @@ class _AppLifecycleHostState extends State<_AppLifecycleHost>
     final library = context.read<LibraryProvider>();
     final favorites = context.read<FavoritesProvider>();
     final reads = context.read<ChapterReadProvider>();
+    final candidates = MalReadingSync.candidates(
+      library: library.mangas,
+      favorites: favorites.entries,
+      progress: library.progressMap.values,
+    );
     try {
       await MalReadingSync.shared.run(
-        MalReadingSync.candidates(
-          library: library.mangas,
-          favorites: favorites.entries,
-          progress: library.progressMap.values,
-        ),
+        candidates,
         reads,
         force: force,
         // Al abrir o volver a Yoma, lo leído en la web de MAL aparece en una
         // hora como mucho.
         age: const Duration(hours: 1),
       );
+    } catch (error) {
+      await Diagnostics.record('myanimelist', error);
+    }
+    // Lo que no está en tu lista de MAL se busca en todo MAL y se vincula
+    // solo si el nombre coincide exactamente.
+    try {
+      await MalAutoLink.shared.run(candidates);
     } catch (error) {
       await Diagnostics.record('myanimelist', error);
     }

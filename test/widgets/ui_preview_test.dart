@@ -27,7 +27,6 @@ import 'package:yomashi/screens/library_screen.dart';
 import 'package:yomashi/models/manga.dart';
 import 'package:yomashi/models/reading_progress.dart';
 import 'package:yomashi/providers/favorites_provider.dart';
-import 'package:yomashi/providers/categories_provider.dart';
 import 'package:yomashi/providers/chapter_read_provider.dart';
 import 'package:yomashi/widgets/reader_chapter_end.dart';
 import 'package:yomashi/widgets/reader_page_scrubber.dart';
@@ -164,7 +163,6 @@ void main() {
     final library = _PreviewLibrary();
     final density = DensityProvider();
     final favorites = FavoritesProvider();
-    final categories = CategoriesProvider();
     final reads = ChapterReadProvider();
     final settings = ReaderSettingsProvider();
     final source = SourceProvider();
@@ -241,7 +239,6 @@ void main() {
           providers: [
             ChangeNotifierProvider<ProfileProvider>.value(value: profile),
             ChangeNotifierProvider.value(value: favorites),
-            ChangeNotifierProvider.value(value: categories),
             ChangeNotifierProvider.value(value: reads),
             ChangeNotifierProvider<LibraryProvider>.value(value: library),
             ChangeNotifierProvider<DownloadQueueProvider>.value(value: queue),
@@ -409,7 +406,6 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pump();
       favorites.dispose();
-      categories.dispose();
       reads.dispose();
       profile.dispose();
       library.dispose();

@@ -21,15 +21,30 @@ class MangaCardLayout {
     letterSpacing: -0.1,
   );
 
-  static double heightForWidth(BuildContext context, double width) {
+  static TextStyle sourceStyle(BuildContext context) => TextStyle(
+    fontWeight: FontWeight.w800,
+    height: 1.2,
+    fontSize: AppMetrics.of(context).titleSize - 1,
+  );
+
+  static double heightForWidth(
+    BuildContext context,
+    double width, {
+    bool sourceLine = false,
+  }) {
+    final base = DefaultTextStyle.of(context).style;
     final title = TextPainter(
       text: TextSpan(
         text: 'Ag\nAg',
-        style: DefaultTextStyle.of(context).style.merge(titleStyle(context)),
+        style: base.merge(titleStyle(context)),
+        children: [
+          if (sourceLine)
+            TextSpan(text: '\nAg', style: base.merge(sourceStyle(context))),
+        ],
       ),
       textDirection: Directionality.of(context),
       textScaler: MediaQuery.textScalerOf(context),
-      maxLines: 2,
+      maxLines: sourceLine ? 3 : 2,
     )..layout();
     final height = width / coverAspectRatio + title.height.ceilToDouble() + 12;
     title.dispose();
@@ -41,7 +56,14 @@ class MangaCardLayout {
 class SliverMangaGrid extends StatelessWidget {
   final SliverChildDelegate delegate;
 
-  const SliverMangaGrid({super.key, required this.delegate});
+  /// Reserva una línea más para el nombre de la fuente de los descargados.
+  final bool sourceLine;
+
+  const SliverMangaGrid({
+    super.key,
+    required this.delegate,
+    this.sourceLine = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +82,11 @@ class SliverMangaGrid extends StatelessWidget {
             crossAxisCount: columns,
             mainAxisSpacing: metrics.gridSpacing,
             crossAxisSpacing: metrics.gridSpacing,
-            mainAxisExtent: MangaCardLayout.heightForWidth(context, width),
+            mainAxisExtent: MangaCardLayout.heightForWidth(
+              context,
+              width,
+              sourceLine: sourceLine,
+            ),
           ),
           delegate: delegate,
         );
@@ -83,6 +109,11 @@ class MangaCard extends StatefulWidget {
   /// Progreso 0–1 dibujado como barra fina al pie de la portada.
   final double? progress;
 
+  /// Fuente de un manga descargado: su nombre va bajo el título y su color
+  /// pinta el borde de la tarjeta.
+  final String? sourceLabel;
+  final Color? sourceColor;
+
   const MangaCard({
     super.key,
     required this.title,
@@ -95,6 +126,8 @@ class MangaCard extends StatefulWidget {
     this.isFavorite = false,
     this.onFavoriteToggle,
     this.progress,
+    this.sourceLabel,
+    this.sourceColor,
   });
 
   @override
@@ -162,7 +195,9 @@ class _MangaCardState extends State<MangaCard> {
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
               borderRadius: YomaRadii.mdAll,
-              border: Border.all(color: YomaColors.borderSubtle),
+              border: widget.sourceColor == null
+                  ? Border.all(color: YomaColors.borderSubtle)
+                  : Border.all(color: widget.sourceColor!, width: 2),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -221,39 +256,6 @@ class _MangaCardState extends State<MangaCard> {
                               ),
                             ),
                           ),
-                        if (widget.onLongPress != null)
-                          Positioned(
-                            top: 0,
-                            right: 0,
-                            child: PopupMenuButton<String>(
-                              tooltip: 'Opciones de $_displayTitle',
-                              icon: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: YomaColors.scrim.withAlpha(160),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Padding(
-                                  padding: EdgeInsets.all(4),
-                                  child: Icon(
-                                    Icons.more_horiz,
-                                    size: 20,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              onSelected: (_) => widget.onLongPress?.call(),
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                  value: 'categories',
-                                  child: ListTile(
-                                    leading: Icon(Icons.label_outline),
-                                    title: Text('Categorías'),
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
                         if (widget.badge != null && widget.badge!.isNotEmpty)
                           Positioned(
                             bottom: 6,
@@ -277,11 +279,25 @@ class _MangaCardState extends State<MangaCard> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
-                  child: Text(
-                    _displayTitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: MangaCardLayout.titleStyle(context),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _displayTitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: MangaCardLayout.titleStyle(context),
+                      ),
+                      if (widget.sourceLabel != null)
+                        Text(
+                          widget.sourceLabel!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: MangaCardLayout.sourceStyle(
+                            context,
+                          ).copyWith(color: widget.sourceColor),
+                        ),
+                    ],
                   ),
                 ),
               ],

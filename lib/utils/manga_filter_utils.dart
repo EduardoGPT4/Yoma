@@ -4,7 +4,6 @@ import '../models/manga_list_filters.dart';
 import '../models/reading_progress.dart';
 import '../models/reading_status_filter.dart';
 import '../models/online_manga.dart';
-import '../providers/categories_provider.dart';
 import '../providers/chapter_read_provider.dart';
 import '../providers/favorites_provider.dart';
 
@@ -37,7 +36,6 @@ class MangaFilterUtils {
     required List<Manga> mangas,
     required MangaListFilters filters,
     required FavoritesProvider favorites,
-    required CategoriesProvider categories,
     required Map<String, ReadingProgress> progressMap,
     ChapterReadProvider? chapterRead,
   }) {
@@ -47,14 +45,6 @@ class MangaFilterUtils {
       result = result
           .where((manga) => favorites.isFavorite(manga.path))
           .toList();
-    }
-
-    if (filters.categoryId != null) {
-      final category = categories.categoryById(filters.categoryId);
-      if (category != null) {
-        final keys = category.mangaKeys.toSet();
-        result = result.where((manga) => keys.contains(manga.path)).toList();
-      }
     }
 
     if (filters.inProgressOnly) {

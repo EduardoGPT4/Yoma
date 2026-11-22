@@ -11,7 +11,6 @@ enum MangaSortOption {
 
 class MangaListFilters {
   final bool favoritesOnly;
-  final String? categoryId;
   final String? status;
   final String? type;
   final bool inProgressOnly;
@@ -23,7 +22,6 @@ class MangaListFilters {
 
   const MangaListFilters({
     this.favoritesOnly = false,
-    this.categoryId,
     this.status,
     this.type,
     this.inProgressOnly = false,
@@ -36,7 +34,6 @@ class MangaListFilters {
 
   bool get hasActiveFilters {
     return favoritesOnly ||
-        categoryId != null ||
         (status != null && status!.isNotEmpty) ||
         (type != null && type!.isNotEmpty) ||
         inProgressOnly ||
@@ -47,8 +44,6 @@ class MangaListFilters {
 
   MangaListFilters copyWith({
     bool? favoritesOnly,
-    String? categoryId,
-    bool clearCategoryId = false,
     String? status,
     bool clearStatus = false,
     String? type,
@@ -60,7 +55,6 @@ class MangaListFilters {
   }) {
     return MangaListFilters(
       favoritesOnly: favoritesOnly ?? this.favoritesOnly,
-      categoryId: clearCategoryId ? null : (categoryId ?? this.categoryId),
       status: clearStatus ? null : (status ?? this.status),
       type: clearType ? null : (type ?? this.type),
       inProgressOnly: inProgressOnly ?? this.inProgressOnly,

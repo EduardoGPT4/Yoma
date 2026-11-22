@@ -10,7 +10,6 @@ import 'package:yomashi/models/favorite_entry.dart';
 import 'package:yomashi/models/library_entry.dart';
 import 'package:yomashi/models/manga.dart';
 import 'package:yomashi/models/reading_progress.dart';
-import 'package:yomashi/providers/categories_provider.dart';
 import 'package:yomashi/providers/chapter_read_provider.dart';
 import 'package:yomashi/providers/density_provider.dart';
 import 'package:yomashi/providers/favorites_provider.dart';
@@ -212,7 +211,6 @@ void main() {
       final library = _Library(),
           favorites = FavoritesProvider(),
           density = DensityProvider(),
-          categories = CategoriesProvider(),
           reads = ChapterReadProvider();
       await favorites.toggle(key: saved.key, title: saved.title);
       await tester.pumpWidget(
@@ -221,7 +219,6 @@ void main() {
             ChangeNotifierProvider<LibraryProvider>.value(value: library),
             ChangeNotifierProvider.value(value: favorites),
             ChangeNotifierProvider.value(value: density),
-            ChangeNotifierProvider.value(value: categories),
             ChangeNotifierProvider.value(value: reads),
           ],
           child: const MaterialApp(home: LibraryScreen()),
@@ -255,7 +252,6 @@ void main() {
       library.dispose();
       favorites.dispose();
       density.dispose();
-      categories.dispose();
       reads.dispose();
     },
   );

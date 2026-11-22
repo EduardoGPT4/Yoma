@@ -35,15 +35,6 @@ extension _OnlineBrowserViews on OnlineBrowserScreenState {
           ),
         );
       },
-      onLongPress: () {
-        unawaited(
-          CategoryAssignSheet.show(
-            context: context,
-            mangaKey: item.url,
-            mangaTitle: item.title,
-          ),
-        );
-      },
       onTap: () => _openDetail(item),
     );
   }
@@ -66,10 +57,15 @@ extension _OnlineBrowserViews on OnlineBrowserScreenState {
     LibraryProvider library,
     String sourceId,
   ) {
+    final seen = <String>{};
     return library
         .getRecentProgress()
         .where(_isRemoteProgress)
         .where((progress) => _matchesActiveSource(progress, sourceId))
+        // El mismo manga leído en dos fuentes aparece una vez, con lo último.
+        .where(
+          (progress) => seen.add(LibraryProvider.titleKey(progress.mangaTitle)),
+        )
         .take(5)
         .toList();
   }

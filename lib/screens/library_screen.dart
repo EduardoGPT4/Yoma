@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../data/library_store.dart';
 import '../models/content_identity.dart';
 import '../models/library_entry.dart';
-import '../providers/categories_provider.dart';
+import '../models/manga_source.dart';
 import '../providers/chapter_read_provider.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/library_provider.dart';
@@ -16,7 +16,6 @@ import '../utils/network_errors.dart';
 import '../utils/preferences.dart';
 import '../utils/time_format.dart';
 import '../utils/title_sanitizer.dart';
-import '../widgets/category_assign_sheet.dart';
 import '../widgets/contextual_tip.dart';
 import '../widgets/continue_reading_section.dart';
 import '../widgets/home_content_layout.dart';
@@ -37,7 +36,11 @@ class _LibraryScreenState extends State<LibraryScreen>
   final _search = TextEditingController();
   LibraryView _view = LibraryView.all;
   bool _adultShelf = false;
-  String? _category;
+
+  /// Filtro «Fuentes descargadas»: `null` muestra todo; [_localFolder] son
+  /// las carpetas sin fuente.
+  String? _source;
+  static const _localFolder = '_local';
   Map<String, String> _links = {};
   List<Map<String, dynamic>> _updates = [];
   String? _opening, _error;
@@ -195,6 +198,13 @@ class _LibraryScreenState extends State<LibraryScreen>
     }
   }
 
+  /// Fuente de la que se descargó; `null` si no está descargado.
+  static String? _downloadedSource(LibraryEntry entry) {
+    final local = entry.local;
+    if (local == null) return null;
+    return OnlineCatalogService.sourceIdForRef(local.sourceUrl) ?? _localFolder;
+  }
+
   bool _matchesView(LibraryEntry entry, LibraryView view) =>
       entry.matches(view, readingStatus: _statuses[entry.key]);
 
@@ -219,7 +229,6 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget build(BuildContext context) {
     final library = context.watch<LibraryProvider>();
     final favorites = context.watch<FavoritesProvider>();
-    final categories = context.watch<CategoriesProvider>();
     final read = context.watch<ChapterReadProvider>();
     final entries = LibraryEntry.combine(
       local: library.mangas,
@@ -227,8 +236,14 @@ class _LibraryScreenState extends State<LibraryScreen>
       progress: library.getRecentProgress(),
       sourceLinks: _links,
     ).where((entry) => _isHitomiEntry(entry) == _adultShelf).toList();
-    final recent = entries.where((e) => e.progress != null).toList()
-      ..sort((a, b) => b.progress!.updatedAt.compareTo(a.progress!.updatedAt));
+    final seenTitles = <String>{};
+    final recent =
+        (entries.where((e) => e.progress != null).toList()..sort(
+              (a, b) => b.progress!.updatedAt.compareTo(a.progress!.updatedAt),
+            ))
+            // El mismo manga leído en dos fuentes aparece una vez.
+            .where((e) => seenTitles.add(LibraryProvider.titleKey(e.title)))
+            .toList();
     final visible = entries
         .where(
           (e) =>
@@ -236,12 +251,17 @@ class _LibraryScreenState extends State<LibraryScreen>
               TitleSanitizer.clean(
                 e.title,
               ).toLowerCase().contains(_search.text.trim().toLowerCase()) &&
-              (_category == null ||
-                  e.references.any(
-                    (key) => categories.isMangaInCategory(_category!, key),
-                  )),
+              (_source == null || _downloadedSource(e) == _source),
         )
         .toList();
+    // Fuentes de las que hay mangas descargados, con cuántos de cada una.
+    final downloadedSources = <String, int>{};
+    for (final entry in entries) {
+      final source = _downloadedSource(entry);
+      if (source != null) {
+        downloadedSources[source] = (downloadedSources[source] ?? 0) + 1;
+      }
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Biblioteca'),
@@ -328,30 +348,49 @@ class _LibraryScreenState extends State<LibraryScreen>
                           ),
                       ],
                     ),
-                    if (categories.categories.isNotEmpty)
+                    if (downloadedSources.isNotEmpty)
                       DropdownButton<String>(
                         isExpanded: true,
-                        value: categories.categoryById(_category) != null
-                            ? _category
+                        value: downloadedSources.containsKey(_source)
+                            ? _source
                             : null,
-                        hint: const Text('Todas las categorías'),
+                        hint: const Text('Fuentes descargadas'),
                         items: [
                           const DropdownMenuItem(
                             value: null,
-                            child: Text('Todas las categorías'),
+                            child: Text('Fuentes descargadas'),
                           ),
-                          for (final category in categories.categories)
+                          for (final source in downloadedSources.entries)
                             DropdownMenuItem(
-                              value: category.id,
-                              child: Text(category.name),
+                              value: source.key,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.circle,
+                                    size: 14,
+                                    color: MangaSources.color(
+                                      source.key == _localFolder
+                                          ? null
+                                          : source.key,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      '${MangaSources.label(source.key == _localFolder ? null : source.key)} (${source.value})',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                         ],
-                        onChanged: (value) => setState(() => _category = value),
+                        onChanged: (value) => setState(() => _source = value),
                       ),
                     const ContextualTip(
                       id: 'library',
                       message:
-                          'Guarda mangas con el corazón para tenerlos aquí sin descargarlos. El menú de cada portada permite organizar categorías.',
+                          'Guarda mangas con el corazón para tenerlos aquí sin descargarlos. Los descargados llevan el color de su fuente.',
                     ),
                     if (_error != null) Text(_error!),
                     const SizedBox(height: 12),
@@ -372,8 +411,10 @@ class _LibraryScreenState extends State<LibraryScreen>
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
               sliver: SliverMangaGrid(
+                sourceLine: visible.any((e) => e.local != null),
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final entry = visible[index];
+                  final source = _downloadedSource(entry);
                   final fresh = _newCount(entry, read);
                   final readingStatus = _statuses[entry.key];
                   final stateLabel = readingStatus == null
@@ -420,12 +461,16 @@ class _LibraryScreenState extends State<LibraryScreen>
                               coverPath: entry.cover,
                             ),
                     ),
-                    onLongPress: () => CategoryAssignSheet.show(
-                      context: context,
-                      mangaKey:
-                          entry.local?.path ?? entry.favorite?.key ?? entry.key,
-                      mangaTitle: entry.title,
-                    ),
+                    sourceLabel: source == null
+                        ? null
+                        : MangaSources.label(
+                            source == _localFolder ? null : source,
+                          ),
+                    sourceColor: source == null
+                        ? null
+                        : MangaSources.color(
+                            source == _localFolder ? null : source,
+                          ),
                   );
                 }, childCount: visible.length),
               ),

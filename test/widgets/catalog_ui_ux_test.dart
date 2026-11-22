@@ -78,10 +78,9 @@ void main() {
     }
   });
 
-  testWidgets('card exposes categories and a 48-point favorite target', (
+  testWidgets('card shows its download source and a 48-point favorite target', (
     tester,
   ) async {
-    var categories = 0;
     var favorites = 0;
     await tester.pumpWidget(
       ChangeNotifierProvider(
@@ -90,13 +89,14 @@ void main() {
           home: Scaffold(
             body: SizedBox(
               width: 150,
-              height: 280,
+              height: 300,
               child: MangaCard(
                 title: 'Manga de prueba',
                 coverPath: null,
                 onTap: () {},
                 onFavoriteToggle: () => favorites++,
-                onLongPress: () => categories++,
+                sourceLabel: 'InManga',
+                sourceColor: const Color(0xFF4CAF50),
               ),
             ),
           ),
@@ -109,11 +109,9 @@ void main() {
     expect(size.height, greaterThanOrEqualTo(48));
     await tester.tap(target);
     expect(favorites, 1);
-    await tester.tap(find.byTooltip('Opciones de Manga de prueba'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Categorías'));
-    await tester.pumpAndSettle();
-    expect(categories, 1);
+    final label = tester.widget<Text>(find.text('InManga'));
+    expect(label.style?.color, const Color(0xFF4CAF50));
+    expect(find.text('Categorías'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

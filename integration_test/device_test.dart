@@ -17,7 +17,6 @@ import 'package:yomashi/models/chapter.dart';
 import 'package:yomashi/models/online_manga.dart';
 import 'package:yomashi/providers/chapter_read_provider.dart';
 import 'package:yomashi/providers/favorites_provider.dart';
-import 'package:yomashi/providers/categories_provider.dart';
 import 'package:yomashi/providers/density_provider.dart';
 import 'package:yomashi/providers/profile_provider.dart';
 import 'package:yomashi/screens/library_screen.dart';
@@ -68,12 +67,10 @@ void main() {
       await prefs.setBool('tip_${id}_v1', true);
     }
     final favorites = FavoritesProvider(),
-        categories = CategoriesProvider(),
         density = DensityProvider(),
         profile = ProfileProvider();
     await PreferencesService.setFavoritesMap({});
     await favorites.load();
-    await categories.load();
     await density.load();
     await profile.load();
     await const AutomationSettings(backups: true).save();
@@ -144,7 +141,6 @@ void main() {
         ChangeNotifierProvider.value(value: settings),
         ChangeNotifierProvider.value(value: reads),
         ChangeNotifierProvider.value(value: favorites),
-        ChangeNotifierProvider.value(value: categories),
         ChangeNotifierProvider.value(value: density),
         ChangeNotifierProvider.value(value: profile),
       ],
@@ -412,7 +408,6 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pump(const Duration(seconds: 1));
       favorites.dispose();
-      categories.dispose();
       density.dispose();
       profile.dispose();
       queue.dispose();

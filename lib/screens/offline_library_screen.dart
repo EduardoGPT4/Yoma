@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import '../models/chapter.dart';
 import '../models/manga.dart';
 import '../models/manga_list_filters.dart';
-import '../providers/categories_provider.dart';
 import '../providers/chapter_read_provider.dart';
 import '../providers/favorites_provider.dart';
 import '../providers/library_provider.dart';
@@ -16,7 +15,6 @@ import '../utils/manga_filter_utils.dart';
 import '../utils/permissions.dart';
 import '../utils/time_format.dart';
 import '../utils/title_sanitizer.dart';
-import '../widgets/category_assign_sheet.dart';
 import '../widgets/continue_reading_section.dart';
 import '../widgets/home_content_layout.dart';
 import '../widgets/manga_card.dart';
@@ -137,7 +135,6 @@ class _OfflineLibraryScreenState extends State<OfflineLibraryScreen> {
     final theme = Theme.of(context);
     final library = context.watch<LibraryProvider>();
     final favorites = context.watch<FavoritesProvider>();
-    final categories = context.watch<CategoriesProvider>();
 
     return StreamBuilder<List<Manga>>(
       stream: library.mangasStream,
@@ -152,7 +149,6 @@ class _OfflineLibraryScreenState extends State<OfflineLibraryScreen> {
           mangas: searched,
           filters: _filters,
           favorites: favorites,
-          categories: categories,
           progressMap: library.progressMap,
           chapterRead: context.read<ChapterReadProvider>(),
         );
@@ -342,15 +338,6 @@ class _MangaGrid extends StatelessWidget {
                 key: manga.path,
                 title: manga.title,
                 coverPath: manga.coverPath,
-              ),
-            );
-          },
-          onLongPress: () {
-            unawaited(
-              CategoryAssignSheet.show(
-                context: context,
-                mangaKey: manga.path,
-                mangaTitle: manga.title,
               ),
             );
           },

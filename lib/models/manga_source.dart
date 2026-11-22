@@ -137,6 +137,40 @@ class MangaSources {
     }
   }
 
+  /// Color propio de cada fuente: nombre y borde de los mangas descargados y
+  /// filtro «Fuentes descargadas» de la Biblioteca. Distintos entre sí y
+  /// legibles sobre el fondo oscuro de Yoma.
+  static Color color(String? id) {
+    switch (id) {
+      case 'inmanga':
+        return const Color(0xFF4CAF50); // verde
+      case 'lectortmo':
+      case 'tmo':
+        return const Color(0xFF42A5F5); // azul
+      case 'zonatmo_to':
+        return const Color(0xFFAB47BC); // morado
+      case 'mangadex':
+        return const Color(0xFFFF9800); // naranja
+      case 'manhwaweb':
+      case 'yupmanga':
+        return const Color(0xFF26C6DA); // cian
+      case 'leercapitulo':
+        return const Color(0xFFFFD54F); // amarillo
+      case 'mangaoni':
+        return const Color(0xFFEF5350); // rojo
+      case 'mangalect':
+        return const Color(0xFFD4E157); // lima
+      case 'hitomi':
+        return const Color(0xFFF48FB1); // rosa
+      default:
+        return const Color(0xFF9E9E9E); // gris: carpeta sin fuente
+    }
+  }
+
+  /// Nombre corto para mostrar bajo el título; `null` es una carpeta propia.
+  static String label(String? id) =>
+      id == null ? 'Carpeta local' : shortLabel(id);
+
   static MangaSource byId(String id) {
     if (id == 'hitomi') return hitomi;
     final normalized = id == 'yupmanga' ? 'manhwaweb' : id;

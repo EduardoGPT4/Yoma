@@ -15,8 +15,12 @@ import '../providers/download_queue_provider.dart';
 import '../providers/library_provider.dart';
 import '../services/online_catalog_service.dart';
 import '../services/mal_reading_sync.dart';
+import '../services/mal_auto_link.dart';
 import '../services/myanimelist_service.dart';
 import '../utils/network_errors.dart';
+import '../models/content_identity.dart';
+import '../models/reading_progress.dart';
+import '../utils/title_sanitizer.dart';
 
 import '../widgets/cached_thumbnail.dart';
 import 'reader_screen.dart';
@@ -76,11 +80,19 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
   void _applyMalReading(OnlineMangaDetail detail) {
     if (!mounted) return;
     final reads = context.read<ChapterReadProvider>();
+    final manga = detail.toOfflineManga();
     unawaited(
       MalReadingSync.shared
-          .apply(detail.toOfflineManga(), detail.chapters, reads)
+          .apply(manga, detail.chapters, reads)
           .catchError((Object error) {
             debugPrint('MAL → YomaShi: $error');
+            return 0;
+          })
+          // Si no está en tu lista de MAL, se busca en todo MAL y se
+          // vincula solo con una coincidencia exacta de nombre.
+          .then((_) => MalAutoLink.shared.run([manga]))
+          .catchError((Object error) {
+            debugPrint('MAL vínculo automático: $error');
             return 0;
           }),
     );
@@ -390,21 +402,72 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
     }
   }
 
-  int _continueChapterIndex(OnlineMangaDetail detail, LibraryProvider library) {
-    final progress = library.getProgress(detail.url);
-    if (progress == null) {
-      return 0;
-    }
+  /// Progreso de esta obra, o del mismo título leído en otra fuente o en
+  /// una descarga.
+  ReadingProgress? _progressOf(
+    OnlineMangaDetail detail,
+    LibraryProvider library,
+  ) => library.progressFor(detail.url, detail.title);
 
-    final index = detail.chapters.indexWhere(
-      (chapter) => chapter.path == progress.chapterPath,
-    );
+  int _progressChapterIndex(OnlineMangaDetail detail, ReadingProgress p) =>
+      LibraryProvider.chapterIndexFor(p, [
+        for (final chapter in detail.chapters)
+          (ref: chapter.path, title: chapter.title),
+      ]);
+
+  int _continueChapterIndex(OnlineMangaDetail detail, LibraryProvider library) {
+    final progress = _progressOf(detail, library);
+    if (progress == null) return 0;
+    final index = _progressChapterIndex(detail, progress);
     return index < 0 ? 0 : index;
   }
 
   int _continuePageIndex(OnlineMangaDetail detail, LibraryProvider library) {
-    final progress = library.getProgress(detail.url);
+    final progress = _progressOf(detail, library);
     return progress?.pageIndex ?? 0;
+  }
+
+  /// Retoma un progreso guardado en otra fuente: busca el capítulo con el
+  /// mismo número, cargando más capítulos si aún no aparece.
+  Future<void> _resumeFromOtherSource(
+    OnlineMangaDetail detail,
+    ReadingProgress progress,
+  ) async {
+    if (_loadingMoreChapters) return;
+    setState(() => _loadingMoreChapters = true);
+    try {
+      var next = detail;
+      var index = _progressChapterIndex(next, progress);
+      while (index < 0 && next.hasMoreChapters) {
+        next = await OnlineCatalogService.loadMoreChapters(next);
+        index = _progressChapterIndex(next, progress);
+      }
+      if (!mounted) return;
+      if (!identical(next, detail)) {
+        setState(() => _detailFuture = Future.value(next));
+        _applyMalReading(next);
+      }
+      if (index < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Esta fuente no tiene ${TitleSanitizer.chapterLabel(progress.chapterTitle)}; se abre el primero.',
+            ),
+          ),
+        );
+        _openReader(next, 0);
+      } else {
+        _openReader(next, index, pageIndex: progress.pageIndex);
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(NetworkErrors.friendly(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMoreChapters = false);
+    }
   }
 
   @override
@@ -440,7 +503,14 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
 
           final library = context.watch<LibraryProvider>();
           final chapterRead = context.watch<ChapterReadProvider>();
-          final progress = library.getProgress(detail.url);
+          final progress = _progressOf(detail, library);
+          final sameSource =
+              progress != null &&
+              ContentIdentity.canonical(progress.mangaPath) ==
+                  ContentIdentity.canonical(detail.url);
+          final currentIndex = progress == null
+              ? -1
+              : _progressChapterIndex(detail, progress);
 
           final continuePage = _continuePageIndex(detail, library);
           final description =
@@ -572,13 +642,17 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                         onRead: detail.chapters.isEmpty
                             ? null
                             : () {
-                                if (progress != null) {
+                                if (progress != null && sameSource) {
                                   unawaited(
                                     _resumeReader(
                                       detail,
                                       progress.chapterPath,
                                       continuePage,
                                     ),
+                                  );
+                                } else if (progress != null) {
+                                  unawaited(
+                                    _resumeFromOtherSource(detail, progress),
                                   );
                                 } else {
                                   _openReader(detail, 0);
@@ -861,7 +935,7 @@ class _OnlineMangaDetailScreenState extends State<OnlineMangaDetailScreen> {
                     ),
                     itemBuilder: (context, index) {
                       final chapter = detail.chapters[index];
-                      final isCurrent = progress?.chapterPath == chapter.path;
+                      final isCurrent = index == currentIndex;
                       final isRead = chapterRead.isRead(chapter.path);
                       final selected = _selectedChapters.contains(index);
 

@@ -452,8 +452,28 @@ void main() {
       await tester.ensureVisible(find.text('Berserk'));
       await tester.tap(find.text('Berserk'));
       await tester.pumpAndSettle();
-      expect(find.text('Estado de lectura'), findsOneWidget);
-      expect(find.text('Capítulos leídos'), findsOneWidget);
+      // El manga elegido se revisa en una ventana emergente, sin desplazarse.
+      expect(find.byType(AlertDialog), findsOneWidget);
+      final dialog = find.byType(AlertDialog);
+      expect(
+        find.descendant(of: dialog, matching: find.text('Estado de lectura')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: dialog, matching: find.text('Capítulos leídos')),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Confirmar vínculo'));
+      await tester.runAsync(() async {
+        for (var i = 0; i < 50 && await service.linkFor(manga) == null; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      });
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      final link = await tester.runAsync(() => service.linkFor(manga));
+      expect(link?['malId'], selected.id);
+      expect(link?['automatic'], true);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

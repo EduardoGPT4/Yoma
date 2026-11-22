@@ -26,7 +26,6 @@ import '../utils/title_sanitizer.dart';
 import '../design/yoma_components.dart';
 import '../design/yoma_tokens.dart';
 import '../widgets/app_metrics.dart';
-import '../widgets/category_assign_sheet.dart';
 import '../widgets/contextual_tip.dart';
 import '../widgets/continue_reading_section.dart';
 import '../widgets/home_content_layout.dart';
