@@ -7,6 +7,7 @@ import 'anime_episode_watch.dart';
 import 'anime_local_store.dart';
 import 'anime_mal_client.dart';
 import 'anime_mal_shelf.dart';
+import 'anime_similar.dart';
 import 'local_anime_downloads.dart';
 import 'anime_sync.dart';
 import '../../../services/manga_sync.dart';
@@ -14,6 +15,7 @@ import 'yomatv_source.dart';
 
 part 'anime_controller_mal.dart';
 part 'anime_controller_watching.dart';
+part 'anime_controller_similar.dart';
 
 class AnimeController extends ChangeNotifier {
   final AnimeMalClient mal;
@@ -185,6 +187,10 @@ class AnimeController extends ChangeNotifier {
   final List<AnimeTitle> catalogItems = [];
   final Map<String, Map<String, dynamic>> saved = {}, positions = {};
   final Map<String, AnimeDetail> details = {};
+
+  /// Animes similares ya buscados en esta sesión, por slug (ver
+  /// [AnimeControllerSimilar.similar]).
+  final Map<String, Future<List<AnimeTitle>>> _similar = {};
   List<AnimeDownload> downloads = [];
   Map<String, dynamic> settings = {};
   String query = '',

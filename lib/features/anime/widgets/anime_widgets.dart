@@ -118,7 +118,10 @@ class AnimeCard extends StatelessWidget {
               Text(
                 [
                   if (anime.year.isNotEmpty) anime.year,
-                  if (anime.episodes > 0) '${anime.episodes} episodios',
+                  if (anime.episodes > 0)
+                    anime.episodes == 1
+                        ? '1 episodio'
+                        : '${anime.episodes} episodios',
                 ].join(' · '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

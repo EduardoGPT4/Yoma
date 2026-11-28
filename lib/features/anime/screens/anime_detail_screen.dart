@@ -162,7 +162,7 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                     YomaSpacing.lg,
                     YomaSpacing.md,
                     YomaSpacing.lg,
-                    YomaSpacing.xl,
+                    0,
                   ),
                   sliver: SliverList.list(
                     children: [
@@ -288,6 +288,26 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                               .toList(),
                         ),
                       ],
+                    ],
+                  ),
+                ),
+                // Fila de borde a borde, como los estantes de Inicio.
+                SliverToBoxAdapter(
+                  child: _SimilarAnime(
+                    controller: app,
+                    detail: detail,
+                    open: widget.openSeason,
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                    YomaSpacing.lg,
+                    0,
+                    YomaSpacing.lg,
+                    YomaSpacing.xl,
+                  ),
+                  sliver: SliverList.list(
+                    children: [
                       const SizedBox(height: 24),
                       Row(
                         children: [
@@ -326,6 +346,9 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                           Expanded(
                             child: DropdownButtonFormField<String>(
                               initialValue: _language,
+                              // Con fuentes anchas o texto grande el idioma
+                              // se recorta en vez de desbordarse.
+                              isExpanded: true,
                               decoration: const InputDecoration(
                                 labelText: 'Idioma para descargas',
                               ),
@@ -333,7 +356,10 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
                                   .map(
                                     (s) => DropdownMenuItem(
                                       value: s,
-                                      child: Text(animeLanguageLabel(s)),
+                                      child: Text(
+                                        animeLanguageLabel(s),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                   )
                                   .toList(),
@@ -434,6 +460,81 @@ class _AnimeDetailScreenState extends State<AnimeDetailScreen> {
         );
       },
     ),
+  );
+}
+
+/// «Animes similares»: fila de tarjetas con los animes de nombre parecido
+/// (ver [AnimeControllerSimilar.similar]). Sin ninguno no ocupa espacio.
+class _SimilarAnime extends StatefulWidget {
+  final AnimeController controller;
+  final AnimeDetail detail;
+  final ValueChanged<String> open;
+  const _SimilarAnime({
+    required this.controller,
+    required this.detail,
+    required this.open,
+  });
+  @override
+  State<_SimilarAnime> createState() => _SimilarAnimeState();
+}
+
+class _SimilarAnimeState extends State<_SimilarAnime> {
+  late Future<List<AnimeTitle>> _items = widget.controller.similar(
+    widget.detail,
+  );
+
+  @override
+  void didUpdateWidget(covariant _SimilarAnime old) {
+    super.didUpdateWidget(old);
+    // Una ficha actualizada puede traer otras temporadas que excluir.
+    if (!identical(old.detail, widget.detail)) {
+      _items = widget.controller.similar(widget.detail);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<AnimeTitle>>(
+    future: _items,
+    builder: (context, snapshot) {
+      final items = snapshot.data ?? const <AnimeTitle>[];
+      if (items.isEmpty) return const SizedBox.shrink();
+      final app = widget.controller;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              YomaSpacing.lg,
+              24,
+              YomaSpacing.lg,
+              8,
+            ),
+            child: Text(
+              'Animes similares',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+          ),
+          SizedBox(
+            height: 260,
+            child: ListView.separated(
+              key: PageStorageKey('anime-similar:${widget.detail.anime.slug}'),
+              padding: const EdgeInsets.symmetric(horizontal: YomaSpacing.lg),
+              scrollDirection: Axis.horizontal,
+              itemCount: items.length,
+              separatorBuilder: (_, _) => const SizedBox(width: YomaSpacing.md),
+              itemBuilder: (_, i) => SizedBox(
+                width: 145,
+                child: AnimeCard(
+                  anime: items[i],
+                  onTap: () => widget.open(items[i].slug),
+                  favorite: app.isFavorite(items[i].slug),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    },
   );
 }
 

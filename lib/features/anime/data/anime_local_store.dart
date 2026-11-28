@@ -21,6 +21,9 @@ class AnimeLocalStore {
     if (key.startsWith('catalog:')) {
       await (await database()).pruneRecords('anime_cache', 'catalog:', 40);
     }
+    if (key.startsWith('similar:')) {
+      await (await database()).pruneRecords('anime_cache', 'similar:', 60);
+    }
   }
 
   Future<void> _put(String ns, String key, Map<String, dynamic> value) async =>
