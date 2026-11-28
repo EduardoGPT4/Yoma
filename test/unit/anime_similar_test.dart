@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -204,16 +201,59 @@ void main() {
       expect(AnimeSimilarity.queries(_anime('Naruto Movie 2')), ['naruto']);
     });
 
-    test('con el índice real de YomaTV agrupa la franquicia primero', () {
-      final items =
-          (jsonDecode(
-                    File(
-                      'docs/yoma/source-audit/catalog-public.json',
-                    ).readAsStringSync(),
-                  )['items']
-                  as List)
-              .map((e) => AnimeTitle.fromJson(animeMap(e)))
-              .toList();
+    test('con títulos reales de YomaTV agrupa la franquicia primero', () {
+      // Extracto de docs/yoma/source-audit/catalog-public.json (no está en
+      // Git): las franquicias de la prueba y las obras que comparten con
+      // ellas coletillas o tratamientos.
+      final items = [
+        for (final (category, title) in [
+          ('TV Anime', 'A-Channel'),
+          ('OVA', 'A-Channel+smile'),
+          ('TV Anime', 'Beastars'),
+          ('TV Anime', 'Beastars 2nd Season'),
+          ('ONA', 'Beastars Final Season'),
+          ('ONA', 'Beastars Final Season Part 2'),
+          ('TV Anime', 'Dorohedoro'),
+          ('TV Anime', 'Dorohedoro: Ma no Omake'),
+          ('ONA', 'Dorohedoro Season 2'),
+          ('ONA', 'Hanma Baki vs. Kengan Ashura'),
+          ('TV Anime', 'Kaginado'),
+          ('TV Anime', 'Kaginado Season 2'),
+          ('ONA', 'Kengan Ashura'),
+          ('ONA', 'Kengan Ashura Part 2'),
+          ('ONA', 'Kengan Ashura Season 2'),
+          ('ONA', 'Kengan Ashura Season 2 Part 2'),
+          ('TV Anime', 'Sasaki to Miyano'),
+          (
+            'OVA',
+            'Sasaki to Miyano: Koi ni Kizuku Mae no Chotto Shita Hanashi.',
+          ),
+          ('Película', 'Sasaki to Miyano Movie: Sotsugyou-hen'),
+          ('TV Anime', 'Sasaki to Pii-chan'),
+          ('TV Anime', 'Sasaki to Pii-chan Season 2'),
+          ('TV Anime', 'Shingeki no Bahamut: Genesis'),
+          ('TV Anime', 'Shingeki no Bahamut: Virgin Soul'),
+          ('TV Anime', 'Shingeki no Kyojin'),
+          ('OVA', 'Shingeki no Kyojin: Kuinaki Sentaku'),
+          ('OVA', 'Shingeki no Kyojin: Lost Girls'),
+          (
+            'Película',
+            'Shingeki no Kyojin Movie: Kanketsu-hen - The Last Attack',
+          ),
+          ('OVA', 'Shingeki no Kyojin OVA'),
+          ('TV Anime', 'Shingeki no Kyojin Season 2'),
+          ('TV Anime', 'Shingeki no Kyojin Season 3'),
+          ('TV Anime', 'Shingeki no Kyojin Season 3 Part 2'),
+          ('TV Anime', 'Shingeki no Kyojin: The Final Season'),
+          ('Especial', 'Shingeki no Kyojin: The Final Season - Kanketsu-hen'),
+          ('TV Anime', 'Shingeki no Kyojin: The Final Season Part 2'),
+        ])
+          AnimeTitle.fromJson({
+            'slug': AnimeSimilarity.normalize(title).replaceAll(' ', '-'),
+            'title': title,
+            'category': category,
+          }),
+      ];
       AnimeTitle find(String title) =>
           items.firstWhere((a) => a.title == title);
 
